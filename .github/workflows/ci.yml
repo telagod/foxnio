@@ -15,6 +15,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       
@@ -34,6 +37,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: lint
+    defaults:
+      run:
+        working-directory: backend
     
     services:
       postgres:
@@ -81,7 +87,7 @@ jobs:
       - name: Cache target directory
         uses: actions/cache@v3
         with:
-          path: target
+          path: backend/target
           key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Run tests
@@ -95,6 +101,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: test
+    defaults:
+      run:
+        working-directory: backend
     
     steps:
       - uses: actions/checkout@v4
@@ -109,13 +118,60 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: foxnio-backend
-          path: target/release/foxnio-backend
+          path: backend/target/release/foxnio-backend
 
-  # Docker 镜像
+  # 前端构建
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Run tests
+        run: npm test
+
+  # 安全审计
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      
+      - name: Run security audit
+        run: cargo audit
+
+  # Docker 镜像构建（仅在 main 分支）
   docker:
     name: Docker
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -125,12 +181,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
       
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       
-      - name: Build and push backend
+      - name: Build backend image
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -139,7 +197,8 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/foxnio-backend:latest
             ${{ secrets.DOCKER_USERNAME }}/foxnio-backend:${{ github.sha }}
       
-      - name: Build and push frontend
+      - name: Build frontend image
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -147,37 +206,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/foxnio-frontend:latest
             ${{ secrets.DOCKER_USERNAME }}/foxnio-frontend:${{ github.sha }}
-
-  # 部署到生产环境
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Deploy to production
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          script: |
-            cd /opt/foxnio
-            docker-compose pull
-            docker-compose up -d
-            docker system prune -af
-
-  # 安全审计
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Run security audit
-        run: cargo audit
