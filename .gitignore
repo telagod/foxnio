@@ -1,0 +1,55 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 依赖
+node_modules/
+target/
+vendor/
+
+# 构建产物
+dist/
+build/
+*.o
+*.so
+*.exe
+*.dll
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志
+*.log
+logs/
+
+# 测试
+coverage/
+.nyc_output/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 敏感信息
+*.pem
+*.key
+*.crt
+secrets/
+
+# 原项目参考（不提交）
+sub2api-original/
+sub2api-original/

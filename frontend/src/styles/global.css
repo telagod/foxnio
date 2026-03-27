@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 液态玻璃效果 */
+@layer components {
+  .glass {
+    @apply backdrop-blur-glass bg-white/70 dark:bg-black/40 border border-white/20 dark:border-white/10;
+  }
+  
+  .glass-card {
+    @apply glass rounded-2xl shadow-lg shadow-black/5 dark:shadow-black/20;
+  }
+  
+  .glass-button {
+    @apply glass px-4 py-2 rounded-xl font-medium transition-all duration-200;
+    @apply hover:bg-white/80 dark:hover:bg-white/10;
+    @apply active:scale-[0.98];
+  }
+  
+  .glass-input {
+    @apply glass px-4 py-3 rounded-xl outline-none;
+    @apply focus:ring-2 focus:ring-brand-primary/50;
+    @apply bg-white/50 dark:bg-black/20;
+  }
+}
+
+/* 深浅色切换动画 */
+:root {
+  --transition-theme: background-color 0.3s ease, color 0.3s ease;
+}
+
+html {
+  transition: var(--transition-theme);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-600;
+}
+
+/* 选中文本样式 */
+::selection {
+  @apply bg-brand-primary/30;
+}
+
+/* 基础布局 */
+body {
+  @apply bg-light-bg dark:bg-dark-bg text-gray-900 dark:text-gray-100;
+  @apply font-sans antialiased;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}

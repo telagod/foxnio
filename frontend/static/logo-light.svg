@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- FoxNIO Logo - Light Mode (Dark fox on light background) -->
+  <!-- 极简几何狐狸 - foxnio 黑白版 三角形T字镂空 -->
+
+  <!-- 整体轮廓：耳朵+脸部合并为单一路径避免缝隙 -->
+  <path d="M32 12 L18 45 L50 88 L82 45 L68 12 L58 45 L42 45 Z" fill="#1a1a1a"/>
+
+  <!-- T字镂空：横向钝角等腰三角形 -->
+  <path d="M26 48 L74 48 L50 56 Z" fill="#ffffff"/>
+
+  <!-- 竖向锐角等腰三角形（更锐，与上方分离） -->
+  <path d="M46 58 L54 58 L50 82 Z" fill="#ffffff"/>
+</svg>
