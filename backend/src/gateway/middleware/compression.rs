@@ -50,9 +50,9 @@ impl Default for CompressionLevel {
 impl From<CompressionLevel> for GzCompression {
     fn from(level: CompressionLevel) -> Self {
         match level {
-            CompressionLevel::Fast => GzCompression::Fast,
-            CompressionLevel::Default => GzCompression::Default,
-            CompressionLevel::Best => GzCompression::Best,
+            CompressionLevel::Fast => GzCompression::fast(),
+            CompressionLevel::Default => GzCompression::default(),
+            CompressionLevel::Best => GzCompression::best(),
         }
     }
 }
@@ -109,7 +109,7 @@ impl std::str::FromStr for ContentEncoding {
 }
 
 /// 压缩响应包装器
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompressedResponse {
     /// 压缩后的响应体
     pub body: Bytes,

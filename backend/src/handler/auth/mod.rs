@@ -222,13 +222,19 @@ pub async fn login(
         })?;
 
     match response {
-        crate::service::user::LoginResponse::Success { user, token_pair } => {
+        crate::service::user::LoginResponse::Success {
+            user,
+            access_token,
+            refresh_token,
+            access_token_expires_in,
+            refresh_token_expires_in,
+        } => {
             Ok(Json(AuthResponse {
-                access_token: Some(token_pair.access_token),
-                refresh_token: Some(token_pair.refresh_token),
+                access_token: Some(access_token),
+                refresh_token: Some(refresh_token),
                 token_type: "Bearer".to_string(),
-                expires_in: Some(token_pair.access_token_expires_in),
-                refresh_expires_in: Some(token_pair.refresh_token_expires_in),
+                expires_in: Some(access_token_expires_in),
+                refresh_expires_in: Some(refresh_token_expires_in),
                 user: Some(UserInfo {
                     id: user.id.to_string(),
                     email: user.email,

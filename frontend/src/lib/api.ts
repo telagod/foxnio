@@ -119,6 +119,44 @@ class ApiClient {
   async listAccounts(): Promise<{ data: Account[] }> {
     return this.request('/api/v1/admin/accounts');
   }
+
+  // Alerts
+  async listAlertRules(): Promise<{ rules: AlertRule[] }> {
+    return this.request('/api/v1/alerts/rules');
+  }
+
+  async createAlertRule(rule: Partial<AlertRule>): Promise<AlertRule> {
+    return this.request('/api/v1/alerts/rules', {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    });
+  }
+
+  async updateAlertRule(id: string, rule: Partial<AlertRule>): Promise<AlertRule> {
+    return this.request(`/api/v1/alerts/rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(rule),
+    });
+  }
+
+  async deleteAlertRule(id: string): Promise<void> {
+    return this.request(`/api/v1/alerts/rules/${id}`, {
+      method: 'DELETE',
+    });
+  }
+}
+
+export interface AlertRule {
+  id: string;
+  name: string;
+  type: 'usage' | 'balance' | 'error_rate' | 'latency';
+  threshold: number;
+  operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte';
+  duration_minutes: number;
+  channels: ('email' | 'webhook' | 'slack')[];
+  enabled: boolean;
+  created_at: string;
+  last_triggered_at: string | null;
 }
 
 export const api = new ApiClient();

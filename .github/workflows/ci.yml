@@ -9,15 +9,17 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 1
 
 jobs:
-  # 代码检查
-  lint:
-    name: Lint
+  # 后端代码检查
+  lint-backend:
+    name: Lint Backend
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -26,17 +28,55 @@ jobs:
         with:
           components: rustfmt, clippy
       
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+      
       - name: Check formatting
         run: cargo fmt -- --check
       
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-  # 单元测试
-  test:
-    name: Test
+  # 前端代码检查
+  lint-frontend:
+    name: Lint Frontend
     runs-on: ubuntu-latest
-    needs: lint
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting
+        run: npm run lint
+      
+      - name: Type check
+        run: npm run check
+
+  # 后端测试（带覆盖率）
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    needs: lint-backend
     defaults:
       run:
         working-directory: backend
@@ -71,59 +111,49 @@ jobs:
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache cargo registry
-        uses: actions/cache@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          components: llvm-tools-preview
       
-      - name: Cache cargo index
-        uses: actions/cache@v3
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
         with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
       
-      - name: Cache target directory
-        uses: actions/cache@v3
-        with:
-          path: backend/target
-          key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       
-      - name: Run tests
+      - name: Generate coverage report
         env:
           DATABASE_URL: postgres://foxnio:foxnio@localhost:5432/foxnio_test
           REDIS_URL: redis://localhost:6379
-        run: cargo test --verbose
-
-  # 构建
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: test
-    defaults:
-      run:
-        working-directory: backend
-    
-    steps:
-      - uses: actions/checkout@v4
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
       
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Build
-        run: cargo build --release --verbose
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         with:
-          name: foxnio-backend
-          path: backend/target/release/foxnio
+          files: backend/lcov.info
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/lcov.info
 
-  # 前端构建
-  frontend:
-    name: Frontend
+  # 前端测试（带覆盖率）
+  test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
+    needs: lint-frontend
     defaults:
       run:
         working-directory: frontend
@@ -135,20 +165,87 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       
-      - name: Build
-        run: npm run build
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/lcov.info
+
+  # 构建
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+      
+      - name: Build backend
+        working-directory: backend
+        run: cargo build --release --verbose
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxnio-backend
+          path: backend/target/release/foxnio
+      
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxnio-frontend
+          path: frontend/build
 
   # 安全审计
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
+    needs: [lint-backend, lint-frontend]
     
     steps:
       - uses: actions/checkout@v4
@@ -160,4 +257,47 @@ jobs:
         run: cargo install cargo-audit
       
       - name: Run security audit
+        working-directory: backend
         run: cargo audit
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Run npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
+  # 代码质量检查（并行运行）
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+      
+      - name: Run clippy pedantic
+        working-directory: backend
+        run: cargo clippy --all-targets --all-features -- -W clippy::pedantic -W clippy::nursery
+      
+      - name: Check documentation
+        working-directory: backend
+        run: cargo doc --no-deps

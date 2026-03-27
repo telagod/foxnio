@@ -104,6 +104,10 @@ pub enum Permission {
     SystemConfig,
     /// 查看审计日志
     AuditLogRead,
+    /// 管理员读取权限
+    AdminRead,
+    /// 管理员写入权限
+    AdminWrite,
 
     // ============ 订阅管理权限 ============
     /// 查看订阅
@@ -144,6 +148,8 @@ impl Permission {
             "billing_write" | "billingwrite" => Some(Self::BillingWrite),
             "announcement_read" | "announcementread" => Some(Self::AnnouncementRead),
             "announcement_write" | "announcementwrite" => Some(Self::AnnouncementWrite),
+            "admin_read" | "adminread" => Some(Self::AdminRead),
+            "admin_write" | "adminwrite" => Some(Self::AdminWrite),
             _ => None,
         }
     }
@@ -167,6 +173,8 @@ impl Permission {
             Self::BillingWrite => "billing_write",
             Self::AnnouncementRead => "announcement_read",
             Self::AnnouncementWrite => "announcement_write",
+            Self::AdminRead => "admin_read",
+            Self::AdminWrite => "admin_write",
         }
     }
 
@@ -189,6 +197,8 @@ impl Permission {
             Self::BillingWrite => "管理计费",
             Self::AnnouncementRead => "查看公告",
             Self::AnnouncementWrite => "管理公告",
+            Self::AdminRead => "管理员读取",
+            Self::AdminWrite => "管理员写入",
         }
     }
 
@@ -203,6 +213,7 @@ impl Permission {
             Self::SubscriptionRead | Self::SubscriptionWrite => PermissionGroup::Subscription,
             Self::BillingRead | Self::BillingWrite => PermissionGroup::Billing,
             Self::AnnouncementRead | Self::AnnouncementWrite => PermissionGroup::Announcement,
+            Self::AdminRead | Self::AdminWrite => PermissionGroup::Admin,
         }
     }
 
@@ -225,6 +236,8 @@ impl Permission {
             Self::BillingWrite,
             Self::AnnouncementRead,
             Self::AnnouncementWrite,
+            Self::AdminRead,
+            Self::AdminWrite,
         ]
     }
 }
@@ -247,6 +260,7 @@ pub enum PermissionGroup {
     Subscription,
     Billing,
     Announcement,
+    Admin,
 }
 
 impl PermissionGroup {
@@ -260,6 +274,7 @@ impl PermissionGroup {
             Self::Subscription => "订阅管理",
             Self::Billing => "计费管理",
             Self::Announcement => "公告管理",
+            Self::Admin => "管理员权限",
         }
     }
 }

@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use sea_orm::{
+use sea_orm::{ModelTrait, QueryOrder,
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QuerySelect, Set,
 };

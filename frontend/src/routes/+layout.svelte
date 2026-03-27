@@ -74,7 +74,7 @@
       <button
         class="lg:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 
                hover:bg-gray-100 dark:hover:bg-gray-700 mr-4 transition-colors"
-        on:click={toggleMobileSidebar}
+        onclick={toggleMobileSidebar}
         aria-label="Toggle sidebar"
       >
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,7 +114,7 @@
       <div class="flex items-center gap-2 sm:gap-3">
         <!-- 主题切换 -->
         <button
-          on:click={toggleTheme}
+          onclick={toggleTheme}
           class="p-2 rounded-lg text-gray-600 dark:text-gray-300 
                  hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           aria-label="Toggle theme"

@@ -1,10 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import { describe, it, expect, vi } from 'vitest';
-import Dashboard from '../src/routes/admin/+page.svelte';
-import ApiKeys from '../src/routes/apikeys/+page.svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte/svelte5';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import Dashboard from '../routes/admin/+page.svelte';
+import ApiKeys from '../routes/apikeys/+page.svelte';
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -16,7 +16,9 @@ describe('Dashboard', () => {
 
   it('shows loading state initially', () => {
     render(Dashboard);
-    expect(screen.getByRole('status') || document.querySelector('.animate-spin')).toBeTruthy();
+    // 检查是否有加载指示器
+    const spinner = document.querySelector('.animate-spin');
+    expect(spinner).toBeTruthy();
   });
 
   it('displays stats after loading', async () => {

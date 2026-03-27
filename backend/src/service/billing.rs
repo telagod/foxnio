@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use sea_orm::{
+use sea_orm::{QueryOrder,
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QuerySelect, Set,
 };

@@ -4,6 +4,11 @@
 
 优雅 · 专业 · 克制
 
+[![CI/CD](https://github.com/your-org/foxnio/workflows/FoxNIO%20CI/CD/badge.svg)](https://github.com/your-org/foxnio/actions)
+[![Backend Coverage](https://codecov.io/gh/your-org/foxnio/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/your-org/foxnio)
+[![Frontend Coverage](https://codecov.io/gh/your-org/foxnio/branch/main/graph/badge.svg?flag=frontend)](https://codecov.io/gh/your-org/foxnio)
+[![Security Audit](https://img.shields.io/badge/security-audit-green.svg)](https://github.com/your-org/foxnio/actions)
+
 ## 特性
 
 - 🦀 Rust 高性能实现

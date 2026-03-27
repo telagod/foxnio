@@ -64,7 +64,7 @@ pub async fn request_reset(
         .email
         .as_ref()
         .map(|c| c.reset_url_base.clone())
-        .unwrap_or_else(|| format!("http://localhost:{}", state.config.server.port));
+        .unwrap_or_else(|| "http://localhost:8080".to_string());
 
     // 创建密码重置服务
     let reset_service = PasswordResetService::new(state.db.clone(), email_sender, reset_url_base);

@@ -6,6 +6,7 @@ pub mod alert;
 pub mod cache;
 pub mod config;
 pub mod db;
+pub mod entity;
 pub mod gateway;
 pub mod handler;
 pub mod health;
@@ -13,10 +14,10 @@ pub mod metrics;
 pub mod model;
 pub mod server;
 pub mod service;
+pub mod state;
 pub mod utils;
 
 pub use config::Config;
-pub use gateway::Gateway;
 pub use health::{HealthCheck, HealthChecker, HealthStatus};
 
 // Re-export HTTP/2 configuration types

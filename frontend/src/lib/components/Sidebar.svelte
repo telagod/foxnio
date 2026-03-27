@@ -1,12 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { createEventDispatcher } from 'svelte';
   import { onMount } from 'svelte';
   
-  export let collapsed = false;
-  export let mobileOpen = false;
-  
-  const dispatch = createEventDispatcher();
+  let { collapsed = false, mobileOpen = false }: { collapsed?: boolean; mobileOpen?: boolean } = $props();
   
   // 主题状态
   let isDark = $state(false);
@@ -37,6 +33,7 @@
     { href: '/', label: 'Dashboard', icon: '📊' },
     { href: '/apikeys', label: 'API Keys', icon: '🗝️' },
     { href: '/usage', label: 'Usage', icon: '📈' },
+    { href: '/alerts', label: 'Alerts', icon: '🔔' },
     { href: '/health', label: 'Health', icon: '🏥' },
     { href: '/playground', label: 'Playground', icon: '💬' },
   ];
@@ -58,7 +55,7 @@
 {#if mobileOpen}
   <div 
     class="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden backdrop-blur-sm"
-    on:click={closeMobile}
+    onclick={closeMobile}
     onkeydown={(e) => e.key === 'Escape' && closeMobile()}
     role="button"
     tabindex="0"
@@ -78,7 +75,7 @@
 >
   <!-- Logo -->
   <div class="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
-    <a href="/" class="flex items-center gap-3 group" on:click={closeMobile}>
+    <a href="/" class="flex items-center gap-3 group" onclick={closeMobile}>
       <!-- Logo SVG - 自动切换深浅色 -->
       <div class="w-8 h-8 flex-shrink-0 transition-transform group-hover:scale-110">
         {#if isDark}
@@ -109,7 +106,7 @@
     <!-- 移动端关闭按钮 -->
     <button 
       class="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-      on:click={closeMobile}
+      onclick={closeMobile}
       aria-label="Close sidebar"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +123,7 @@
            hover:border-gray-400 dark:hover:border-gray-600
            hover:text-gray-700 dark:hover:text-gray-200
            transition-all shadow-sm hover:shadow"
-    on:click={() => collapsed = !collapsed}
+    onclick={() => collapsed = !collapsed}
     aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
   >
     <svg class="w-4 h-4 transition-transform duration-300 {collapsed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,7 +143,7 @@
       {#each navItems as item}
         <a
           href={item.href}
-          on:click={closeMobile}
+          onclick={closeMobile}
           class="flex items-center px-3 py-2.5 rounded-lg transition-all group
                  {$page.url.pathname === item.href 
                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 
@@ -172,7 +169,7 @@
       {#each adminItems as item}
         <a
           href={item.href}
-          on:click={closeMobile}
+          onclick={closeMobile}
           class="flex items-center px-3 py-2.5 rounded-lg transition-all group
                  {$page.url.pathname === item.href 
                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 

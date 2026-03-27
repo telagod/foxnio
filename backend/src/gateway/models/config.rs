@@ -3,6 +3,7 @@
 //! 包含各模型的详细配置信息：max_tokens, pricing, context_window 等
 
 use super::{Model, ModelProvider};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -124,7 +125,8 @@ impl From<&ModelConfig> for ModelInfo {
 }
 
 /// 所有模型的配置
-pub static MODEL_CONFIGS: &[(Model, ModelConfig)] = &[
+lazy_static! {
+    pub static ref MODEL_CONFIGS: Vec<(Model, ModelConfig)> = vec![
     // ==================== OpenAI 模型 ====================
     (
         Model::GPT4Turbo,
@@ -568,7 +570,8 @@ pub static MODEL_CONFIGS: &[(Model, ModelConfig)] = &[
             supports_vision: false,
         },
     ),
-];
+    ];
+}
 
 impl ProviderConfig {
     /// 获取所有提供商配置

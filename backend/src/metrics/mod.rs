@@ -479,10 +479,8 @@ impl CircuitBreakerMetrics {
 
 /// 收集所有指标并返回 Prometheus 格式的文本
 pub fn gather_metrics() -> String {
-    use prometheus::Encoder;
-
     let encoder = TextEncoder::new();
-    let metric_families = prometheus::gather();
+    let metric_families = ::prometheus::gather();
 
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
@@ -529,7 +527,7 @@ fn get_counter_sum(counter_vec: &IntCounterVec) -> u64 {
 }
 
 /// 指标摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MetricsSummary {
     pub requests: RequestsSummary,
     pub connections: ConnectionsSummary,
@@ -539,7 +537,7 @@ pub struct MetricsSummary {
 }
 
 /// 请求摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct RequestsSummary {
     pub total: u64,
     pub success: u64,
@@ -547,21 +545,21 @@ pub struct RequestsSummary {
 }
 
 /// 连接摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConnectionsSummary {
     pub active: i64,
     pub websocket: i64,
 }
 
 /// Token 摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct TokensSummary {
     pub input: u64,
     pub output: u64,
 }
 
 /// 缓存摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CacheSummary {
     pub hits: u64,
     pub misses: u64,
@@ -569,7 +567,7 @@ pub struct CacheSummary {
 }
 
 /// 成本摘要
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CostSummary {
     pub total: f64,
 }

@@ -11,7 +11,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::health::{AggregateHealthStatus, HealthChecker};
-use crate::state::SharedState;
+use crate::gateway::SharedState;
 
 /// 简单健康状态
 pub async fn health_simple(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {

@@ -130,12 +130,10 @@
     <section class="glass-card p-6">
       <h2 class="text-xl font-semibold mb-4">快速开始</h2>
       <div class="bg-black/5 dark:bg-white/5 p-4 rounded-xl font-mono text-sm overflow-x-auto">
-        <pre class="text-light-muted dark:text-dark-muted">
-curl https://api.foxnio.io/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "gpt-4-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
-        </pre>
+        <pre class="text-light-muted dark:text-dark-muted">{`curl https://api.foxnio.io/v1/chat/completions \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model": "gpt-4-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'`}</pre>
       </div>
     </section>
   </div>

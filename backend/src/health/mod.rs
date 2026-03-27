@@ -65,6 +65,7 @@ impl HealthStatus {
 }
 
 /// 健康检查接口
+#[async_trait::async_trait]
 pub trait HealthCheck: Send + Sync {
     /// 检查名称
     fn name(&self) -> &str;
@@ -75,7 +76,7 @@ pub trait HealthCheck: Send + Sync {
     }
 
     /// 执行检查
-    fn check(&self) -> impl std::future::Future<Output = Result<HealthStatus>> + Send;
+    async fn check(&self) -> Result<HealthStatus>;
 }
 
 /// 检查结果
@@ -356,6 +357,7 @@ impl PostgresHealthCheck {
     }
 }
 
+#[async_trait::async_trait]
 impl HealthCheck for PostgresHealthCheck {
     fn name(&self) -> &str {
         &self.name
@@ -438,6 +440,7 @@ impl RedisHealthCheck {
     }
 }
 
+#[async_trait::async_trait]
 impl HealthCheck for RedisHealthCheck {
     fn name(&self) -> &str {
         &self.name
@@ -655,6 +658,7 @@ impl Default for SystemResourceHealthCheck {
     }
 }
 
+#[async_trait::async_trait]
 impl HealthCheck for SystemResourceHealthCheck {
     fn name(&self) -> &str {
         &self.name
@@ -804,6 +808,7 @@ mod tests {
         let checker = HealthChecker::new();
 
         struct MockCheck;
+        #[async_trait::async_trait]
         impl HealthCheck for MockCheck {
             fn name(&self) -> &str {
                 "mock"

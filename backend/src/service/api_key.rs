@@ -3,7 +3,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
-use sea_orm::{
+use sea_orm::{ModelTrait, QueryOrder,
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QuerySelect, Set,
 };
@@ -114,7 +114,7 @@ impl ApiKeyService {
             .ok_or_else(|| anyhow::anyhow!("API Key not found"))?;
 
         if api_key.user_id != user_id {
-            bail::anyhow!("Unauthorized");
+            anyhow::bail!("Unauthorized");
         }
 
         let mut api_key: api_keys::ActiveModel = api_key.into();
@@ -154,7 +154,7 @@ impl ApiKeyService {
             .ok_or_else(|| anyhow::anyhow!("API Key not found"))?;
 
         if api_key.user_id != user_id {
-            bail::anyhow!("Unauthorized");
+            anyhow::bail!("Unauthorized");
         }
 
         api_key.delete(&self.db).await?;

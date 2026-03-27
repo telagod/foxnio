@@ -13,7 +13,7 @@ use argon2::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use sea_orm::{
+use sea_orm::{QueryOrder,
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QuerySelect, Set,
 };

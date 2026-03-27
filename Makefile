@@ -66,6 +66,22 @@ test-load: ## 运行负载测试
 	@echo "$(CYAN)运行负载测试...$(NC)"
 	cd backend && cargo test --test load_test -- --ignored
 
+test-coverage: ## 运行测试并生成覆盖率报告
+	@echo "$(CYAN)生成后端覆盖率报告...$(NC)"
+	cd backend && cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+	@echo "$(CYAN)生成前端覆盖率报告...$(NC)"
+	cd frontend && npm run test:coverage
+	@echo "$(GREEN)覆盖率报告已生成$(NC)"
+	@echo "后端: backend/lcov.info"
+	@echo "前端: frontend/coverage/lcov.info"
+
+test-coverage-open: ## 打开覆盖率报告
+	@echo "$(CYAN)打开后端覆盖率报告...$(NC)"
+	cd backend && cargo llvm-cov --open
+	@echo "$(CYAN)打开前端覆盖率报告...$(NC)"
+	cd frontend && npm run test:coverage -- --reporter=html
+	open frontend/coverage/index.html 2>/dev/null || xdg-open frontend/coverage/index.html 2>/dev/null || echo "请手动打开 frontend/coverage/index.html"
+
 ## Docker 命令
 
 docker-build: ## 构建 Docker 镜像

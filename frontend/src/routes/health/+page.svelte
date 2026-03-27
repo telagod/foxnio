@@ -49,7 +49,7 @@
     <div class="bg-white shadow rounded-lg p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold">Overall Status</h2>
-        <span class={getStatusColor(health.status)} class="text-lg font-bold uppercase">
+        <span class="{getStatusColor(health.status)} text-lg font-bold uppercase">
           {health.status}
         </span>
       </div>
@@ -60,7 +60,7 @@
           {#each Object.entries(health.checks) as [name, check]}
             <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
               <span class="font-medium capitalize">{name}</span>
-              <span class={getStatusColor(check.status)} class="text-sm">
+              <span class="{getStatusColor(check.status)} text-sm">
                 {check.status}
               </span>
             </div>

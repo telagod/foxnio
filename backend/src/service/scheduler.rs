@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{AccountService, FailoverManager};
+use super::AccountService;
 use crate::entity::accounts;
+use crate::gateway::FailoverManager;
 
 /// 调度策略
 #[derive(Debug, Clone)]

@@ -9,7 +9,7 @@
 
 use anyhow::{Context, Result};
 use lru::LruCache;
-use redis::{AsyncCommands, Client, ConnectionManager};
+use redis::{aio::ConnectionManager, AsyncCommands, Client};
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -153,6 +153,7 @@ impl CacheEntry {
 }
 
 /// Redis 连接池（增强版）
+#[derive(Clone)]
 pub struct RedisPool {
     client: Arc<Client>,
     connection_manager: Arc<RwLock<Option<ConnectionManager>>>,
@@ -393,7 +394,7 @@ impl RedisPool {
         let mut conn = self.get_connection().await?;
 
         let result: i64 = conn
-            .incr(key)
+            .incr(key, 1)
             .await
             .context("Failed to increment Redis key")?;
 
@@ -405,7 +406,7 @@ impl RedisPool {
         let mut conn = self.get_connection().await?;
 
         let result: i64 = conn
-            .decr(key)
+            .decr(key, 1)
             .await
             .context("Failed to decrement Redis key")?;
 
@@ -492,12 +493,7 @@ impl RedisPool {
     pub async fn mset(&self, items: &[(String, String)]) -> Result<()> {
         let mut conn = self.get_connection().await?;
 
-        let flat_items: Vec<&str> = items
-            .iter()
-            .flat_map(|(k, v)| vec![k.as_str(), v.as_str()])
-            .collect();
-
-        conn.mset(&flat_items)
+        conn.mset(items)
             .await
             .context("Failed to batch set Redis keys")?;
 

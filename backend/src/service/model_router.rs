@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::gateway::models::config::{
-    get_model_config, get_model_info, list_all_models, list_models_by_provider, ModelConfig,
-    ModelInfo, ProviderConfig,
+use crate::gateway::models::{
+    get_model_config, get_model_info, list_all_models, list_models_by_provider, resolve_model_alias,
+    Model, ModelConfig, ModelInfo, ModelProvider, ProviderConfig,
 };
-use crate::gateway::models::{resolve_model_alias, Model, ModelProvider};
 
 /// 模型路由器
+#[derive(Clone)]
 pub struct ModelRouter {
     /// 提供商配置
     providers: HashMap<ModelProvider, ProviderConfig>,
