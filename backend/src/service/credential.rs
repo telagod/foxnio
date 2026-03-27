@@ -133,6 +133,9 @@ impl CredentialService {
 
         let now = Utc::now();
         let id = Uuid::new_v4();
+        
+        // 先计算 expires_at，避免部分移动问题
+        let expires_at = create.calculate_expires_at();
 
         let oauth_token = oauth_tokens::ActiveModel {
             id: Set(id),
@@ -140,7 +143,7 @@ impl CredentialService {
             provider: Set(create.provider),
             access_token: Set(encrypted_access_token),
             refresh_token: Set(encrypted_refresh_token),
-            expires_at: Set(create.calculate_expires_at()),
+            expires_at: Set(expires_at),
             token_type: Set(create.token_type),
             scope: Set(create.scope),
             metadata: Set(create.metadata),

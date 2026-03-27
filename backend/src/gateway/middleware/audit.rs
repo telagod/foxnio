@@ -89,7 +89,7 @@ pub async fn audit_middleware(
 
     // 读取请求体（如果需要）
     let request_data = if audit_config.log_request_body && is_sensitive {
-        let body_bytes = axum::body::to_bytes(req.body_mut(), 1024 * 1024).await.ok();
+        let body_bytes = axum::body::to_bytes(std::mem::take(req.body_mut()), 1024 * 1024).await.ok();
         body_bytes.and_then(|b| serde_json::from_slice(&b).ok())
     } else {
         None
@@ -104,6 +104,8 @@ pub async fn audit_middleware(
     }
 
     // 执行请求
+    // 在移动 req 之前保存 request_id
+    let request_id = req.extensions().get::<String>().cloned();
     let response = next.run(req).await;
 
     // 记录审计日志
@@ -138,10 +140,10 @@ pub async fn audit_middleware(
 
     // 添加审计头
     let mut response = response;
-    if let Some(request_id) = req.extensions().get::<String>() {
+    if let Some(rid) = request_id {
         response
             .headers_mut()
-            .insert("x-audit-id", request_id.parse().unwrap());
+            .insert("x-audit-id", rid.parse().unwrap());
     }
 
     response

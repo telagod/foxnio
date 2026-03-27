@@ -72,13 +72,10 @@ impl EmailChannel {
     /// 格式化 HTML 邮件
     fn format_html(&self, alert: &Alert) -> String {
         let level_color = match alert.level {
-            AlertChannelType::Email => "#17a2b8", // 这个分支不会执行
-            _ => match alert.level {
-                crate::alert::AlertLevel::Info => "#17a2b8",
-                crate::alert::AlertLevel::Warning => "#ffc107",
-                crate::alert::AlertLevel::Error => "#dc3545",
-                crate::alert::AlertLevel::Critical => "#6f42c1",
-            },
+            crate::alert::AlertLevel::Info => "#17a2b8",
+            crate::alert::AlertLevel::Warning => "#ffc107",
+            crate::alert::AlertLevel::Error => "#dc3545",
+            crate::alert::AlertLevel::Critical => "#6f42c1",
         };
 
         let labels_html = if alert.labels.is_empty() {
@@ -158,30 +155,28 @@ impl AlertChannel for EmailChannel {
         };
 
         // 创建 SMTP 传输
-        let transport: AsyncSmtpTransport<Tokio1Executor> = if self.config.use_tls {
+        let transport_result: Result<AsyncSmtpTransport<Tokio1Executor>, String> = if self.config.use_tls {
             AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.config.smtp_host)
-                .map_err(|e| format!("SMTP relay error: {}", e))
-                .and_then(|t| {
+                .map(|t| {
                     t.credentials(lettre::transport::smtp::authentication::Credentials::new(
                         self.config.smtp_user.clone(),
                         self.config.smtp_password.clone(),
                     ))
                     .port(self.config.smtp_port)
                     .build()
-                    .map_err(|e| format!("SMTP build error: {}", e))
                 })
+                .map_err(|e| format!("SMTP relay error: {}", e))
         } else {
-            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.config.smtp_host)
+            Ok(AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.config.smtp_host)
                 .credentials(lettre::transport::smtp::authentication::Credentials::new(
                     self.config.smtp_user.clone(),
                     self.config.smtp_password.clone(),
                 ))
                 .port(self.config.smtp_port)
-                .build()
-                .map_err(|e| format!("SMTP build error: {}", e))
+                .build())
         };
 
-        let transport = match transport {
+        let transport = match transport_result {
             Ok(t) => t,
             Err(e) => return AlertSendResult::failure(AlertChannelType::Email, e),
         };

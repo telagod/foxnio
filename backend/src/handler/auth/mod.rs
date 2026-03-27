@@ -161,7 +161,7 @@ pub async fn register(
 
     let user_service = UserService::with_redis(
         state.db.clone(),
-        state.redis.clone(),
+        std::sync::Arc::clone(&state.redis),
         state.config.jwt.secret.clone(),
         state.config.jwt.expire_hours,
     );
@@ -202,7 +202,7 @@ pub async fn login(
 
     let user_service = UserService::with_redis(
         state.db.clone(),
-        state.redis.clone(),
+        std::sync::Arc::clone(&state.redis),
         state.config.jwt.secret.clone(),
         state.config.jwt.expire_hours,
     );

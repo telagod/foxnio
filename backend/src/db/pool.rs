@@ -119,6 +119,7 @@ pub struct PoolStatus {
 }
 
 /// 动态调整器
+#[derive(Clone)]
 pub struct DynamicAdjuster {
     config: DatabaseConfig,
     last_adjustment: Arc<RwLock<Instant>>,
@@ -166,13 +167,22 @@ impl DynamicAdjuster {
 }
 
 /// 数据库连接池管理器（增强版）
+#[derive(Clone)]
 pub struct DatabasePool {
     pub sea_orm: DatabaseConnection,
     pub sqlx: sqlx::PgPool,
     stats: Arc<ConnectionStats>,
     adjuster: Option<DynamicAdjuster>,
-    health_check_running: AtomicBool,
+    health_check_running: Arc<AtomicBool>,
     config: DatabaseConfig,
+}
+
+impl std::ops::Deref for DatabasePool {
+    type Target = DatabaseConnection;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sea_orm
+    }
 }
 
 impl DatabasePool {
@@ -216,7 +226,7 @@ impl DatabasePool {
             sqlx: sqlx_pool,
             stats,
             adjuster,
-            health_check_running: AtomicBool::new(false),
+            health_check_running: Arc::new(AtomicBool::new(false)),
             config: config.clone(),
         })
     }

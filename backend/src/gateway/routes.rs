@@ -22,8 +22,9 @@ use crate::service::permission::Permission;
 use crate::service::{
     AccountService, ApiKeyService, BillingService, SchedulerService, UserService,
 };
+use crate::state::AppState;
 
-pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> Router {
+pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router {
     let shared_state = Arc::new(state);
 
     // 公开路由

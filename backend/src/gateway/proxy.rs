@@ -59,13 +59,11 @@ impl ProxyClient {
             // HTTP/2 only mode
             builder = builder
                 .http2_initial_stream_window_size(config.initial_stream_window_size)
-                .http2_max_concurrent_streams(config.max_concurrent_streams)
                 .http2_prior_knowledge();
         } else if config.auto_negotiate {
             // Auto negotiate: support both HTTP/1.1 and HTTP/2
             builder = builder
-                .http2_initial_stream_window_size(config.initial_stream_window_size)
-                .http2_max_concurrent_streams(config.max_concurrent_streams);
+                .http2_initial_stream_window_size(config.initial_stream_window_size);
         }
 
         builder.build().expect("Failed to create HTTP client")
@@ -106,7 +104,10 @@ impl ProxyClient {
         let headers = request.headers().clone();
         for (name, value) in headers.iter() {
             if name != "host" && name != "content-length" {
-                req_builder = req_builder.header(name.as_str(), value);
+                // 将 axum 的 HeaderValue 转换为 reqwest 的 HeaderValue
+                if let Ok(reqwest_value) = reqwest::header::HeaderValue::from_bytes(value.as_bytes()) {
+                    req_builder = req_builder.header(name.as_str(), reqwest_value);
+                }
             }
         }
 

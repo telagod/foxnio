@@ -131,7 +131,7 @@ pub async fn refresh(
     // 创建用户服务（带 Redis 支持）
     let user_service = UserService::with_redis(
         state.db.clone(),
-        state.redis.clone(),
+        Arc::clone(&state.redis),
         state.config.jwt.secret.clone(),
         state.config.jwt.expire_hours,
     );
@@ -174,7 +174,7 @@ pub async fn logout(
     // 创建用户服务
     let user_service = UserService::with_redis(
         state.db.clone(),
-        state.redis.clone(),
+        Arc::clone(&state.redis),
         state.config.jwt.secret.clone(),
         state.config.jwt.expire_hours,
     );
@@ -203,7 +203,7 @@ pub async fn logout_all(
     // 创建用户服务
     let user_service = UserService::with_redis(
         state.db.clone(),
-        state.redis.clone(),
+        Arc::clone(&state.redis),
         state.config.jwt.secret.clone(),
         state.config.jwt.expire_hours,
     );

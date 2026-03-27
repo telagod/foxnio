@@ -406,11 +406,12 @@ impl GatewayHandler {
         }
 
         // 发送请求
+        let model_name_owned = model_name.to_string();
         let response = req.body(body.clone()).send().await.map_err(|e| {
             // 标记模型不可用
             let router = self.model_router.clone();
             tokio::spawn(async move {
-                let model = resolve_model_alias(model_name);
+                let model = resolve_model_alias(&model_name_owned);
                 if let Some(m) = model {
                     router.set_model_available(m, false).await;
                 }

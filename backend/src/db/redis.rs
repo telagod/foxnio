@@ -278,11 +278,11 @@ impl RedisPool {
         let mut conn = self.get_connection().await?;
 
         if let Some(ttl) = ttl {
-            conn.set_ex(key, value, ttl.as_secs())
+            conn.set_ex::<_, _, ()>(key, value, ttl.as_secs())
                 .await
                 .context("Failed to set Redis key with TTL")?;
         } else {
-            conn.set(key, value)
+            conn.set::<_, _, ()>(key, value)
                 .await
                 .context("Failed to set Redis key")?;
         }
@@ -493,7 +493,7 @@ impl RedisPool {
     pub async fn mset(&self, items: &[(String, String)]) -> Result<()> {
         let mut conn = self.get_connection().await?;
 
-        conn.mset(items)
+        conn.mset::<_, _, ()>(items)
             .await
             .context("Failed to batch set Redis keys")?;
 

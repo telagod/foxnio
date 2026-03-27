@@ -703,7 +703,7 @@ pub async fn compression_middleware(req: Request<Body>, next: Next) -> Response<
 }
 
 /// 请求解压缩中间件
-pub async fn decompression_middleware(mut req: Request<Body>, next: Next) -> Response<Body> {
+pub async fn decompression_middleware(req: Request<Body>, next: Next) -> Response<Body> {
     let compression_layer = CompressionLayer::new();
 
     // 获取 Content-Encoding
@@ -714,7 +714,7 @@ pub async fn decompression_middleware(mut req: Request<Body>, next: Next) -> Res
     }
 
     // 解压缩请求体
-    let body = req.into_parts().1;
+    let (parts, body) = req.into_parts();
     let body_bytes = match axum::body::to_bytes(body, 1024 * 1024 * 10).await {
         Ok(b) => b,
         Err(_) => {
@@ -736,7 +736,7 @@ pub async fn decompression_middleware(mut req: Request<Body>, next: Next) -> Res
     };
 
     // 更新请求
-    let (mut parts, _) = req.into_parts();
+    let mut parts = parts;
     parts.headers.remove(CONTENT_ENCODING);
     parts
         .headers

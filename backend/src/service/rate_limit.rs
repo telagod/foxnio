@@ -38,6 +38,7 @@ pub struct RateLimitResult {
 }
 
 /// Redis 速率限制器
+#[derive(Clone)]
 pub struct RedisRateLimiter {
     client: Client,
     config: RateLimitConfig,
@@ -68,7 +69,7 @@ impl RedisRateLimiter {
             });
         }
 
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         // 使用 Redis INCR + EXPIRE 实现滑动窗口
         let redis_key = format!("ratelimit:{}", key);
@@ -97,7 +98,7 @@ impl RedisRateLimiter {
 
         // 如果是第一次访问，设置过期时间
         if new_count == 1 {
-            let _: () = conn.expire(&redis_key, self.config.window_seconds).await?;
+            let _: () = conn.expire(&redis_key, self.config.window_seconds as i64).await?;
         }
 
         Ok(RateLimitResult {
@@ -121,7 +122,7 @@ impl RedisRateLimiter {
             });
         }
 
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         // Lua 脚本：原子性地检查和增加计数
         let lua_script = r#"
@@ -178,7 +179,7 @@ impl RedisRateLimiter {
 
     /// 重置速率限制计数器
     pub async fn reset(&self, key: &str) -> Result<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let redis_key = format!("ratelimit:{}", key);
         let _: () = conn.del(&redis_key).await?;
         Ok(())
@@ -186,7 +187,7 @@ impl RedisRateLimiter {
 
     /// 获取当前计数
     pub async fn get_current_count(&self, key: &str) -> Result<u64> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let redis_key = format!("ratelimit:{}", key);
         let count: u64 = conn.get(&redis_key).await.unwrap_or(0);
         Ok(count)

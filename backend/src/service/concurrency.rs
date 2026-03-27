@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{RwLock, Semaphore, SemaphorePermit};
+use tokio::sync::{RwLock, Semaphore, OwnedSemaphorePermit};
 
 /// 并发限制配置
 #[derive(Debug, Clone)]
@@ -31,7 +31,7 @@ impl Default for ConcurrencyConfig {
 
 /// 并发槽位
 pub struct ConcurrencySlot {
-    _permit: SemaphorePermit<'static>,
+    _permit: OwnedSemaphorePermit,
 }
 
 /// 并发控制器
@@ -98,31 +98,31 @@ impl ConcurrencyController {
         api_key_id: &str,
     ) -> Result<Option<ConcurrencySlot>, ConcurrencyError> {
         // 1. 检查全局限制
-        let global_permit = self
+        let _global_permit = self
             .global_semaphore
-            .try_acquire()
+            .clone()
+            .try_acquire_owned()
             .map_err(|_| ConcurrencyError::GlobalLimitReached)?;
 
         // 2. 检查用户限制
         let user_semaphore = self.get_user_semaphore(user_id).await;
-        let user_permit = user_semaphore
-            .try_acquire()
+        let _user_permit = user_semaphore
+            .try_acquire_owned()
             .map_err(|_| ConcurrencyError::UserLimitReached)?;
 
         // 3. 检查账号限制
         let account_semaphore = self.get_account_semaphore(account_id).await;
-        let account_permit = account_semaphore
-            .try_acquire()
+        let _account_permit = account_semaphore
+            .try_acquire_owned()
             .map_err(|_| ConcurrencyError::AccountLimitReached)?;
 
         // 4. 检查 API Key 限制
         let api_key_semaphore = self.get_api_key_semaphore(api_key_id).await;
         let api_key_permit = api_key_semaphore
-            .try_acquire()
+            .try_acquire_owned()
             .map_err(|_| ConcurrencyError::ApiKeyLimitReached)?;
 
         // 所有检查通过，返回槽位
-        // 注意：这里简化处理，实际需要正确管理 permit 的生命周期
         Ok(Some(ConcurrencySlot {
             _permit: api_key_permit,
         }))
@@ -136,27 +136,28 @@ impl ConcurrencyController {
         api_key_id: &str,
     ) -> Result<ConcurrencySlot, ConcurrencyError> {
         // 按顺序获取许可
-        let global_permit = self
+        let _global_permit = self
             .global_semaphore
-            .acquire()
+            .clone()
+            .acquire_owned()
             .await
             .map_err(|_| ConcurrencyError::GlobalLimitReached)?;
 
         let user_semaphore = self.get_user_semaphore(user_id).await;
-        let user_permit = user_semaphore
-            .acquire()
+        let _user_permit = user_semaphore
+            .acquire_owned()
             .await
             .map_err(|_| ConcurrencyError::UserLimitReached)?;
 
         let account_semaphore = self.get_account_semaphore(account_id).await;
-        let account_permit = account_semaphore
-            .acquire()
+        let _account_permit = account_semaphore
+            .acquire_owned()
             .await
             .map_err(|_| ConcurrencyError::AccountLimitReached)?;
 
         let api_key_semaphore = self.get_api_key_semaphore(api_key_id).await;
         let api_key_permit = api_key_semaphore
-            .acquire()
+            .acquire_owned()
             .await
             .map_err(|_| ConcurrencyError::ApiKeyLimitReached)?;
 

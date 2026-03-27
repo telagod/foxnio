@@ -91,7 +91,6 @@ impl CacheStats {
 }
 
 /// 线程安全的 LRU 缓存
-#[derive(Debug)]
 pub struct Cache<K, V> {
     /// LRU 缓存实例
     inner: Arc<RwLock<LruCache<K, CacheEntry<V>>>>,

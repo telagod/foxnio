@@ -69,7 +69,6 @@ impl ModelPricing {
 }
 
 /// 预算状态
-#[derive(Debug, Clone)]
 pub struct BudgetStatus {
     /// 当月已使用（分）
     pub month_used_cents: AtomicU64,
@@ -79,6 +78,17 @@ pub struct BudgetStatus {
     current_day: RwLock<u32>,
     /// 当前月份（用于重置月预算）
     current_month: RwLock<u32>,
+}
+
+impl Clone for BudgetStatus {
+    fn clone(&self) -> Self {
+        Self {
+            month_used_cents: AtomicU64::new(self.month_used_cents.load(Ordering::SeqCst)),
+            day_used_cents: AtomicU64::new(self.day_used_cents.load(Ordering::SeqCst)),
+            current_day: RwLock::new(*self.current_day.blocking_read()),
+            current_month: RwLock::new(*self.current_month.blocking_read()),
+        }
+    }
 }
 
 impl BudgetStatus {

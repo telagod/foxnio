@@ -44,7 +44,8 @@ pub fn init_encryption_service() -> Result<(), EncryptionError> {
 ///
 /// 用于测试或自定义密钥管理场景
 pub fn init_encryption_service_with_key(master_key: &[u8]) -> Result<(), EncryptionError> {
-    let service = EncryptionService::new(master_key)?;
+    let service = EncryptionService::new(master_key)
+        .map_err(|e| EncryptionError::EncryptionFailed(e.to_string()))?;
 
     ENCRYPTION_SERVICE.set(Arc::new(service)).map_err(|_| {
         EncryptionError::EncryptionFailed("Encryption service already initialized".to_string())
@@ -63,7 +64,8 @@ pub fn init_encryption_service_with_rotation(
     master_key: &[u8],
     old_master_key: &[u8],
 ) -> Result<(), EncryptionError> {
-    let service = EncryptionService::with_rotation(master_key, old_master_key)?;
+    let service = EncryptionService::with_rotation(master_key, old_master_key)
+        .map_err(|e| EncryptionError::EncryptionFailed(e.to_string()))?;
 
     ENCRYPTION_SERVICE.set(Arc::new(service)).map_err(|_| {
         EncryptionError::EncryptionFailed("Encryption service already initialized".to_string())

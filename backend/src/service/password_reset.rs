@@ -146,6 +146,9 @@ impl<E: EmailSender> PasswordResetService<E> {
 
         // 更新密码
         let password_hash = self.hash_password(new_password)?;
+        
+        // 保存 email 用于日志
+        let user_email = user.email.clone();
 
         let mut user: users::ActiveModel = user.into();
         user.password_hash = Set(password_hash);
@@ -159,7 +162,7 @@ impl<E: EmailSender> PasswordResetService<E> {
 
         tracing::info!(
             "Password reset successful for user: {}",
-            user.email.unwrap()
+            user_email
         );
 
         Ok(())
@@ -184,7 +187,9 @@ impl<E: EmailSender> PasswordResetService<E> {
     fn hash_password(&self, password: &str) -> Result<String> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+        let hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Password hashing failed: {}", e))?;
         Ok(hash.to_string())
     }
 

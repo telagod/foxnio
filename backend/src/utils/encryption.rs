@@ -289,9 +289,12 @@ impl EncryptionService {
     /// # Returns
     /// 十六进制编码的哈希值
     pub fn hash_sensitive(&self, data: &str) -> Result<String> {
-        use hmac::{Hmac, Mac};
+        use hmac::Mac;
+        use sha2::Sha256;
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.master_key)
+        type HmacSha256 = hmac::Hmac<Sha256>;
+
+        let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.master_key)
             .map_err(|e| EncryptionError::EncryptionFailed(e.to_string()))?;
         mac.update(data.as_bytes());
         let result = mac.finalize();
@@ -425,7 +428,7 @@ impl<'de> serde::Deserialize<'de> for EncryptedString {
 
 impl sea_orm::FromQueryResult for EncryptedString {
     fn from_query_result(res: &sea_orm::QueryResult, col: &str) -> Result<Self, sea_orm::DbErr> {
-        let s: String = res.try_get(col)?;
+        let s: String = res.try_get("", col)?;
         Ok(Self(s))
     }
 }

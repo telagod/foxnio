@@ -25,15 +25,5 @@ pub use scheduler::{
 };
 pub use stream::*;
 
-use crate::config::Config;
-use redis::aio::ConnectionManager;
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
-
-pub struct AppState {
-    pub db: DatabaseConnection,
-    pub redis: ConnectionManager,
-    pub config: Config,
-}
-
-pub type SharedState = Arc<AppState>;
+// 重导出统一的 AppState
+pub use crate::state::{AppState, SharedState};

@@ -4,6 +4,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod alert;
 mod config;
 mod db;
 mod entity;
@@ -13,6 +14,7 @@ mod health;
 mod metrics;
 mod model;
 mod service;
+mod state;
 mod utils;
 
 #[tokio::main]
@@ -47,20 +49,40 @@ async fn main() -> Result<()> {
     });
 
     tracing::info!("🦊 FoxNIO starting...");
-    tracing::info!("Server: {}:{}", config.server.host, config.server.port);
+
+    // 创建数据库配置
+    let db_config = db::pool::DatabaseConfig {
+        url: format!(
+            "postgres://{}:{}@{}:{}/{}",
+            config.database.user,
+            config.database.password,
+            config.database.host,
+            config.database.port,
+            config.database.dbname
+        ),
+        max_connections: config.database.max_connections,
+        ..Default::default()
+    };
 
     // 连接数据库
-    let db = db::connect(&config.database).await?;
+    let db_pool = db::init_database(&db_config).await?;
     tracing::info!("Database connected");
 
-    // 连接 Redis
-    let redis = db::redis_connect(&config.redis).await?;
-    tracing::info!("Redis connected");
+    // 创建 Redis 配置
+    let redis_config = db::redis::RedisConfig {
+        url: format!(
+            "redis://:{}@{}:{}/{}",
+            config.redis.password,
+            config.redis.host,
+            config.redis.port,
+            config.redis.db
+        ),
+        ..Default::default()
+    };
 
-    // 运行数据库迁移
-    tracing::info!("Running migrations...");
-    db::run_migrations(&db).await?;
-    tracing::info!("Migrations completed");
+    // 连接 Redis
+    let redis = db::init_redis(&redis_config).await?;
+    tracing::info!("Redis connected");
 
     // 创建健康检查器
     let health_checker = Arc::new(
@@ -71,7 +93,7 @@ async fn main() -> Result<()> {
 
     // 注册健康检查
     health_checker
-        .register(Box::new(health::PostgresHealthCheck::new(db.sqlx.clone())))
+        .register(Box::new(health::PostgresHealthCheck::new(db_pool.sqlx.clone())))
         .await;
 
     health_checker
@@ -94,16 +116,12 @@ async fn main() -> Result<()> {
 
     // 构建应用
     let app = gateway::build_app(
-        gateway::AppState {
-            db: db.clone(),
-            redis: redis.clone(),
-            config: config.clone(),
-        },
+        state::AppState::new(db_pool.sea_orm.clone(), redis, config.clone()),
         health_checker,
     );
 
     // 启动服务器
-    let addr = format!("{}:{}", config.server.host, config.server.port);
+    let addr = "0.0.0.0:8080";
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     tracing::info!("🦊 FoxNIO listening on {}", addr);

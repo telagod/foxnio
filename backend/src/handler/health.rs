@@ -105,33 +105,25 @@ pub async fn health_resources(
 }
 
 /// 数据库连接池状态
-pub async fn health_database(State(state): State<SharedState>) -> Json<serde_json::Value> {
-    let pool_status = state.db.pool_status();
-
+pub async fn health_database(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+    // 使用 HealthChecker 进行简单的健康检查
+    let status = checker.check_all().await;
+    
     Json(json!({
-        "status": if pool_status.is_closed { "closed" } else { "active" },
-        "pool_size": pool_status.size,
-        "idle_connections": pool_status.num_idle,
-        "reuse_rate": format!("{:.1}%", pool_status.reuse_rate * 100.0),
-        "total_requests": pool_status.total_requests,
-        "leak_warnings": pool_status.leak_warnings,
+        "status": if status.healthy { "active" } else { "unhealthy" },
+        "message": "Database health check",
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }))
 }
 
 /// Redis 状态
-pub async fn health_redis(State(state): State<SharedState>) -> Json<serde_json::Value> {
-    let stats = state.redis.get_stats();
-
+pub async fn health_redis(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+    // 使用 HealthChecker 进行简单的健康检查
+    let status = checker.check_all().await;
+    
     Json(json!({
-        "status": "active",
-        "cache_hit_rate": format!("{:.1}%", stats.cache_hit_rate() * 100.0),
-        "avg_latency_ms": format!("{:.1}", stats.avg_latency_ms()),
-        "total_requests": stats.total_requests.load(std::sync::atomic::Ordering::Relaxed),
-        "cache_hits": stats.cache_hits.load(std::sync::atomic::Ordering::Relaxed),
-        "cache_misses": stats.cache_misses.load(std::sync::atomic::Ordering::Relaxed),
-        "errors": stats.errors.load(std::sync::atomic::Ordering::Relaxed),
-        "retries": stats.retries.load(std::sync::atomic::Ordering::Relaxed),
+        "status": if status.healthy { "active" } else { "unhealthy" },
+        "message": "Redis health check",
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }))
 }
@@ -148,25 +140,13 @@ pub async fn app_info() -> Json<serde_json::Value> {
 }
 
 /// 应用指标
-pub async fn metrics(State(state): State<SharedState>) -> Json<serde_json::Value> {
-    let db_status = state.db.pool_status();
-    let redis_stats = state.redis.get_stats();
+pub async fn metrics(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+    let status = checker.check_all().await;
 
     Json(json!({
-        "database": {
-            "pool_size": db_status.size,
-            "idle_connections": db_status.num_idle,
-            "is_closed": db_status.is_closed,
-            "reuse_rate": db_status.reuse_rate,
-            "total_requests": db_status.total_requests,
-            "leak_warnings": db_status.leak_warnings,
-        },
-        "redis": {
-            "total_requests": redis_stats.total_requests.load(std::sync::atomic::Ordering::Relaxed),
-            "cache_hit_rate": redis_stats.cache_hit_rate(),
-            "avg_latency_ms": redis_stats.avg_latency_ms(),
-            "errors": redis_stats.errors.load(std::sync::atomic::Ordering::Relaxed),
-            "retries": redis_stats.retries.load(std::sync::atomic::Ordering::Relaxed),
+        "health": {
+            "healthy": status.healthy,
+            "checks_count": status.checks.len(),
         },
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }))

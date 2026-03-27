@@ -186,6 +186,7 @@ impl UserService {
             role: user.role,
             status: user.status,
             balance: user.balance,
+            totp_enabled: user.totp_enabled,
             created_at: user.created_at,
         })
     }
@@ -809,13 +810,16 @@ impl UserService {
     fn hash_password(&self, password: &str) -> Result<String> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+        let hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Password hashing failed: {}", e))?;
         Ok(hash.to_string())
     }
 
     /// 验证密码
     fn verify_password(&self, password: &str, hash: &str) -> Result<bool> {
-        let parsed_hash = PasswordHash::new(hash)?;
+        let parsed_hash = PasswordHash::new(hash)
+            .map_err(|e| anyhow::anyhow!("Invalid password hash: {}", e))?;
         let argon2 = Argon2::default();
         Ok(argon2
             .verify_password(password.as_bytes(), &parsed_hash)
@@ -826,13 +830,11 @@ impl UserService {
     pub async fn cleanup_expired_tokens(&self) -> Result<u64> {
         let now = Utc::now();
 
-        let result = sea_orm::EntityTrait::delete_many(
-            refresh_tokens::Entity::find()
-                .filter(refresh_tokens::Column::ExpiresAt.lt(now))
-                .filter(refresh_tokens::Column::Revoked.eq(true)),
-        )
-        .exec(&self.db)
-        .await?;
+        let result = refresh_tokens::Entity::delete_many()
+            .filter(refresh_tokens::Column::ExpiresAt.lt(now))
+            .filter(refresh_tokens::Column::Revoked.eq(true))
+            .exec(&self.db)
+            .await?;
 
         Ok(result.rows_affected)
     }
