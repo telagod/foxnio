@@ -28,6 +28,29 @@ gateway:
   rate_multiplier: 1.0
 
 # ============================================================================
+# Email Configuration
+# ============================================================================
+
+# 邮件服务配置 (用于密码重置等功能)
+email:
+  # SMTP 服务器地址
+  host: "smtp.example.com"
+  # SMTP 端口 (通常 587 用于 STARTTLS, 465 用于 SSL)
+  port: 587
+  # SMTP 用户名
+  user: "noreply@example.com"
+  # SMTP 密码
+  password: "your_smtp_password"
+  # 发件人地址
+  from_address: "noreply@example.com"
+  # 发件人名称
+  from_name: "FoxNIO"
+  # 是否启用邮件发送 (测试环境可设为 false)
+  enabled: false
+  # 密码重置页面 URL 基础路径
+  reset_url_base: "https://your-domain.com"
+
+# ============================================================================
 # HTTP/2 Configuration
 # ============================================================================
 

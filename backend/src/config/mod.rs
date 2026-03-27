@@ -369,6 +369,8 @@ pub struct Config {
     pub http2_client: Http2ClientConfig,
     #[serde(default)]
     pub compression: CompressionConfig,
+    #[serde(default)]
+    pub email: Option<crate::service::email::EmailConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -487,6 +489,7 @@ impl Default for Config {
             tls: None,
             http2_client: Http2ClientConfig::default(),
             compression: CompressionConfig::default(),
+            email: None,
         }
     }
 }

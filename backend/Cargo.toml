@@ -65,6 +65,19 @@ hex = "0.4"
 sha2 = "0.10"
 hmac = "0.2"
 
+# Email
+lettre = { version = "0.11", features = ["tokio1-native-tls"] }
+
+# Encryption
+aes-gcm = "0.10"
+zeroize = { version = "1.7", features = ["derive"] }
+urlencoding = "2.1"
+
+# TOTP Two-Factor Authentication
+totp-lite = "3.1"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+url = "2.5"
+
 # Compression
 flate2 = "1.0"
 brotli = "3.3"

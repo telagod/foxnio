@@ -1,4 +1,6 @@
 //! 路由配置 - 完整实现
+//!
+//! 使用角色权限系统进行路由保护
 
 use axum::{
     routing::{get, post, delete, put},
@@ -16,6 +18,8 @@ use std::sync::Arc;
 
 use super::{SharedState, middleware, handler::GatewayHandler};
 use crate::service::{UserService, ApiKeyService, AccountService, BillingService, SchedulerService};
+use crate::service::permission::Permission;
+use crate::gateway::middleware::permission::check_permission;
 use crate::handler;
 use crate::health::HealthChecker;
 
@@ -42,6 +46,11 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         .route("/api/v1/auth/register", post(handler::auth::register))
         .route("/api/v1/auth/login", post(handler::auth::login))
         
+        // 密码重置
+        .route("/api/v1/auth/password/reset-request", post(handler::auth::password::request_reset))
+        .route("/api/v1/auth/password/verify-token", post(handler::auth::password::verify_token))
+        .route("/api/v1/auth/password/reset", post(handler::auth::password::reset_password))
+        
         // 添加 HealthChecker 状态
         .with_state(health_checker.clone());
     
@@ -64,22 +73,34 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
     
-    // 管理后台路由
+    // 管理后台路由 - 使用权限系统
     let admin_routes = Router::new()
+        // 用户管理 - 需要 UserRead/Write/Delete 权限
         .route("/api/v1/admin/users", get(handler::admin::list_users))
-        .route("/api/v1/admin/users/:id", get(get_user_detail))
-        .route("/api/v1/admin/users/:id/balance", post(update_user_balance))
+        .route("/api/v1/admin/users", post(handler::admin::create_user))
+        .route("/api/v1/admin/users/:id", get(handler::admin::get_user))
+        .route("/api/v1/admin/users/:id", put(handler::admin::update_user))
+        .route("/api/v1/admin/users/:id", delete(handler::admin::delete_user))
+        .route("/api/v1/admin/users/:id/balance", post(handler::admin::update_user_balance))
         
+        // 账号管理 - 需要 AccountRead/Write 权限
         .route("/api/v1/admin/accounts", get(handler::admin::list_accounts))
         .route("/api/v1/admin/accounts", post(handler::admin::add_account))
         .route("/api/v1/admin/accounts/:id", get(get_account_detail))
         .route("/api/v1/admin/accounts/:id", put(update_account))
-        .route("/api/v1/admin/accounts/:id", delete(delete_account))
+        .route("/api/v1/admin/accounts/:id", delete(handler::admin::delete_account_by_id))
         .route("/api/v1/admin/accounts/test", post(test_account))
         
+        // API Key 管理 - 需要 ApiKeyRead 权限
         .route("/api/v1/admin/apikeys", get(handler::admin::list_apikeys))
+        
+        // 统计和监控 - 需要 BillingRead 权限
         .route("/api/v1/admin/stats", get(handler::admin::get_stats))
-        .route("/api/v1/admin/dashboard", get(get_dashboard))
+        .route("/api/v1/admin/dashboard", get(handler::admin::get_dashboard))
+        
+        // 权限管理
+        .route("/api/v1/admin/permissions/matrix", get(handler::admin::get_permission_matrix))
+        .route("/api/v1/admin/roles", get(handler::admin::list_roles))
         
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
     
@@ -318,63 +339,17 @@ async fn update_user_apikey(
     Ok(axum::Json(json!({ "success": true })))
 }
 
-// ============ 管理端点 ============
-
-async fn get_user_detail(
-    Extension(state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
-    
-    // TODO: 实现用户详情
-    Ok(axum::Json(json!({ "id": id })))
-}
-
-async fn update_user_balance(
-    Extension(state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    axum::Json(body): axum::Json<serde_json::Value>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
-    
-    let delta = body.get("delta")
-        .and_then(|v| v.as_i64())
-        .ok_or(handler::ApiError(StatusCode::BAD_REQUEST, "Missing delta".into()))?;
-    
-    let user_id = uuid::Uuid::parse_str(&id)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-    
-    let user_service = UserService::new(
-        state.db.clone(),
-        state.config.jwt.secret.clone(),
-        state.config.jwt.expire_hours,
-    );
-    
-    let new_balance = user_service.update_balance(user_id, delta)
-        .await
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
-    Ok(axum::Json(json!({
-        "success": true,
-        "new_balance": new_balance,
-        "new_balance_yuan": new_balance as f64 / 100.0,
-    })))
-}
+// ============ 管理端点（遗留兼容） ============
 
 async fn get_account_detail(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
+    // 权限检查
+    check_permission(&claims, Permission::AccountRead)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
     
     // TODO: 实现账号详情
     Ok(axum::Json(json!({ "id": id })))
@@ -386,31 +361,12 @@ async fn update_account(
     axum::extract::Path(_id): axum::extract::Path<String>,
     axum::Json(_body): axum::Json<serde_json::Value>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
+    // 权限检查
+    check_permission(&claims, Permission::AccountWrite)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
     
     // TODO: 实现账号更新
-    Ok(axum::Json(json!({ "success": true })))
-}
-
-async fn delete_account(
-    Extension(state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
-    
-    let account_id = uuid::Uuid::parse_str(&id)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-    
-    let account_service = AccountService::new(state.db.clone());
-    account_service.delete(account_id)
-        .await
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
     Ok(axum::Json(json!({ "success": true })))
 }
 
@@ -419,37 +375,11 @@ async fn test_account(
     Extension(claims): Extension<crate::service::user::Claims>,
     axum::Json(_body): axum::Json<serde_json::Value>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
+    // 权限检查
+    check_permission(&claims, Permission::AccountWrite)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
     
     // TODO: 实现账号测试
     Ok(axum::Json(json!({ "success": true, "message": "Account test not yet implemented" })))
-}
-
-async fn get_dashboard(
-    Extension(state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    if claims.role != "admin" {
-        return Err(handler::ApiError(StatusCode::FORBIDDEN, "Admin only".into()));
-    }
-    
-    let billing_service = BillingService::new(
-        state.db.clone(),
-        state.config.gateway.rate_multiplier,
-    );
-    
-    let stats = billing_service.get_global_stats(7)
-        .await
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
-    Ok(axum::Json(json!({
-        "week": {
-            "total_requests": stats.total_requests,
-            "total_input_tokens": stats.total_input_tokens,
-            "total_output_tokens": stats.total_output_tokens,
-            "total_cost": stats.total_cost,
-        }
-    })))
 }
