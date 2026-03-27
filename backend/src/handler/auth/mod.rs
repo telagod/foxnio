@@ -193,7 +193,7 @@ pub async fn register(
     }))
 }
 
-/// 登录（返回 access_token 和 refresh_token）
+/// 登录（返回 access_token 和 refresh_token，支持 TOTP）
 pub async fn login(
     Extension(state): Extension<SharedState>,
     headers: HeaderMap,
@@ -209,7 +209,7 @@ pub async fn login(
         state.config.jwt.expire_hours,
     );
 
-    let (user, token_pair) = user_service.login(&req.email, &req.password, user_agent, ip_address)
+    let response = user_service.login(&req.email, &req.password, user_agent, ip_address)
         .await
         .map_err(|e| {
             let msg = e.to_string();
@@ -222,20 +222,40 @@ pub async fn login(
             }
         })?;
 
-    Ok(Json(AuthResponse {
-        access_token: token_pair.access_token,
-        refresh_token: token_pair.refresh_token,
-        token_type: "Bearer".to_string(),
-        expires_in: token_pair.access_token_expires_in,
-        refresh_expires_in: token_pair.refresh_token_expires_in,
-        user: UserInfo {
-            id: user.id.to_string(),
-            email: user.email,
-            role: user.role,
-            status: user.status,
-            balance: user.balance,
-        },
-    }))
+    match response {
+        crate::service::user::LoginResponse::Success { user, token_pair } => {
+            Ok(Json(AuthResponse {
+                access_token: Some(token_pair.access_token),
+                refresh_token: Some(token_pair.refresh_token),
+                token_type: "Bearer".to_string(),
+                expires_in: Some(token_pair.access_token_expires_in),
+                refresh_expires_in: Some(token_pair.refresh_token_expires_in),
+                user: Some(UserInfo {
+                    id: user.id.to_string(),
+                    email: user.email,
+                    role: user.role,
+                    status: user.status,
+                    balance: user.balance,
+                }),
+                temp_token: None,
+                requires_totp: None,
+                message: None,
+            }))
+        }
+        crate::service::user::LoginResponse::RequiresTotp { temp_token, expires_in, message } => {
+            Ok(Json(AuthResponse {
+                access_token: None,
+                refresh_token: None,
+                token_type: "Bearer".to_string(),
+                expires_in: None,
+                refresh_expires_in: None,
+                user: None,
+                temp_token: Some(temp_token),
+                requires_totp: Some(true),
+                message: Some(message),
+            }))
+        }
+    }
 }
 
 /// 获取当前用户信息

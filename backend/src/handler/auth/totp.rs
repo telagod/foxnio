@@ -4,14 +4,13 @@ use axum::{
     Extension,
     Json,
     http::StatusCode,
-    extract::Path,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::gateway::SharedState;
-use crate::service::{UserService, TotpService};
-use super::ApiError;
+use crate::service::UserService;
+use super::super::ApiError;
 
 // ============================================================================
 // 请求/响应结构体

@@ -6,7 +6,6 @@ use anyhow::{Result, bail};
 use base64::Engine;
 use qrcode::QrCode;
 use rand::RngCore;
-use std::io::Cursor;
 use totp_lite::{totp_custom, Sha1};
 
 /// TOTP 配置
@@ -68,12 +67,14 @@ impl TotpService {
     /// 生成 otpauth:// URL（用于 QR 码）
     /// 格式: otpauth://totp/ISSUER:EMAIL?secret=SECRET&issuer=ISSUER&algorithm=SHA1&digits=6&period=30
     pub fn generate_otpauth_url(&self, email: &str, secret: &str) -> String {
+        let issuer_encoded = url_encode(&self.issuer);
+        let email_encoded = url_encode(email);
         format!(
             "otpauth://totp/{}:{}?secret={}&issuer={}&algorithm=SHA1&digits={}&period={}",
-            urlencoding::encode(&self.issuer),
-            urlencoding::encode(email),
+            issuer_encoded,
+            email_encoded,
             secret,
-            urlencoding::encode(&self.issuer),
+            issuer_encoded,
             TOTP_DIGITS,
             TOTP_PERIOD,
         )
@@ -250,10 +251,22 @@ fn base32_decode(s: &str) -> Option<Vec<u8>> {
 // URL 编码辅助
 // ============================================================================
 
-mod urlencoding {
-    pub fn encode(s: &str) -> String {
-        url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+/// URL 编码（百分号编码）
+fn url_encode(s: &str) -> String {
+    let mut result = String::new();
+    for c in s.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => {
+                result.push(c);
+            }
+            _ => {
+                for byte in c.to_string().as_bytes() {
+                    result.push_str(&format!("%{:02X}", byte));
+                }
+            }
+        }
     }
+    result
 }
 
 // ============================================================================

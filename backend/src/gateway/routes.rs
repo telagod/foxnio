@@ -46,6 +46,10 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         .route("/api/v1/auth/register", post(handler::auth::register))
         .route("/api/v1/auth/login", post(handler::auth::login))
         
+        // TOTP 登录（公开，使用临时 token）
+        .route("/api/v1/auth/totp/login", post(handler::auth::totp_login))
+        .route("/api/v1/auth/totp/backup-login", post(handler::auth::backup_code_login))
+        
         // 密码重置
         .route("/api/v1/auth/password/reset-request", post(handler::auth::password::request_reset))
         .route("/api/v1/auth/password/verify-token", post(handler::auth::password::verify_token))
@@ -62,6 +66,14 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         
         // 用户审计日志
         .route("/api/v1/users/me/audit-logs", get(handler::list_my_audit_logs))
+        
+        // TOTP 两步验证管理
+        .route("/api/v1/auth/totp/enable", post(handler::auth::enable_totp))
+        .route("/api/v1/auth/totp/confirm", post(handler::auth::confirm_enable_totp))
+        .route("/api/v1/auth/totp/disable", post(handler::auth::disable_totp))
+        .route("/api/v1/auth/totp/verify", post(handler::auth::verify_totp))
+        .route("/api/v1/auth/totp/status", get(handler::auth::get_totp_status))
+        .route("/api/v1/auth/totp/backup-codes/regenerate", post(handler::auth::regenerate_backup_codes))
         
         // Chat completions (需要 API Key)
         .route("/v1/chat/completions", post(handle_chat_completions))

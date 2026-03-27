@@ -28,6 +28,8 @@ pub mod password_reset_test;
 pub mod audit;
 pub mod permission;
 pub mod totp;
+#[cfg(test)]
+mod totp_test;
 
 pub use user::{UserService, LoginResponse, TotpStatus, TotpSetupResponse};
 pub use api_key::ApiKeyService;

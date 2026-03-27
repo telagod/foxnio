@@ -514,6 +514,7 @@ impl UserService {
             exp: exp.timestamp(),
             iat: now.timestamp(),
             jti: Some(jti.to_string()),
+            is_temp: false,
         };
 
         let token = encode(
@@ -697,6 +698,7 @@ impl UserService {
             role: u.role,
             status: u.status,
             balance: u.balance,
+            totp_enabled: u.totp_enabled,
             created_at: u.created_at,
         }))
     }
@@ -735,6 +737,7 @@ impl UserService {
             role: u.role,
             status: u.status,
             balance: u.balance,
+            totp_enabled: u.totp_enabled,
             created_at: u.created_at,
         }).collect())
     }
@@ -756,6 +759,7 @@ impl UserService {
             exp: exp.timestamp(),
             iat: now.timestamp(),
             jti: Some(Uuid::new_v4().to_string()),
+            is_temp: false,
         };
 
         let token = encode(
