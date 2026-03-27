@@ -1,0 +1,304 @@
+//! 认证处理器模块 v0.2.0
+//!
+//! 包含：
+//! - 注册和登录
+//! - Token 刷新和登出
+//! - 密码重置
+//! - TOTP 两步验证
+
+pub mod refresh;
+pub mod password;
+pub mod totp;
+
+// 重新导出刷新相关函数
+pub use refresh::{refresh, logout, logout_all};
+
+// 重新导出 TOTP 相关函数
+pub use totp::{
+    enable_totp,
+    confirm_enable_totp,
+    disable_totp,
+    verify_totp,
+    get_totp_status,
+    regenerate_backup_codes,
+    totp_login,
+    backup_code_login,
+};
+
+use axum::{
+    Extension,
+    Json,
+    http::{StatusCode, HeaderMap},
+};
+use serde::{Deserialize, Serialize};
+use crate::gateway::SharedState;
+use crate::service::user::UserService;
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+/// 登录响应（包含 refresh token，支持 TOTP）
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum LoginResponse {
+    /// 直接登录成功（未启用 TOTP）
+    Success {
+        access_token: String,
+        refresh_token: String,
+        token_type: String,
+        expires_in: i64,
+        refresh_expires_in: i64,
+        user: UserInfo,
+    },
+    /// 需要 TOTP 验证
+    RequiresTotp {
+        temp_token: String,
+        expires_in: i64,
+        message: String,
+    },
+}
+
+/// 登录响应（兼容旧接口）
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    pub token_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_expires_in: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<UserInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temp_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_totp: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+/// 注册响应
+#[derive(Debug, Serialize)]
+pub struct RegisterResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub token_type: String,
+    pub expires_in: i64,
+    pub refresh_expires_in: i64,
+    pub user: UserInfo,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserInfo {
+    pub id: String,
+    pub email: String,
+    pub role: String,
+    pub status: String,
+    pub balance: i64,
+}
+
+/// API 错误类型
+#[derive(Debug)]
+pub struct ApiError(pub StatusCode, pub String);
+
+impl axum::response::IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        (self.0, Json(serde_json::json!({ "error": self.1 }))).into_response()
+    }
+}
+
+/// 从请求头提取 User-Agent
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
+
+/// 从请求头提取 IP 地址
+fn extract_ip_address(headers: &HeaderMap) -> Option<String> {
+    if let Some(forwarded) = headers.get("x-forwarded-for") {
+        if let Ok(forwarded_str) = forwarded.to_str() {
+            if let Some(ip) = forwarded_str.split(',').next() {
+                return Some(ip.trim().to_string());
+            }
+        }
+    }
+    
+    if let Some(real_ip) = headers.get("x-real-ip") {
+        if let Ok(ip) = real_ip.to_str() {
+            return Some(ip.to_string());
+        }
+    }
+    
+    None
+}
+
+/// 注册
+pub async fn register(
+    Extension(state): Extension<SharedState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterRequest>,
+) -> Result<Json<RegisterResponse>, ApiError> {
+    if !req.email.contains('@') {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Invalid email".into()));
+    }
+
+    if req.password.len() < 8 {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Password must be at least 8 characters".into()));
+    }
+
+    let user_agent = extract_user_agent(&headers);
+    let ip_address = extract_ip_address(&headers);
+
+    let user_service = UserService::with_redis(
+        state.db.clone(),
+        state.redis.clone(),
+        state.config.jwt.secret.clone(),
+        state.config.jwt.expire_hours,
+    );
+
+    let user = user_service.register(&req.email, &req.password)
+        .await
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let token = user_service.generate_token_for(&user)
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(RegisterResponse {
+        access_token: token,
+        refresh_token: String::new(),
+        token_type: "Bearer".to_string(),
+        expires_in: (state.config.jwt.expire_hours * 3600) as i64,
+        refresh_expires_in: 0,
+        user: UserInfo {
+            id: user.id.to_string(),
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            balance: user.balance,
+        },
+    }))
+}
+
+/// 登录（返回 access_token 和 refresh_token）
+pub async fn login(
+    Extension(state): Extension<SharedState>,
+    headers: HeaderMap,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let user_agent = extract_user_agent(&headers);
+    let ip_address = extract_ip_address(&headers);
+
+    let user_service = UserService::with_redis(
+        state.db.clone(),
+        state.redis.clone(),
+        state.config.jwt.secret.clone(),
+        state.config.jwt.expire_hours,
+    );
+
+    let (user, token_pair) = user_service.login(&req.email, &req.password, user_agent, ip_address)
+        .await
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("Invalid credentials") {
+                ApiError(StatusCode::UNAUTHORIZED, "Invalid email or password".into())
+            } else if msg.contains("not active") {
+                ApiError(StatusCode::FORBIDDEN, msg)
+            } else {
+                ApiError(StatusCode::UNAUTHORIZED, msg)
+            }
+        })?;
+
+    Ok(Json(AuthResponse {
+        access_token: token_pair.access_token,
+        refresh_token: token_pair.refresh_token,
+        token_type: "Bearer".to_string(),
+        expires_in: token_pair.access_token_expires_in,
+        refresh_expires_in: token_pair.refresh_token_expires_in,
+        user: UserInfo {
+            id: user.id.to_string(),
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            balance: user.balance,
+        },
+    }))
+}
+
+/// 获取当前用户信息
+pub async fn get_me(
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<crate::service::user::Claims>,
+) -> Result<Json<UserInfo>, ApiError> {
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let user_service = UserService::new(
+        state.db.clone(),
+        state.config.jwt.secret.clone(),
+        state.config.jwt.expire_hours,
+    );
+
+    let user = user_service.get_by_id(user_id)
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or(ApiError(StatusCode::NOT_FOUND, "User not found".into()))?;
+
+    Ok(Json(UserInfo {
+        id: user.id.to_string(),
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        balance: user.balance,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_info() {
+        let info = UserInfo {
+            id: "user-123".to_string(),
+            email: "test@example.com".to_string(),
+            role: "user".to_string(),
+            status: "active".to_string(),
+            balance: 100,
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("test@example.com"));
+    }
+
+    #[test]
+    fn test_extract_user_agent() {
+        let mut headers = HeaderMap::new();
+        headers.insert("user-agent", "TestAgent/1.0".parse().unwrap());
+        
+        let ua = extract_user_agent(&headers);
+        assert_eq!(ua, Some("TestAgent/1.0".to_string()));
+    }
+
+    #[test]
+    fn test_extract_ip_address() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", "10.0.0.1".parse().unwrap());
+        
+        let ip = extract_ip_address(&headers);
+        assert_eq!(ip, Some("10.0.0.1".to_string()));
+    }
+}

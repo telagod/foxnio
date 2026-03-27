@@ -27,8 +27,9 @@ pub mod password_reset;
 pub mod password_reset_test;
 pub mod audit;
 pub mod permission;
+pub mod totp;
 
-pub use user::UserService;
+pub use user::{UserService, LoginResponse, TotpStatus, TotpSetupResponse};
 pub use api_key::ApiKeyService;
 pub use account::AccountService;
 pub use billing::BillingService;
@@ -46,3 +47,4 @@ pub use email::{EmailConfig, EmailSender, SmtpEmailSender, MockEmailSender};
 pub use password_reset::PasswordResetService;
 pub use audit::{AuditService, AuditEntry, AuditFilter, AsyncAuditLogger};
 pub use permission::{PermissionService, Role, Permission, PermissionGroup, PermissionConfig};
+pub use totp::TotpService;

@@ -24,6 +24,18 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // 初始化加密服务
+    if std::env::var("FOXNIO_MASTER_KEY").is_ok() {
+        match utils::init_encryption_service() {
+            Ok(()) => tracing::info!("Encryption service initialized"),
+            Err(e) => {
+                tracing::warn!("Failed to initialize encryption service: {}. Sensitive data will not be encrypted.", e);
+            }
+        }
+    } else {
+        tracing::warn!("FOXNIO_MASTER_KEY not set. Sensitive data will not be encrypted. Set FOXNIO_MASTER_KEY for production use.");
+    }
+
     // 加载配置
     let config = config::Config::load()
         .unwrap_or_else(|_| {

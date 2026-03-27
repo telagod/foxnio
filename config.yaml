@@ -1,0 +1,175 @@
+# FoxNIO Configuration
+# FoxNIO API Gateway 配置文件
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "release"  # debug | release
+
+# 数据库配置
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: ""
+  dbname: "foxnio"
+  max_connections: 10
+
+# Redis 配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+
+# JWT 配置
+jwt:
+  secret: "change-this-to-a-secure-random-string-in-production"
+  expire_hours: 24
+
+# 网关配置
+gateway:
+  user_concurrency: 5
+  user_balance: 0
+  api_key_prefix: "sk-fox-"
+  rate_multiplier: 1.0
+
+# HTTP/2 配置
+http2:
+  enabled: true
+  max_concurrent_streams: 200
+  initial_stream_window_size: 65535
+  initial_connection_window_size: 65535
+  adaptive_window: true
+  keep_alive_interval_secs: 30
+  keep_alive_timeout_secs: 20
+  max_frame_size: 16384
+  max_header_list_size: 65536
+
+# HTTP/2 客户端配置
+http2_client:
+  enabled: true
+  pool_size: 16
+  connect_timeout_secs: 10
+  request_timeout_secs: 300
+  pool_keep_alive_secs: 90
+  max_idle_connections: 32
+  tcp_keepalive_secs: 60
+  tcp_nodelay: true
+  auto_negotiate: true
+
+# 压缩配置
+compression:
+  enabled: true
+  gzip: true
+  brotli: true
+  min_size: 1024
+  level: "default"  # fast | default | best
+
+# ============================================================
+# 角色权限配置
+# ============================================================
+
+# 预定义角色权限映射
+# 每个角色可以拥有多个权限
+roles:
+  # 管理员 - 完全访问权限
+  - role: "admin"
+    permissions:
+      - user_read
+      - user_write
+      - user_delete
+      - api_key_read
+      - api_key_write
+      - api_key_delete
+      - account_read
+      - account_write
+      - system_config
+      - audit_log_read
+      - subscription_read
+      - subscription_write
+      - billing_read
+      - billing_write
+      - announcement_read
+      - announcement_write
+    description: "管理员拥有完全访问权限"
+
+  # 经理 - 管理用户和 API Keys
+  - role: "manager"
+    permissions:
+      - user_read
+      - user_write
+      - api_key_read
+      - api_key_write
+      - api_key_delete
+      - account_read
+      - account_write
+      - billing_read
+      - announcement_read
+      - announcement_write
+    description: "经理可以管理用户和 API Keys"
+
+  # 普通用户 - 基本访问权限
+  - role: "user"
+    permissions:
+      - api_key_read
+      - api_key_write
+      - billing_read
+      - subscription_read
+      - subscription_write
+    description: "普通用户拥有基本访问权限"
+
+  # 访客 - 只读访问
+  - role: "guest"
+    permissions:
+      - api_key_read
+      - billing_read
+      - announcement_read
+    description: "访客只有只读访问权限"
+
+# 自定义角色（可选）
+# 可以添加自定义角色来扩展权限系统
+# custom_roles:
+#   - role: "support"
+#     permissions:
+#       - user_read
+#       - billing_read
+#       - audit_log_read
+#     description: "客服角色，可查看用户和账单信息"
+
+# ============================================================
+# 权限说明
+# ============================================================
+# 
+# 用户管理权限:
+#   - user_read:    查看用户信息
+#   - user_write:   创建/编辑用户
+#   - user_delete:  删除用户
+#
+# API Key 管理权限:
+#   - api_key_read:    查看 API Key
+#   - api_key_write:   创建/编辑 API Key
+#   - api_key_delete:  删除 API Key
+#
+# 账号管理权限:
+#   - account_read:   查看账号信息
+#   - account_write:  创建/编辑账号
+#
+# 系统管理权限:
+#   - system_config:  系统配置管理
+#   - audit_log_read: 查看审计日志
+#
+# 订阅管理权限:
+#   - subscription_read:  查看订阅信息
+#   - subscription_write: 管理订阅
+#
+# 计费管理权限:
+#   - billing_read:   查看计费信息
+#   - billing_write:  管理计费
+#
+# 公告管理权限:
+#   - announcement_read:   查看公告
+#   - announcement_write:  管理公告
+#
+# ============================================================

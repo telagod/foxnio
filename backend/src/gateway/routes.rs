@@ -60,6 +60,9 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         .route("/api/v1/user/me", get(handler::auth::get_me))
         .route("/api/v1/user/usage", get(get_user_usage))
         
+        // 用户审计日志
+        .route("/api/v1/users/me/audit-logs", get(handler::list_my_audit_logs))
+        
         // Chat completions (需要 API Key)
         .route("/v1/chat/completions", post(handle_chat_completions))
         .route("/v1/messages", post(handle_messages))
@@ -101,6 +104,13 @@ pub fn build_app(state: super::AppState, health_checker: Arc<HealthChecker>) -> 
         // 权限管理
         .route("/api/v1/admin/permissions/matrix", get(handler::admin::get_permission_matrix))
         .route("/api/v1/admin/roles", get(handler::admin::list_roles))
+        
+        // 审计日志管理
+        .route("/api/v1/admin/audit-logs", get(handler::list_audit_logs))
+        .route("/api/v1/admin/audit-logs/stats", get(handler::get_audit_stats))
+        .route("/api/v1/admin/audit-logs/sensitive", get(handler::list_sensitive_audit_logs))
+        .route("/api/v1/admin/audit-logs/users/:user_id", get(handler::list_user_audit_logs))
+        .route("/api/v1/admin/audit-logs/cleanup", post(handler::cleanup_audit_logs))
         
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
     
