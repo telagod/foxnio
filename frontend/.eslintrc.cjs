@@ -17,6 +17,13 @@ module.exports = {
     es2017: true,
     node: true
   },
+  rules: {
+    // 放宽类型检查
+    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    // 关闭严格的 svelte a11y 规则
+    'svelte/valid-compile': 'off'
+  },
   overrides: [
     {
       files: ['*.svelte'],

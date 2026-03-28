@@ -34,7 +34,12 @@ impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
     /// 检查错误是否匹配该规则
-    pub fn matches(&self, error_code: Option<i32>, error_message: Option<&str>, platform: Option<&str>) -> bool {
+    pub fn matches(
+        &self,
+        error_code: Option<i32>,
+        error_message: Option<&str>,
+        platform: Option<&str>,
+    ) -> bool {
         if !self.enabled {
             return false;
         }
