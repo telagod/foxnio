@@ -2,9 +2,9 @@
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use foxnio::entity::error_passthrough_rules::Model;
     use sea_orm::ActiveValue;
-    use chrono::Utc;
     use serde_json::json;
 
     fn create_test_rule() -> Model {
@@ -31,13 +31,13 @@ mod tests {
     #[test]
     fn test_matches_error_code() {
         let rule = create_test_rule();
-        
+
         // Should match error code
         assert!(rule.matches(Some(429), None, Some("openai")));
-        
+
         // Should match error code
         assert!(rule.matches(Some(500), None, Some("anthropic")));
-        
+
         // Should not match different error code
         assert!(!rule.matches(Some(400), None, Some("openai")));
     }
@@ -45,13 +45,13 @@ mod tests {
     #[test]
     fn test_matches_keyword() {
         let rule = create_test_rule();
-        
+
         // Should match keyword
         assert!(rule.matches(None, Some("rate limit exceeded"), Some("openai")));
-        
+
         // Should match keyword
         assert!(rule.matches(None, Some("request timeout"), Some("anthropic")));
-        
+
         // Should not match different keyword
         assert!(!rule.matches(None, Some("invalid request"), Some("openai")));
     }
@@ -59,10 +59,10 @@ mod tests {
     #[test]
     fn test_matches_platform() {
         let rule = create_test_rule();
-        
+
         // Should match platform
         assert!(rule.matches(Some(429), None, Some("openai")));
-        
+
         // Should not match different platform
         assert!(!rule.matches(Some(429), None, Some("google")));
     }
@@ -71,7 +71,7 @@ mod tests {
     fn test_disabled_rule() {
         let mut rule = create_test_rule();
         rule.enabled = false;
-        
+
         // Should not match when disabled
         assert!(!rule.matches(Some(429), None, Some("openai")));
     }

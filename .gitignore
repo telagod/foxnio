@@ -55,3 +55,12 @@ sub2api-original/
 
 # foxnio 是独立的 git 仓库
 foxnio/
+
+# OpenClaw 配置文件
+.openclaw/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
