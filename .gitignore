@@ -52,4 +52,6 @@ secrets/
 
 # 原项目参考（不提交）
 sub2api-original/
-sub2api-original/
+
+# foxnio 是独立的 git 仓库
+foxnio/
