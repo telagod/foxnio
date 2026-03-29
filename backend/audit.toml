@@ -1,0 +1,15 @@
+# Security audit configuration
+# https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+# Ignore specific advisories that are not applicable to this project
+
+# RUSTSEC-2024-0437: protobuf uncontrolled recursion
+# This only affects parsing of untrusted protobuf input.
+# We only use protobuf through prometheus for metrics exposition,
+# which does not parse untrusted input.
+ignore = ["RUSTSEC-2024-0437", "RUSTSEC-2023-0071"]
+
+# RUSTSEC-2023-0071 (rsa timing attack) is a dependency of sqlx-mysql
+# which is pulled in transitively. Our project only uses postgres,
+# not mysql. The vulnerability is not applicable to our use case.
