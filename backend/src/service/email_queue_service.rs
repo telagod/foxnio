@@ -83,39 +83,39 @@ impl EmailQueueService {
             stop_signal: Arc::new(RwLock::new(false)),
         }
     }
-    
+
     /// 启动服务
     pub async fn start(&self) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
         }
-        
-        let mut interval = tokio::time::interval(
-            std::time::Duration::from_secs(self.config.poll_interval_secs)
-        );
-        
+
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            self.config.poll_interval_secs,
+        ));
+
         loop {
             if *self.stop_signal.read().await {
                 break;
             }
-            
+
             interval.tick().await;
-            
+
             if let Err(e) = self.process_queue().await {
                 tracing::error!("处理邮件队列失败: {}", e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// 停止服务
     pub async fn stop(&self) -> Result<()> {
         let mut stop = self.stop_signal.write().await;
         *stop = true;
         Ok(())
     }
-    
+
     /// 添加邮件到队列
     pub async fn enqueue(
         &self,
@@ -128,13 +128,13 @@ impl EmailQueueService {
         // TODO: 插入数据库
         Ok(0)
     }
-    
+
     /// 处理队列
     async fn process_queue(&self) -> Result<i64> {
         let emails = self.fetch_pending_emails().await?;
-        
+
         let mut sent = 0i64;
-        
+
         for email in emails {
             match self.send_email(&email).await {
                 Ok(_) => {
@@ -146,28 +146,28 @@ impl EmailQueueService {
                 }
             }
         }
-        
+
         Ok(sent)
     }
-    
+
     /// 获取待发送邮件
     async fn fetch_pending_emails(&self) -> Result<Vec<EmailItem>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 发送邮件
     async fn send_email(&self, _email: &EmailItem) -> Result<()> {
         // TODO: 实现实际的邮件发送
         Ok(())
     }
-    
+
     /// 标记为已发送
     async fn mark_sent(&self, _email_id: i64) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 标记为失败
     async fn mark_failed(&self, _email_id: i64, _error: &str) -> Result<()> {
         // TODO: 更新数据库
@@ -178,7 +178,7 @@ impl EmailQueueService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_email_queue_config() {
         let config = EmailQueueConfig::default();

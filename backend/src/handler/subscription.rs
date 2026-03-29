@@ -4,16 +4,13 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    http::StatusCode,
-    Extension, Json,
-};
+use axum::{http::StatusCode, Extension, Json};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::ApiError;
 use crate::gateway::SharedState;
-use crate::service::subscription::{SubscriptionService, SubscriptionConfig};
+use crate::service::subscription::{SubscriptionConfig, SubscriptionService};
 use crate::service::user::Claims;
 
 /// GET /api/v1/subscriptions - 获取用户订阅列表
@@ -27,7 +24,9 @@ pub async fn list_user_subscriptions(
     let service = SubscriptionService::new(SubscriptionConfig::default());
 
     // 获取用户配额信息
-    let quota = service.get_user_quota(user_id).await
+    let quota = service
+        .get_user_quota(user_id)
+        .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
@@ -57,13 +56,19 @@ pub async fn get_subscription_detail(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
 
-    let _subscription_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid subscription ID: {}", e)))?;
+    let _subscription_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid subscription ID: {}", e),
+        )
+    })?;
 
     let service = SubscriptionService::new(SubscriptionConfig::default());
 
     // 获取用户配额信息
-    let quota = service.get_user_quota(user_id).await
+    let quota = service
+        .get_user_quota(user_id)
+        .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({

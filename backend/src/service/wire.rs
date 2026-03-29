@@ -50,12 +50,14 @@ impl WireService {
 
     /// Create a new message
     pub fn create_message(&self, msg_type: WireMessageType, payload: Vec<u8>) -> WireMessage {
-        let msg_id = self.msg_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let msg_id = self
+            .msg_counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        
+
         WireMessage {
             msg_type,
             msg_id,

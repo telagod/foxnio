@@ -2,19 +2,15 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Extension,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::Extension, http::StatusCode, Json};
 use serde_json::{json, Value};
 
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
+use crate::service::backup::{BackupService, ExportRequest, ImportRequest};
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
-use crate::service::backup::{BackupService, ExportRequest, ImportRequest};
 
 /// 导出数据
 pub async fn export_data(
@@ -84,7 +80,10 @@ pub async fn download_backup(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     // TODO: 实现备份文件下载
-    Err(ApiError(StatusCode::NOT_IMPLEMENTED, "Backup download not yet implemented".into()))
+    Err(ApiError(
+        StatusCode::NOT_IMPLEMENTED,
+        "Backup download not yet implemented".into(),
+    ))
 }
 
 /// 删除备份文件
@@ -97,5 +96,8 @@ pub async fn delete_backup(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     // TODO: 实现备份文件删除
-    Err(ApiError(StatusCode::NOT_IMPLEMENTED, "Backup deletion not yet implemented".into()))
+    Err(ApiError(
+        StatusCode::NOT_IMPLEMENTED,
+        "Backup deletion not yet implemented".into(),
+    ))
 }

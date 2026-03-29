@@ -170,7 +170,7 @@ impl UserAttributeService {
         match definition {
             Some(model) => {
                 let mut active_model: user_attribute_definitions::ActiveModel = model.into();
-                
+
                 if let Some(key) = req.key {
                     active_model.key = ActiveValue::Set(key);
                 }
@@ -312,9 +312,10 @@ impl UserAttributeService {
 
         let mut responses = Vec::new();
         for value in values {
-            if let Some(definition) = user_attribute_definitions::Entity::find_by_id(value.attribute_id)
-                .one(db)
-                .await?
+            if let Some(definition) =
+                user_attribute_definitions::Entity::find_by_id(value.attribute_id)
+                    .one(db)
+                    .await?
             {
                 responses.push(AttributeValueResponse {
                     id: value.id,

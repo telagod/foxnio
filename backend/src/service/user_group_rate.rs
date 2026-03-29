@@ -60,25 +60,29 @@ impl UserGroupRateService {
     pub async fn calculate_cost(&self, group_id: i64, tokens: u64, model: &str) -> Option<f64> {
         let rates = self.rates.read().await;
         let group_rate = rates.get(&group_id)?;
-        
+
         let base_cost = (tokens as f64 / 1000.0) * group_rate.rate_per_1k;
-        
+
         // Apply model multiplier if configured
-        let multiplier = group_rate.model_multipliers.get(model).copied().unwrap_or(1.0);
-        
+        let multiplier = group_rate
+            .model_multipliers
+            .get(model)
+            .copied()
+            .unwrap_or(1.0);
+
         Some(base_cost * multiplier)
     }
 
     /// Check if within quota
     pub async fn check_quota(&self, group_id: i64, current_usage: u64) -> bool {
         let rates = self.rates.read().await;
-        
+
         if let Some(rate) = rates.get(&group_id) {
             if let Some(quota) = rate.monthly_quota {
                 return current_usage < quota;
             }
         }
-        
+
         true
     }
 
@@ -102,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_and_get_rate() {
         let service = UserGroupRateService::new();
-        
+
         let rate = UserGroupRate {
             group_id: 1,
             name: "Standard".to_string(),
@@ -112,10 +116,10 @@ mod tests {
             tpm_limit: Some(100000),
             model_multipliers: HashMap::new(),
         };
-        
+
         service.set_rate(rate.clone()).await;
         let retrieved = service.get_rate(1).await.unwrap();
-        
+
         assert_eq!(retrieved.name, "Standard");
         assert_eq!(retrieved.rate_per_1k, 0.01);
     }
@@ -123,10 +127,10 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_cost() {
         let service = UserGroupRateService::new();
-        
+
         let mut multipliers = HashMap::new();
         multipliers.insert("gpt-4".to_string(), 2.0);
-        
+
         let rate = UserGroupRate {
             group_id: 1,
             name: "Standard".to_string(),
@@ -136,9 +140,9 @@ mod tests {
             tpm_limit: None,
             model_multipliers: multipliers,
         };
-        
+
         service.set_rate(rate).await;
-        
+
         let cost = service.calculate_cost(1, 1000, "gpt-4").await.unwrap();
         assert_eq!(cost, 0.02); // 0.01 * 2.0
     }

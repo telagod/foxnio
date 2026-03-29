@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query};
+use sqlx::{query, PgPool};
 
 /// Privacy service for OpenAI API requests
 pub struct OpenAIPrivacyService {
@@ -116,21 +116,23 @@ impl OpenAIPrivacyService {
             return Ok(());
         }
 
-        query(r#"
+        query(
+            r#"
             INSERT INTO privacy_audits (
                 request_id, user_id, pii_detected, pii_types, filtered, anonymized, timestamp
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#)
-            .bind(&audit.request_id)
-            .bind(audit.user_id)
-            .bind(audit.pii_detected)
-            .bind(&audit.pii_types)
-            .bind(audit.filtered)
-            .bind(audit.anonymized)
-            .bind(audit.timestamp)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(&audit.request_id)
+        .bind(audit.user_id)
+        .bind(audit.pii_detected)
+        .bind(&audit.pii_types)
+        .bind(audit.filtered)
+        .bind(audit.anonymized)
+        .bind(audit.timestamp)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

@@ -4,10 +4,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    http::StatusCode,
-    Extension, Json,
-};
+use axum::{http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -59,7 +56,10 @@ pub async fn update_user_info(
     // 验证邮箱格式（如果提供）
     if let Some(ref email) = req.email {
         if !email.contains('@') {
-            return Err(ApiError(StatusCode::BAD_REQUEST, "Invalid email format".into()));
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "Invalid email format".into(),
+            ));
         }
     }
 
@@ -109,7 +109,10 @@ pub async fn change_password(
         .map_err(|e| {
             let msg = e.to_string();
             if msg.contains("invalid") || msg.contains("Incorrect") {
-                ApiError(StatusCode::BAD_REQUEST, "Current password is incorrect".into())
+                ApiError(
+                    StatusCode::BAD_REQUEST,
+                    "Current password is incorrect".into(),
+                )
             } else {
                 ApiError(StatusCode::INTERNAL_SERVER_ERROR, msg)
             }

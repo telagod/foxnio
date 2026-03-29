@@ -50,10 +50,10 @@ mod tests {
     #[tokio::test]
     async fn test_admin_service() {
         let service = AdminService::new();
-        
+
         service.add_admin(123).await;
         assert!(service.is_admin(123).await);
-        
+
         service.remove_admin(123).await;
         assert!(!service.is_admin(123).await);
     }

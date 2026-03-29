@@ -53,7 +53,7 @@ impl SessionLimitCache {
     /// Get or create session entry
     pub async fn get_or_create(&self, session_id: &str, user_id: i64) -> SessionLimitEntry {
         let mut entries = self.entries.write().await;
-        
+
         if let Some(entry) = entries.get(session_id) {
             if entry.last_accessed.elapsed() < Duration::from_secs(entry.ttl_seconds) {
                 let mut entry = entry.clone();
@@ -62,7 +62,7 @@ impl SessionLimitCache {
                 return entry;
             }
         }
-        
+
         // Create new entry
         let entry = SessionLimitEntry {
             session_id: session_id.to_string(),
@@ -73,12 +73,12 @@ impl SessionLimitCache {
             last_accessed: Instant::now(),
             ttl_seconds: self.default_ttl.as_secs(),
         };
-        
+
         // Evict oldest if at capacity
         if entries.len() >= self.max_entries {
             self.evict_oldest(&mut entries);
         }
-        
+
         entries.insert(session_id.to_string(), entry.clone());
         entry
     }
@@ -103,7 +103,7 @@ impl SessionLimitCache {
     pub async fn clear_expired(&self) {
         let mut entries = self.entries.write().await;
         let now = Instant::now();
-        
+
         entries.retain(|_, entry| {
             now.duration_since(entry.last_accessed) < Duration::from_secs(entry.ttl_seconds)
         });
@@ -111,10 +111,7 @@ impl SessionLimitCache {
 
     /// Evict oldest entry
     fn evict_oldest(&self, entries: &mut HashMap<String, SessionLimitEntry>) {
-        if let Some((oldest_key, _)) = entries
-            .iter()
-            .min_by_key(|(_, e)| e.last_accessed)
-        {
+        if let Some((oldest_key, _)) = entries.iter().min_by_key(|(_, e)| e.last_accessed) {
             let key = oldest_key.clone();
             entries.remove(&key);
         }
@@ -143,7 +140,7 @@ mod tests {
         let cache = SessionLimitCache::new(100, Duration::from_secs(60));
         cache.get_or_create("session-1", 123).await;
         cache.update_counts("session-1", 1, 100).await;
-        
+
         let entry = cache.get_or_create("session-1", 123).await;
         assert_eq!(entry.request_count, 1);
         assert_eq!(entry.token_count, 100);

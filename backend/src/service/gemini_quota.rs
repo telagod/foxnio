@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Quota management for Gemini API
 pub struct GeminiQuota {
@@ -36,7 +36,8 @@ impl GeminiQuota {
 
     /// Check if account has quota available
     pub async fn check_quota(&self, account_id: i64) -> Result<QuotaInfo, QuotaError> {
-        let info = query_as::<_, QuotaInfo>(r#"
+        let info = query_as::<_, QuotaInfo>(
+            r#"
             SELECT 
                 account_id,
                 requests_used,
@@ -48,9 +49,10 @@ impl GeminiQuota {
                 (requests_used >= requests_limit OR tokens_used >= tokens_limit) as is_over_quota
             FROM gemini_quotas
             WHERE account_id = $1 AND period_end > NOW()
-            "#)
-            .bind(account_id)
-            .fetch_optional(&self.pool)
+            "#,
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
         .await?
         .ok_or(QuotaError::AccountNotFound)?;
 
@@ -62,22 +64,20 @@ impl GeminiQuota {
     }
 
     /// Consume quota
-    pub async fn consume(
-        &self,
-        account_id: i64,
-        tokens: u64,
-    ) -> Result<(), QuotaError> {
-        query(r#"
+    pub async fn consume(&self, account_id: i64, tokens: u64) -> Result<(), QuotaError> {
+        query(
+            r#"
             UPDATE gemini_quotas
             SET 
                 requests_used = requests_used + 1,
                 tokens_used = tokens_used + $1
             WHERE account_id = $2
-            "#)
-            .bind(tokens as i64)
-            .bind(account_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(tokens as i64)
+        .bind(account_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

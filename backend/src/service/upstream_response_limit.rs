@@ -73,11 +73,11 @@ impl Stream for LimitedStream {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         use futures::StreamExt;
-        
+
         match self.inner.as_mut().poll_next_unpin(cx) {
             std::task::Poll::Ready(Some(Ok(bytes))) => {
                 self.current_size += bytes.len() as u64;
-                
+
                 if self.current_size > self.max_size {
                     std::task::Poll::Ready(Some(Err(ResponseLimitError::ExceedsLimit {
                         actual: self.current_size,
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn test_response_limit() {
         let limit = UpstreamResponseLimit::new(1000);
-        
+
         assert!(limit.check(500).is_ok());
         assert!(limit.check(1500).is_err());
     }

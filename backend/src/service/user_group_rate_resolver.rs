@@ -44,7 +44,9 @@ impl UserGroupRateResolver {
     /// Calculate cost for user
     pub async fn calculate_user_cost(&self, user_id: i64, tokens: u64, model: &str) -> Option<f64> {
         let group_id = self.get_user_group(user_id).await?;
-        self.rate_service.calculate_cost(group_id, tokens, model).await
+        self.rate_service
+            .calculate_cost(group_id, tokens, model)
+            .await
     }
 }
 
@@ -56,7 +58,7 @@ mod tests {
     async fn test_resolver() {
         let rate_service = Arc::new(UserGroupRateService::new());
         let resolver = UserGroupRateResolver::new(rate_service);
-        
+
         resolver.set_user_group(123, 1).await;
         let group = resolver.get_user_group(123).await;
         assert_eq!(group, Some(1));

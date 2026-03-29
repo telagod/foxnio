@@ -305,7 +305,8 @@ mod tests {
 
     #[test]
     fn test_config_creation() {
-        let config = TurnstileConfig::new("test_site_key".to_string(), "test_secret_key".to_string());
+        let config =
+            TurnstileConfig::new("test_site_key".to_string(), "test_secret_key".to_string());
 
         assert_eq!(config.site_key, "test_site_key");
         assert_eq!(config.secret_key, "test_secret_key");

@@ -46,20 +46,27 @@ impl OpsRetry {
 
     /// Check if error is retryable
     pub fn is_retryable(&self, error: &str) -> bool {
-        self.config.retryable_errors.iter().any(|e| error.contains(e))
+        self.config
+            .retryable_errors
+            .iter()
+            .any(|e| error.contains(e))
     }
 
     /// Calculate delay for next retry
     pub fn calculate_delay(&self, attempt: u32) -> u64 {
-        let delay = self.config.initial_delay_ms as f32
-            * self.config.multiplier.powi(attempt as i32);
+        let delay =
+            self.config.initial_delay_ms as f32 * self.config.multiplier.powi(attempt as i32);
         delay.min(self.config.max_delay_ms as f32) as u64
     }
 
     /// Should retry
     pub fn should_retry(&self, state: &RetryState) -> bool {
         state.attempt < self.config.max_attempts
-            && state.last_error.as_ref().map(|e| self.is_retryable(e)).unwrap_or(false)
+            && state
+                .last_error
+                .as_ref()
+                .map(|e| self.is_retryable(e))
+                .unwrap_or(false)
     }
 
     /// Create new retry state
@@ -86,11 +93,11 @@ mod tests {
     #[test]
     fn test_calculate_delay() {
         let retry = OpsRetry::new(RetryConfig::default());
-        
+
         let delay0 = retry.calculate_delay(0);
         let delay1 = retry.calculate_delay(1);
         let delay2 = retry.calculate_delay(2);
-        
+
         assert!(delay1 > delay0);
         assert!(delay2 > delay1);
     }

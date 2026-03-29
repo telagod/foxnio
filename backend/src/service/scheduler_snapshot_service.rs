@@ -106,7 +106,7 @@ impl SchedulerSnapshotService {
         groups: Vec<GroupSnapshot>,
     ) -> Result<SchedulerSnapshot> {
         let start = std::time::Instant::now();
-        
+
         let id = {
             let mut next_id = self.next_id.write().await;
             let id = *next_id;
@@ -115,7 +115,7 @@ impl SchedulerSnapshotService {
         };
 
         let version = self.get_next_version().await;
-        
+
         let stats = SnapshotStats {
             total_accounts: accounts.len(),
             active_accounts: accounts.iter().filter(|a| a.status == "active").count(),
@@ -148,19 +148,19 @@ impl SchedulerSnapshotService {
     /// 保存快照
     async fn save_snapshot(&self, snapshot: SchedulerSnapshot) -> Result<()> {
         let mut snapshots = self.snapshots.write().await;
-        
+
         // 计算快照大小
         let size = serde_json::to_vec(&snapshot)?.len() as u64;
         let mut stats = self.stats.write().await;
         stats.snapshot_size_bytes = size;
-        
+
         snapshots.push(snapshot);
-        
+
         // 限制快照数量
         while snapshots.len() > self.config.max_snapshots {
             snapshots.remove(0);
         }
-        
+
         Ok(())
     }
 
@@ -185,21 +185,18 @@ impl SchedulerSnapshotService {
     pub async fn cleanup_old_snapshots(&self, keep_count: usize) -> usize {
         let mut snapshots = self.snapshots.write().await;
         let before = snapshots.len();
-        
+
         while snapshots.len() > keep_count {
             snapshots.remove(0);
         }
-        
+
         before - snapshots.len()
     }
 
     /// 获取下一个版本号
     async fn get_next_version(&self) -> u64 {
         let snapshots = self.snapshots.read().await;
-        snapshots
-            .last()
-            .map(|s| s.version + 1)
-            .unwrap_or(1)
+        snapshots.last().map(|s| s.version + 1).unwrap_or(1)
     }
 
     /// 获取统计信息
@@ -214,26 +211,29 @@ impl SchedulerSnapshotService {
         // 2. 重建账号状态
         // 3. 重建分组状态
         // 4. 更新调度器
-        
+
         Ok(())
     }
 
     /// 启动后台快照任务
-    pub fn start_background_snapshot(self: Arc<Self>, scheduler: Arc<RwLock<crate::service::SchedulerService>>) -> tokio::task::JoinHandle<()> {
+    pub fn start_background_snapshot(
+        self: Arc<Self>,
+        scheduler: Arc<RwLock<crate::service::SchedulerService>>,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_secs(self.config.snapshot_interval_seconds)
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                self.config.snapshot_interval_seconds,
+            ));
 
             loop {
                 interval.tick().await;
-                
+
                 // 获取调度器状态并创建快照
                 let sched = scheduler.read().await;
                 // TODO: 从调度器获取账号和分组信息
                 // let accounts = sched.get_account_snapshots().await;
                 // let groups = sched.get_group_snapshots().await;
-                
+
                 // if let Err(e) = self.create_snapshot(accounts, groups).await {
                 //     tracing::error!("Failed to create snapshot: {}", e);
                 // }
@@ -256,7 +256,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_snapshot() {
         let service = SchedulerSnapshotService::default();
-        
+
         let accounts = vec![AccountSnapshot {
             id: 1,
             name: "test".to_string(),
@@ -267,9 +267,9 @@ mod tests {
             last_used: None,
             model_mapping: serde_json::json!({}),
         }];
-        
+
         let groups = vec![];
-        
+
         let snapshot = service.create_snapshot(accounts, groups).await.unwrap();
         assert_eq!(snapshot.version, 1);
         assert_eq!(snapshot.stats.total_accounts, 1);
@@ -278,7 +278,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_latest() {
         let service = SchedulerSnapshotService::default();
-        
+
         let accounts = vec![AccountSnapshot {
             id: 1,
             name: "test".to_string(),
@@ -289,10 +289,13 @@ mod tests {
             last_used: None,
             model_mapping: serde_json::json!({}),
         }];
-        
-        service.create_snapshot(accounts.clone(), vec![]).await.unwrap();
+
+        service
+            .create_snapshot(accounts.clone(), vec![])
+            .await
+            .unwrap();
         service.create_snapshot(accounts, vec![]).await.unwrap();
-        
+
         let latest = service.get_latest().await;
         assert!(latest.is_some());
         assert_eq!(latest.unwrap().version, 2);
@@ -305,7 +308,7 @@ mod tests {
             ..Default::default()
         };
         let service = SchedulerSnapshotService::new(config);
-        
+
         let accounts = vec![AccountSnapshot {
             id: 1,
             name: "test".to_string(),
@@ -316,11 +319,14 @@ mod tests {
             last_used: None,
             model_mapping: serde_json::json!({}),
         }];
-        
+
         for _ in 0..5 {
-            service.create_snapshot(accounts.clone(), vec![]).await.unwrap();
+            service
+                .create_snapshot(accounts.clone(), vec![])
+                .await
+                .unwrap();
         }
-        
+
         let snapshots = service.get_all().await;
         assert_eq!(snapshots.len(), 2);
     }

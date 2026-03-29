@@ -142,19 +142,24 @@ impl TokenRefreshService {
         }
 
         // 获取当前 Token
-        let token_info = self.get_token(key).await
+        let token_info = self
+            .get_token(key)
+            .await
             .ok_or_else(|| anyhow::anyhow!("Token not found"))?;
 
         // 添加到待刷新列表
         {
             let mut pending = self.pending_refreshes.write().await;
-            pending.insert(key.to_string(), RefreshTask {
-                key: key.clone(),
-                token_info: token_info.clone(),
-                attempts: 0,
-                last_attempt: None,
-                last_error: None,
-            });
+            pending.insert(
+                key.to_string(),
+                RefreshTask {
+                    key: key.clone(),
+                    token_info: token_info.clone(),
+                    attempts: 0,
+                    last_attempt: None,
+                    last_error: None,
+                },
+            );
         }
 
         // 执行刷新
@@ -172,12 +177,12 @@ impl TokenRefreshService {
     /// 执行刷新
     async fn do_refresh(&self, key: &TokenCacheKey, _token_info: &TokenInfo) -> Result<TokenInfo> {
         let _refresher = self.refresher.read().await;
-        
+
         // TODO: 实现实际的刷新逻辑
         // 1. 使用 refresh_token 获取新的 access_token
         // 2. 更新本地缓存
         // 3. 通知其他服务
-        
+
         let new_token = TokenInfo {
             access_token: "new_access_token".to_string(),
             refresh_token: Some("new_refresh_token".to_string()),
@@ -211,7 +216,8 @@ impl TokenRefreshService {
 
         for (key_str, token_info) in tokens.iter() {
             if token_info.is_expiring_soon(self.config.refresh_before_expiry_seconds) {
-                if let Some(key) = super::token_cache_key::TokenCacheKey::from_cache_string(key_str) {
+                if let Some(key) = super::token_cache_key::TokenCacheKey::from_cache_string(key_str)
+                {
                     let result = self.refresh_token(&key).await;
                     results.push(result);
                 }
@@ -234,7 +240,8 @@ impl TokenRefreshService {
     /// 获取需要刷新的 Token 数量
     pub async fn pending_refresh_count(&self) -> usize {
         let tokens = self.tokens.read().await;
-        tokens.values()
+        tokens
+            .values()
             .filter(|t| t.is_expiring_soon(self.config.refresh_before_expiry_seconds))
             .count()
     }
@@ -242,14 +249,17 @@ impl TokenRefreshService {
     /// 启动后台刷新任务
     pub fn start_background_refresh(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_secs(60)
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
 
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = self.check_and_refresh().await.into_iter().collect::<Result<Vec<_>>>() {
+
+                if let Err(e) = self
+                    .check_and_refresh()
+                    .await
+                    .into_iter()
+                    .collect::<Result<Vec<_>>>()
+                {
                     tracing::error!("Background refresh error: {}", e);
                 }
             }
@@ -315,7 +325,7 @@ mod tests {
     async fn test_register_and_get_token() {
         let service = TokenRefreshService::default();
         let key = TokenCacheKey::new("openai", "account1");
-        
+
         let token = TokenInfo {
             access_token: "test_token".to_string(),
             refresh_token: None,
@@ -325,9 +335,9 @@ mod tests {
             created_at: Utc::now(),
             refreshed_at: None,
         };
-        
+
         service.register_token(key.clone(), token.clone()).await;
-        
+
         let retrieved = service.get_token(&key).await;
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().access_token, "test_token");
@@ -337,7 +347,7 @@ mod tests {
     async fn test_remove_token() {
         let service = TokenRefreshService::default();
         let key = TokenCacheKey::new("openai", "account1");
-        
+
         let token = TokenInfo {
             access_token: "test_token".to_string(),
             refresh_token: None,
@@ -347,10 +357,10 @@ mod tests {
             created_at: Utc::now(),
             refreshed_at: None,
         };
-        
+
         service.register_token(key.clone(), token).await;
         service.remove_token(&key).await;
-        
+
         let retrieved = service.get_token(&key).await;
         assert!(retrieved.is_none());
     }

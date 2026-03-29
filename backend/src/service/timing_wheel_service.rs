@@ -36,9 +36,9 @@ pub struct TimingWheelConfig {
 impl Default for TimingWheelConfig {
     fn default() -> Self {
         Self {
-            tick_duration_ms: 100,      // 100ms 每个槽位
-            wheel_size: 3600,           // 3600 个槽位 = 6 分钟周期
-            max_tasks: 100000,          // 最多 10 万任务
+            tick_duration_ms: 100, // 100ms 每个槽位
+            wheel_size: 3600,      // 3600 个槽位 = 6 分钟周期
+            max_tasks: 100000,     // 最多 10 万任务
         }
     }
 }
@@ -65,8 +65,10 @@ pub struct TimingWheelService {
 impl TimingWheelService {
     /// 创建新的时间轮服务
     pub fn new(config: TimingWheelConfig) -> Self {
-        let wheel = (0..config.wheel_size).map(|_| WheelSlot::default()).collect();
-        
+        let wheel = (0..config.wheel_size)
+            .map(|_| WheelSlot::default())
+            .collect();
+
         Self {
             config,
             wheel: Arc::new(RwLock::new(wheel)),
@@ -101,7 +103,7 @@ impl TimingWheelService {
 
         // 计算槽位
         let slot = self.calculate_slot(&execute_at).await;
-        
+
         // 添加到槽位
         {
             let mut wheel = self.wheel.write().await;
@@ -119,18 +121,18 @@ impl TimingWheelService {
     /// 移除任务
     pub async fn remove_task(&self, task_id: u64) -> bool {
         let mut wheel = self.wheel.write().await;
-        
+
         for slot in wheel.iter_mut() {
             if let Some(pos) = slot.tasks.iter().position(|t| t.id == task_id) {
                 slot.tasks.remove(pos);
-                
+
                 let mut stats = self.stats.write().await;
                 stats.pending_tasks = stats.pending_tasks.saturating_sub(1);
-                
+
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -140,24 +142,24 @@ impl TimingWheelService {
             let current_tick = *self.current_tick.read().await;
             (current_tick % self.config.wheel_size as u64) as usize
         };
-        
+
         // Increment tick after calculating slot index
         let current_tick = {
             let mut tick = self.current_tick.write().await;
             *tick += 1;
             *tick
         };
-        
+
         let mut tasks_to_execute = Vec::new();
         let mut tasks_to_reschedule = Vec::new();
-        
+
         {
             let mut wheel = self.wheel.write().await;
             let slot = &mut wheel[slot_index];
-            
+
             while let Some(task) = slot.tasks.pop_front() {
                 let now = Utc::now();
-                
+
                 if task.execute_at <= now {
                     // 任务到期，执行
                     if let Some(interval) = task.repeat_interval {
@@ -181,13 +183,16 @@ impl TimingWheelService {
                 task.task_type,
                 task.payload,
                 task.repeat_interval,
-            ).await;
+            )
+            .await;
         }
 
         // 更新统计
         let mut stats = self.stats.write().await;
         stats.completed_tasks += tasks_to_execute.len() as u64;
-        stats.pending_tasks = stats.pending_tasks.saturating_sub(tasks_to_execute.len() as usize);
+        stats.pending_tasks = stats
+            .pending_tasks
+            .saturating_sub(tasks_to_execute.len() as usize);
         stats.current_tick = current_tick;
 
         tasks_to_execute
@@ -198,10 +203,10 @@ impl TimingWheelService {
         let now = Utc::now();
         let delay_ms = (*execute_at - now).num_milliseconds().max(0) as u64;
         let ticks_ahead = delay_ms / self.config.tick_duration_ms;
-        
+
         let current_tick = *self.current_tick.read().await;
         let target_tick = current_tick + ticks_ahead;
-        
+
         (target_tick % self.config.wheel_size as u64) as usize
     }
 
@@ -221,7 +226,7 @@ impl TimingWheelService {
         for slot in wheel.iter_mut() {
             slot.tasks.clear();
         }
-        
+
         let mut stats = self.stats.write().await;
         stats.pending_tasks = 0;
     }
@@ -229,27 +234,27 @@ impl TimingWheelService {
     /// 获取下一个执行时间
     pub async fn next_execution_time(&self) -> Option<DateTime<Utc>> {
         let wheel = self.wheel.read().await;
-        
+
         for slot in wheel.iter() {
             if let Some(task) = slot.tasks.front() {
                 return Some(task.execute_at);
             }
         }
-        
+
         None
     }
 
     /// 启动后台 tick 任务
     pub fn start_background_tick(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_millis(self.config.tick_duration_ms)
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(
+                self.config.tick_duration_ms,
+            ));
 
             loop {
                 interval.tick().await;
                 let tasks = self.tick().await;
-                
+
                 for task in tasks {
                     // TODO: 执行任务
                     tracing::debug!("Executing task: {} ({})", task.id, task.task_type);
@@ -272,17 +277,14 @@ mod tests {
     #[tokio::test]
     async fn test_add_task() {
         let service = TimingWheelService::default();
-        
+
         let execute_at = Utc::now() + chrono::Duration::seconds(1);
-        let task_id = service.add_task(
-            execute_at,
-            "test".to_string(),
-            serde_json::json!({}),
-            None,
-        ).await;
-        
+        let task_id = service
+            .add_task(execute_at, "test".to_string(), serde_json::json!({}), None)
+            .await;
+
         assert!(task_id > 0);
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.pending_tasks, 1);
     }
@@ -290,18 +292,15 @@ mod tests {
     #[tokio::test]
     async fn test_remove_task() {
         let service = TimingWheelService::default();
-        
+
         let execute_at = Utc::now() + chrono::Duration::seconds(1);
-        let task_id = service.add_task(
-            execute_at,
-            "test".to_string(),
-            serde_json::json!({}),
-            None,
-        ).await;
-        
+        let task_id = service
+            .add_task(execute_at, "test".to_string(), serde_json::json!({}), None)
+            .await;
+
         let removed = service.remove_task(task_id).await;
         assert!(removed);
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.pending_tasks, 0);
     }
@@ -309,16 +308,13 @@ mod tests {
     #[tokio::test]
     async fn test_tick() {
         let service = TimingWheelService::default();
-        
+
         // 添加已过期的任务
         let execute_at = Utc::now() - chrono::Duration::seconds(1);
-        service.add_task(
-            execute_at,
-            "test".to_string(),
-            serde_json::json!({}),
-            None,
-        ).await;
-        
+        service
+            .add_task(execute_at, "test".to_string(), serde_json::json!({}), None)
+            .await;
+
         // 执行 tick
         let tasks = service.tick().await;
         assert_eq!(tasks.len(), 1);
@@ -327,19 +323,21 @@ mod tests {
     #[tokio::test]
     async fn test_repeat_task() {
         let service = TimingWheelService::default();
-        
+
         let execute_at = Utc::now() - chrono::Duration::seconds(1);
-        service.add_task(
-            execute_at,
-            "test".to_string(),
-            serde_json::json!({}),
-            Some(std::time::Duration::from_secs(1)),
-        ).await;
-        
+        service
+            .add_task(
+                execute_at,
+                "test".to_string(),
+                serde_json::json!({}),
+                Some(std::time::Duration::from_secs(1)),
+            )
+            .await;
+
         // 执行 tick
         let tasks = service.tick().await;
         assert_eq!(tasks.len(), 1);
-        
+
         // 任务应该被重新调度
         let stats = service.get_stats().await;
         assert!(stats.pending_tasks > 0);
@@ -348,18 +346,20 @@ mod tests {
     #[tokio::test]
     async fn test_clear() {
         let service = TimingWheelService::default();
-        
+
         for _ in 0..5 {
-            service.add_task(
-                Utc::now() + chrono::Duration::seconds(1),
-                "test".to_string(),
-                serde_json::json!({}),
-                None,
-            ).await;
+            service
+                .add_task(
+                    Utc::now() + chrono::Duration::seconds(1),
+                    "test".to_string(),
+                    serde_json::json!({}),
+                    None,
+                )
+                .await;
         }
-        
+
         service.clear().await;
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.pending_tasks, 0);
     }

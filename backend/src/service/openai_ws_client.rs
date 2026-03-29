@@ -1,7 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
 
 /// WebSocket client for OpenAI Realtime API
@@ -124,7 +124,7 @@ impl OpenAIWsClient {
     /// Connect to WebSocket
     pub async fn connect(&self) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, WsError> {
         let url = format!("{}?model=gpt-4o-realtime-preview-2024-12-17", self.url);
-        
+
         let (ws_stream, _) = connect_async(&url)
             .await
             .map_err(|e| WsError::ConnectionFailed(e.to_string()))?;

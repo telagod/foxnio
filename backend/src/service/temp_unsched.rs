@@ -51,7 +51,7 @@ impl TempUnschedulable {
             cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    
+
     /// 标记账号为不可调度
     pub async fn mark_unschedulable(
         &self,
@@ -63,7 +63,7 @@ impl TempUnschedulable {
     ) -> Result<UnschedulableRecord> {
         let scheduled_resume_at = duration.map(|d| Utc::now() + d);
         let reason_clone = reason.clone();
-        
+
         let record = UnschedulableRecord {
             id: chrono::Utc::now().timestamp_millis(),
             account_id,
@@ -75,24 +75,24 @@ impl TempUnschedulable {
             created_by,
             resolved: false,
         };
-        
+
         // 更新缓存
         {
             let mut cache = self.cache.write().await;
             cache.insert(account_id, record.clone());
         }
-        
+
         // TODO: 保存到数据库
-        
+
         tracing::info!(
             "账号 {} 标记为不可调度，原因: {:?}",
             account_id,
             reason_clone
         );
-        
+
         Ok(record)
     }
-    
+
     /// 恢复账号调度
     pub async fn resume_scheduling(&self, account_id: i64) -> Result<bool> {
         // 更新缓存
@@ -101,23 +101,23 @@ impl TempUnschedulable {
             if let Some(mut record) = cache.remove(&account_id) {
                 record.resolved = true;
                 record.actual_resume_at = Some(Utc::now());
-                
+
                 // TODO: 更新数据库
-                
+
                 tracing::info!("账号 {} 已恢复调度", account_id);
                 true
             } else {
                 false
             }
         };
-        
+
         Ok(removed)
     }
-    
+
     /// 检查账号是否可调度
     pub async fn is_schedulable(&self, account_id: i64) -> Result<bool> {
         let cache = self.cache.read().await;
-        
+
         if let Some(record) = cache.get(&account_id) {
             // 检查是否已到恢复时间
             if let Some(scheduled_resume_at) = record.scheduled_resume_at {
@@ -128,28 +128,25 @@ impl TempUnschedulable {
                     return Ok(true);
                 }
             }
-            
+
             return Ok(false);
         }
-        
+
         Ok(true)
     }
-    
+
     /// 获取不可调度记录
-    pub async fn get_record(
-        &self,
-        account_id: i64,
-    ) -> Result<Option<UnschedulableRecord>> {
+    pub async fn get_record(&self, account_id: i64) -> Result<Option<UnschedulableRecord>> {
         let cache = self.cache.read().await;
         Ok(cache.get(&account_id).cloned())
     }
-    
+
     /// 获取所有不可调度的账号
     pub async fn get_all_unschedulable(&self) -> Result<Vec<UnschedulableRecord>> {
         let cache = self.cache.read().await;
         Ok(cache.values().cloned().collect())
     }
-    
+
     /// 按原因获取不可调度账号
     pub async fn get_by_reason(
         &self,
@@ -162,12 +159,12 @@ impl TempUnschedulable {
             .cloned()
             .collect())
     }
-    
+
     /// 清理已过期的不可调度记录
     pub async fn cleanup_expired(&self) -> Result<i64> {
         let mut count = 0i64;
         let mut to_remove = Vec::new();
-        
+
         {
             let cache = self.cache.read().await;
             for (account_id, record) in cache.iter() {
@@ -178,25 +175,25 @@ impl TempUnschedulable {
                 }
             }
         }
-        
+
         for account_id in to_remove {
             if self.resume_scheduling(account_id).await? {
                 count += 1;
             }
         }
-        
+
         Ok(count)
     }
-    
+
     /// 获取统计信息
     pub async fn get_stats(&self) -> UnschedulableStats {
         let cache = self.cache.read().await;
-        
+
         let mut stats = UnschedulableStats::default();
-        
+
         for record in cache.values() {
             stats.total_count += 1;
-            
+
             match &record.reason {
                 UnschedulableReason::RateLimited => stats.rate_limited_count += 1,
                 UnschedulableReason::QuotaExceeded => stats.quota_exceeded_count += 1,
@@ -207,7 +204,7 @@ impl TempUnschedulable {
                 UnschedulableReason::ServiceDegradation => stats.service_degradation_count += 1,
             }
         }
-        
+
         stats
     }
 }
@@ -228,32 +225,35 @@ pub struct UnschedulableStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_temp_unschedulable() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let manager = TempUnschedulable::new(db);
-        
+
         // 标记为不可调度
-        let record = manager.mark_unschedulable(
-            1,
-            UnschedulableReason::RateLimited,
-            Some("Rate limit exceeded"),
-            Some(Duration::minutes(5)),
-            None,
-        ).await.unwrap();
-        
+        let record = manager
+            .mark_unschedulable(
+                1,
+                UnschedulableReason::RateLimited,
+                Some("Rate limit exceeded"),
+                Some(Duration::minutes(5)),
+                None,
+            )
+            .await
+            .unwrap();
+
         assert!(!record.resolved);
-        
+
         // 检查是否可调度
         let schedulable = manager.is_schedulable(1).await.unwrap();
         assert!(!schedulable);
-        
+
         // 恢复调度
         let resumed = manager.resume_scheduling(1).await.unwrap();
         assert!(resumed);
-        
+
         // 再次检查
         let schedulable = manager.is_schedulable(1).await.unwrap();
         assert!(schedulable);

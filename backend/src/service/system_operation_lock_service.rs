@@ -43,7 +43,8 @@ impl SystemOperationLockService {
 
     /// Try to acquire a lock
     pub async fn try_acquire(&self, key: &str, owner: &str) -> Result<LockGuard, String> {
-        self.try_acquire_with_ttl(key, owner, self.default_ttl).await
+        self.try_acquire_with_ttl(key, owner, self.default_ttl)
+            .await
     }
 
     /// Try to acquire a lock with custom TTL
@@ -54,14 +55,14 @@ impl SystemOperationLockService {
         ttl: Duration,
     ) -> Result<LockGuard, String> {
         let mut locks = self.locks.write().await;
-        
+
         // Check if lock exists and is valid
         if let Some(existing) = locks.get(key) {
             if existing.acquired_at.elapsed() < existing.ttl {
                 return Err(format!("Lock '{}' is held by {}", key, existing.owner));
             }
         }
-        
+
         // Acquire lock
         let state = LockState {
             key: key.to_string(),
@@ -69,9 +70,9 @@ impl SystemOperationLockService {
             acquired_at: Instant::now(),
             ttl,
         };
-        
+
         locks.insert(key.to_string(), state.clone());
-        
+
         Ok(LockGuard {
             service: Arc::new(self.clone()),
             key: key.to_string(),
@@ -82,13 +83,16 @@ impl SystemOperationLockService {
     /// Release a lock
     pub async fn release(&self, key: &str, owner: &str) -> Result<(), String> {
         let mut locks = self.locks.write().await;
-        
+
         match locks.get(key) {
             Some(lock) if lock.owner == owner => {
                 locks.remove(key);
                 Ok(())
             }
-            Some(lock) => Err(format!("Lock '{}' is held by {}, not {}", key, lock.owner, owner)),
+            Some(lock) => Err(format!(
+                "Lock '{}' is held by {}, not {}",
+                key, lock.owner, owner
+            )),
             None => Err(format!("Lock '{}' not found", key)),
         }
     }
@@ -138,7 +142,7 @@ impl Drop for LockGuard {
         let service = self.service.clone();
         let key = self.key.clone();
         let owner = self.owner.clone();
-        
+
         tokio::spawn(async move {
             let _ = service.release(&key, &owner).await;
         });
@@ -152,10 +156,10 @@ mod tests {
     #[tokio::test]
     async fn test_acquire_release() {
         let service = SystemOperationLockService::new(Duration::from_secs(10));
-        
+
         let guard = service.try_acquire("test-lock", "owner-1").await;
         assert!(guard.is_ok());
-        
+
         let second = service.try_acquire("test-lock", "owner-2").await;
         assert!(second.is_err());
     }
@@ -163,9 +167,9 @@ mod tests {
     #[tokio::test]
     async fn test_is_locked() {
         let service = SystemOperationLockService::new(Duration::from_secs(10));
-        
+
         assert!(!service.is_locked("test-lock").await);
-        
+
         let _guard = service.try_acquire("test-lock", "owner-1").await.unwrap();
         assert!(service.is_locked("test-lock").await);
     }

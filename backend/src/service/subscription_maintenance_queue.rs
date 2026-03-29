@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Maintenance queue for subscriptions
 pub struct SubscriptionMaintenanceQueue {
@@ -70,13 +70,15 @@ impl SubscriptionMaintenanceQueue {
 
     /// Get pending tasks
     pub async fn get_pending(&self, limit: i64) -> Result<Vec<MaintenanceTask>, QueueError> {
-        let tasks = query_as::<_, MaintenanceTask>(r#"
+        let tasks = query_as::<_, MaintenanceTask>(
+            r#"
             SELECT * FROM subscription_maintenance_tasks
             WHERE status = 'pending' AND scheduled_at <= NOW()
             ORDER BY scheduled_at
             LIMIT $1
-            "#)
-            .bind(limit)
+            "#,
+        )
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 

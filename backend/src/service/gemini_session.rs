@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Session management for Gemini API
 pub struct GeminiSession {
@@ -72,10 +72,11 @@ impl GeminiSession {
 
     /// Get session by ID
     pub async fn get(&self, session_id: &str) -> Result<Session, SessionError> {
-        let session = query_as::<_, Session>("SELECT * FROM gemini_sessions WHERE id = $1").bind(session_id)
+        let session = query_as::<_, Session>("SELECT * FROM gemini_sessions WHERE id = $1")
+            .bind(session_id)
             .fetch_optional(&self.pool)
-        .await?
-        .ok_or(SessionError::NotFound)?;
+            .await?
+            .ok_or(SessionError::NotFound)?;
 
         if session.expires_at < Utc::now() {
             return Err(SessionError::Expired);
@@ -90,15 +91,17 @@ impl GeminiSession {
         session_id: &str,
         message: Message,
     ) -> Result<(), SessionError> {
-        query(r#"
+        query(
+            r#"
             UPDATE gemini_sessions
             SET context = context || $1::jsonb, updated_at = NOW()
             WHERE id = $2
-            "#)
-            .bind(serde_json::to_value(&message).unwrap())
-            .bind(session_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(serde_json::to_value(&message).unwrap())
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

@@ -44,18 +44,17 @@ impl BackupService {
             backup_type: backup_type.to_string(),
             is_complete: false,
         };
-        
+
         let mut backups = self.backups.write().await;
         backups.insert(id.clone(), record);
-        
+
         id
     }
 
     pub async fn complete_backup(&self, id: &str, size: u64) -> Result<(), String> {
         let mut backups = self.backups.write().await;
-        let backup = backups.get_mut(id)
-            .ok_or("Backup not found")?;
-        
+        let backup = backups.get_mut(id).ok_or("Backup not found")?;
+
         backup.size_bytes = size;
         backup.is_complete = true;
         Ok(())
@@ -81,10 +80,10 @@ mod tests {
     #[tokio::test]
     async fn test_backup() {
         let service = BackupService::new();
-        
+
         let id = service.create_backup("daily", "full").await;
         service.complete_backup(&id, 1024).await.unwrap();
-        
+
         let backups = service.list_backups().await;
         assert_eq!(backups.len(), 1);
         assert!(backups[0].is_complete);

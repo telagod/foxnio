@@ -22,7 +22,7 @@ pub struct IdempotencyCleanupConfig {
 impl Default for IdempotencyCleanupConfig {
     fn default() -> Self {
         Self {
-            cleanup_interval_seconds: 3600,  // 1 小时
+            cleanup_interval_seconds: 3600, // 1 小时
             batch_size: 1000,
             max_age_hours: 48,
         }
@@ -61,7 +61,7 @@ impl IdempotencyCleanupService {
     /// 执行清理
     pub async fn cleanup(&self) -> Result<usize> {
         let start = std::time::Instant::now();
-        
+
         // 清理过期记录
         let cleaned = {
             let mut coord = self.coordinator.write().await;
@@ -92,13 +92,13 @@ impl IdempotencyCleanupService {
     /// 启动后台清理任务
     pub fn start_background_cleanup(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_secs(self.config.cleanup_interval_seconds)
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                self.config.cleanup_interval_seconds,
+            ));
 
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = self.cleanup().await {
                     tracing::error!("Idempotency cleanup failed: {}", e);
                     let mut stats = self.stats.write().await;
@@ -111,7 +111,7 @@ impl IdempotencyCleanupService {
     /// 批量清理特定范围的记录
     pub async fn cleanup_by_age(&self, max_age_hours: u64) -> Result<usize> {
         let _cutoff = Utc::now() - chrono::Duration::hours(max_age_hours as i64);
-        
+
         // TODO: 实现数据库级别的清理
         // 目前使用内存清理
         let cleaned = {
@@ -144,10 +144,8 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup() {
         let coordinator = Arc::new(RwLock::new(IdempotencyCoordinator::default()));
-        let service = IdempotencyCleanupService::new(
-            IdempotencyCleanupConfig::default(),
-            coordinator,
-        );
+        let service =
+            IdempotencyCleanupService::new(IdempotencyCleanupConfig::default(), coordinator);
 
         let cleaned = service.cleanup().await.unwrap();
         assert_eq!(cleaned, 0);
@@ -159,10 +157,8 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup_stats() {
         let coordinator = Arc::new(RwLock::new(IdempotencyCoordinator::default()));
-        let service = IdempotencyCleanupService::new(
-            IdempotencyCleanupConfig::default(),
-            coordinator,
-        );
+        let service =
+            IdempotencyCleanupService::new(IdempotencyCleanupConfig::default(), coordinator);
 
         service.cleanup().await.unwrap();
         let stats = service.get_stats().await;

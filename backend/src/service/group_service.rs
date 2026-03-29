@@ -41,10 +41,10 @@ impl GroupService {
             is_active: true,
             created_at: chrono::Utc::now().timestamp(),
         };
-        
+
         let mut groups = self.groups.write().await;
         groups.insert(id, group.clone());
-        
+
         group
     }
 
@@ -55,24 +55,25 @@ impl GroupService {
 
     pub async fn list_active(&self) -> Vec<Group> {
         let groups = self.groups.read().await;
-        groups.values()
-            .filter(|g| g.is_active)
-            .cloned()
-            .collect()
+        groups.values().filter(|g| g.is_active).cloned().collect()
     }
 
-    pub async fn update(&self, id: i64, name: Option<String>, description: Option<String>) -> Result<Group, String> {
+    pub async fn update(
+        &self,
+        id: i64,
+        name: Option<String>,
+        description: Option<String>,
+    ) -> Result<Group, String> {
         let mut groups = self.groups.write().await;
-        let group = groups.get_mut(&id)
-            .ok_or("Group not found")?;
-        
+        let group = groups.get_mut(&id).ok_or("Group not found")?;
+
         if let Some(n) = name {
             group.name = n;
         }
         if let Some(d) = description {
             group.description = Some(d);
         }
-        
+
         Ok(group.clone())
     }
 
@@ -94,10 +95,10 @@ mod tests {
     #[tokio::test]
     async fn test_group() {
         let service = GroupService::new();
-        
+
         let group = service.create(1, "Default".to_string(), None).await;
         assert_eq!(group.name, "Default");
-        
+
         let retrieved = service.get(1).await.unwrap();
         assert_eq!(retrieved.id, 1);
     }

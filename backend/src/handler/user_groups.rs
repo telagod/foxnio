@@ -4,11 +4,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Query,
-    http::StatusCode,
-    Extension, Json,
-};
+use axum::{extract::Query, http::StatusCode, Extension, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 

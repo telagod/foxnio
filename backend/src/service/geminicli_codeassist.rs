@@ -61,7 +61,10 @@ impl GeminicliCodeassist {
         Ok(CodeAssistResponse {
             code: "// Generated code placeholder".to_string(),
             explanation: Some("This is a placeholder response".to_string()),
-            language: request.language.clone().unwrap_or_else(|| "text".to_string()),
+            language: request
+                .language
+                .clone()
+                .unwrap_or_else(|| "text".to_string()),
             tokens_used: 0,
         })
     }

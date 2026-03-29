@@ -13,7 +13,9 @@ use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::permission::{Permission, PermissionService};
 use crate::service::user::Claims;
-use crate::service::{LegacyAccountService as AccountService, LegacyBillingService as BillingService, UserService};
+use crate::service::{
+    LegacyAccountService as AccountService, LegacyBillingService as BillingService, UserService,
+};
 
 // ============ 用户管理 API ============
 

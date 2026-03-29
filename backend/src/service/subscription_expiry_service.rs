@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Subscription expiry service
 pub struct SubscriptionExpiryService {
@@ -27,7 +27,10 @@ impl SubscriptionExpiryService {
     }
 
     /// Get expiring subscriptions
-    pub async fn get_expiring(&self, within_days: i32) -> Result<Vec<ExpiryNotification>, ExpiryError> {
+    pub async fn get_expiring(
+        &self,
+        within_days: i32,
+    ) -> Result<Vec<ExpiryNotification>, ExpiryError> {
         let cutoff = Utc::now() + chrono::Duration::days(within_days as i64);
 
         let notifications = query_as::<_, ExpiryNotification>(r#"
@@ -48,14 +51,16 @@ impl SubscriptionExpiryService {
 
     /// Mark as notified
     pub async fn mark_notified(&self, subscription_id: i64) -> Result<(), ExpiryError> {
-        query(r#"
+        query(
+            r#"
             INSERT INTO subscription_expiry_notifications (subscription_id, notified_at)
             VALUES ($1, NOW())
             ON CONFLICT (subscription_id) DO UPDATE SET notified_at = NOW()
-            "#)
-            .bind(subscription_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(subscription_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

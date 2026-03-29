@@ -22,7 +22,10 @@ mod tests {
         assert_eq!(AttributeType::parse("url"), AttributeType::Url);
         assert_eq!(AttributeType::parse("date"), AttributeType::Date);
         assert_eq!(AttributeType::parse("select"), AttributeType::Select);
-        assert_eq!(AttributeType::parse("multi_select"), AttributeType::MultiSelect);
+        assert_eq!(
+            AttributeType::parse("multi_select"),
+            AttributeType::MultiSelect
+        );
         assert_eq!(AttributeType::parse("unknown"), AttributeType::Text);
     }
 }

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Subscription service for Antigravity API
 pub struct AntigravitySubscriptionService {
@@ -53,14 +53,19 @@ impl AntigravitySubscriptionService {
     }
 
     /// Get subscription for user
-    pub async fn get_by_user(&self, user_id: i64) -> Result<Option<Subscription>, SubscriptionError> {
-        let subscription = query_as::<_, Subscription>(r#"
+    pub async fn get_by_user(
+        &self,
+        user_id: i64,
+    ) -> Result<Option<Subscription>, SubscriptionError> {
+        let subscription = query_as::<_, Subscription>(
+            r#"
             SELECT * FROM subscriptions
             WHERE user_id = $1 AND status = 'active'
             ORDER BY created_at DESC
             LIMIT 1
-            "#)
-            .bind(user_id)
+            "#,
+        )
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -95,12 +100,18 @@ impl AntigravitySubscriptionService {
     }
 
     /// Cancel subscription
-    pub async fn cancel(&self, subscription_id: i64, immediately: bool) -> Result<(), SubscriptionError> {
+    pub async fn cancel(
+        &self,
+        subscription_id: i64,
+        immediately: bool,
+    ) -> Result<(), SubscriptionError> {
         if immediately {
-            query("UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE id = $1")
-                .bind(subscription_id)
-                .execute(&self.pool)
-                .await?;
+            query(
+                "UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
+            )
+            .bind(subscription_id)
+            .execute(&self.pool)
+            .await?;
         } else {
             query("UPDATE subscriptions SET cancel_at_period_end = true, updated_at = NOW() WHERE id = $1")
                 .bind(subscription_id)

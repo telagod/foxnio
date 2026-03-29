@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sha2::{Digest, Sha256};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 fn sha256_hash(input: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -56,16 +56,18 @@ impl ApiKeyService {
         let key_prefix = key[..10].to_string();
         let key_hash = sha256_hash(key.as_bytes());
 
-        let api_key = query_as::<_, ApiKey>(r#"
+        let api_key = query_as::<_, ApiKey>(
+            r#"
             INSERT INTO api_keys (user_id, key_hash, key_prefix, name, permissions, created_at)
             VALUES ($1, $2, $3, $4, $5, NOW())
             RETURNING *
-            "#)
-            .bind(user_id)
-            .bind(key_hash)
-            .bind(key_prefix)
-            .bind(name)
-            .bind(&permissions)
+            "#,
+        )
+        .bind(user_id)
+        .bind(key_hash)
+        .bind(key_prefix)
+        .bind(name)
+        .bind(&permissions)
         .fetch_one(&self.pool)
         .await?;
 
@@ -78,9 +80,9 @@ impl ApiKeyService {
 
         let api_key = query_as::<_, ApiKey>("SELECT * FROM api_keys WHERE key_hash = $1")
             .bind(&key_hash)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(ApiKeyError::InvalidKey)?;
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(ApiKeyError::InvalidKey)?;
 
         // Check expiration
         if let Some(expires_at) = api_key.expires_at {
@@ -100,8 +102,10 @@ impl ApiKeyService {
 
     /// List API keys for user
     pub async fn list_for_user(&self, user_id: i64) -> Result<Vec<ApiKey>, ApiKeyError> {
-        let keys = query_as::<_, ApiKey>("SELECT * FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC")
-            .bind(user_id)
+        let keys = query_as::<_, ApiKey>(
+            "SELECT * FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC",
+        )
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
 

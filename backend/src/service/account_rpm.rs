@@ -36,29 +36,33 @@ impl AccountRpmService {
 
     pub async fn set_rpm_limit(&self, account_id: i64, max_rpm: u32) {
         let mut configs = self.configs.write().await;
-        configs.insert(account_id, AccountRpmConfig {
+        configs.insert(
             account_id,
-            max_rpm,
-            current_count: 0,
-            window_start: Instant::now(),
-        });
+            AccountRpmConfig {
+                account_id,
+                max_rpm,
+                current_count: 0,
+                window_start: Instant::now(),
+            },
+        );
     }
 
     pub async fn check_and_increment(&self, account_id: i64) -> Result<(), String> {
         let mut configs = self.configs.write().await;
-        let config = configs.get_mut(&account_id)
+        let config = configs
+            .get_mut(&account_id)
             .ok_or("Account not configured")?;
-        
+
         // Reset window if expired
         if config.window_start.elapsed() > self.window_duration {
             config.current_count = 0;
             config.window_start = Instant::now();
         }
-        
+
         if config.current_count >= config.max_rpm {
             return Err("RPM limit exceeded".to_string());
         }
-        
+
         config.current_count += 1;
         Ok(())
     }
@@ -76,13 +80,13 @@ mod tests {
     #[tokio::test]
     async fn test_rpm_service() {
         let service = AccountRpmService::new(Duration::from_secs(60));
-        
+
         service.set_rpm_limit(123, 5).await;
-        
+
         for _ in 0..5 {
             assert!(service.check_and_increment(123).await.is_ok());
         }
-        
+
         assert!(service.check_and_increment(123).await.is_err());
     }
 }

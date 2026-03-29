@@ -99,7 +99,7 @@ mod tests {
     fn test_pii_detection() {
         // Create a mock pool reference - we only need it for the struct, check_pii doesn't use it
         let config = PrivacyConfig::default();
-        
+
         // Test email detection directly via regex
         let email_regex = regex::Regex::new(r"\b[\w\.-]+@[\w\.-]+\.\w+\b").unwrap();
         assert!(email_regex.is_match("Contact: test@example.com"));

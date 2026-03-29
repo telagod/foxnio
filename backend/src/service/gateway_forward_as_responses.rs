@@ -157,11 +157,13 @@ pub struct GatewayForwardResponses;
 
 impl GatewayForwardResponses {
     /// 将 Responses 请求转换为 Anthropic 请求
-    pub fn to_anthropic(req: &ResponsesRequest) -> Result<crate::gateway::responses::AnthropicRequest> {
+    pub fn to_anthropic(
+        req: &ResponsesRequest,
+    ) -> Result<crate::gateway::responses::AnthropicRequest> {
         // 分离系统消息和对话消息
         let mut system_prompt = req.instructions.clone().unwrap_or_default();
         let mut messages = Vec::new();
-        
+
         for msg in &req.input {
             if msg.role == "system" {
                 if let Some(ResponsesContent::Text { text }) = msg.content.first() {
@@ -172,46 +174,52 @@ impl GatewayForwardResponses {
                 }
                 continue;
             }
-            
+
             // 转换内容
-            let anthropic_content: Vec<crate::gateway::responses::AnthropicContentBlock> = msg.content
+            let anthropic_content: Vec<crate::gateway::responses::AnthropicContentBlock> = msg
+                .content
                 .iter()
                 .filter_map(|c| Self::convert_content(c))
                 .collect();
-            
+
             if !anthropic_content.is_empty() {
                 messages.push(crate::gateway::responses::AnthropicMessage {
                     role: msg.role.clone(),
-                    content: serde_json::to_value(&anthropic_content).unwrap_or(serde_json::json!([])),
+                    content: serde_json::to_value(&anthropic_content)
+                        .unwrap_or(serde_json::json!([])),
                 });
             }
         }
-        
+
         // 转换工具定义
         let tools = req.tools.as_ref().map(|t| {
-            t.iter().map(|tool| crate::gateway::responses::AnthropicTool {
-                tool_type: Some("function".to_string()),
-                name: tool.name.clone(),
-                description: tool.description.clone(),
-                input_schema: tool.input_schema.clone(),
-            }).collect()
+            t.iter()
+                .map(|tool| crate::gateway::responses::AnthropicTool {
+                    tool_type: Some("function".to_string()),
+                    name: tool.name.clone(),
+                    description: tool.description.clone(),
+                    input_schema: tool.input_schema.clone(),
+                })
+                .collect()
         });
-        
+
         // 将消息内容转换为 JsonValue
         let messages_json: Vec<crate::gateway::responses::AnthropicMessage> = messages
             .into_iter()
-            .map(|m| {
-                crate::gateway::responses::AnthropicMessage {
-                    role: m.role,
-                    content: serde_json::to_value(m.content).unwrap_or(serde_json::json!([])),
-                }
+            .map(|m| crate::gateway::responses::AnthropicMessage {
+                role: m.role,
+                content: serde_json::to_value(m.content).unwrap_or(serde_json::json!([])),
             })
             .collect();
-        
+
         Ok(crate::gateway::responses::AnthropicRequest {
             model: req.model.clone(),
             messages: messages_json,
-            system: if system_prompt.is_empty() { None } else { Some(serde_json::json!(system_prompt)) },
+            system: if system_prompt.is_empty() {
+                None
+            } else {
+                Some(serde_json::json!(system_prompt))
+            },
             max_tokens: req.max_output_tokens.unwrap_or(4096) as i32,
             temperature: req.temperature.map(|t| t as f64),
             top_p: req.top_p.map(|p| p as f64),
@@ -224,7 +232,9 @@ impl GatewayForwardResponses {
     }
 
     /// 转换内容块
-    fn convert_content(content: &ResponsesContent) -> Option<crate::gateway::responses::AnthropicContentBlock> {
+    fn convert_content(
+        content: &ResponsesContent,
+    ) -> Option<crate::gateway::responses::AnthropicContentBlock> {
         match content {
             ResponsesContent::Text { text } => {
                 Some(crate::gateway::responses::AnthropicContentBlock {
@@ -269,23 +279,30 @@ impl GatewayForwardResponses {
                     is_error: None,
                 })
             }
-            ResponsesContent::ToolResult { tool_use_id, content } => {
-                Some(crate::gateway::responses::AnthropicContentBlock {
-                    block_type: "tool_result".to_string(),
-                    text: Some(content.clone()),
-                    thinking: None,
-                    source: None,
-                    id: None,
-                    name: None,
-                    input: None,
-                    tool_use_id: Some(tool_use_id.clone()),
-                    is_error: None,
-                })
-            }
+            ResponsesContent::ToolResult {
+                tool_use_id,
+                content,
+            } => Some(crate::gateway::responses::AnthropicContentBlock {
+                block_type: "tool_result".to_string(),
+                text: Some(content.clone()),
+                thinking: None,
+                source: None,
+                id: None,
+                name: None,
+                input: None,
+                tool_use_id: Some(tool_use_id.clone()),
+                is_error: None,
+            }),
             ResponsesContent::Reasoning { summary } => {
                 Some(crate::gateway::responses::AnthropicContentBlock {
                     block_type: "text".to_string(),
-                    text: Some(summary.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n")),
+                    text: Some(
+                        summary
+                            .iter()
+                            .map(|s| s.text.as_str())
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    ),
                     thinking: None,
                     source: None,
                     id: None,
@@ -304,7 +321,7 @@ impl GatewayForwardResponses {
         model: &str,
     ) -> Result<ResponsesResponse> {
         let mut output = Vec::new();
-        
+
         // 转换内容
         for content in &resp.content {
             match content.block_type.as_str() {
@@ -314,7 +331,9 @@ impl GatewayForwardResponses {
                     }
                 }
                 "tool_use" => {
-                    if let (Some(id), Some(name), Some(input)) = (&content.id, &content.name, &content.input) {
+                    if let (Some(id), Some(name), Some(input)) =
+                        (&content.id, &content.name, &content.input)
+                    {
                         output.push(ResponsesContent::ToolUse {
                             id: id.clone(),
                             name: name.clone(),
@@ -325,7 +344,7 @@ impl GatewayForwardResponses {
                 _ => {}
             }
         }
-        
+
         Ok(ResponsesResponse {
             id: Some(format!("resp-{}", uuid::Uuid::new_v4())),
             object: "response".to_string(),
@@ -362,7 +381,7 @@ mod tests {
             ],
             "max_output_tokens": 1024
         }"#;
-        
+
         let req: ResponsesRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.model, "claude-3-opus");
         assert_eq!(req.input.len(), 1);
@@ -370,7 +389,9 @@ mod tests {
 
     #[test]
     fn test_responses_content_variants() {
-        let text_content = ResponsesContent::Text { text: "Hello".to_string() };
+        let text_content = ResponsesContent::Text {
+            text: "Hello".to_string(),
+        };
         let json = serde_json::to_string(&text_content).unwrap();
         assert!(json.contains(r#""type":"text"#));
     }

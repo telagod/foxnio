@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Session management for Anthropic API
 pub struct AnthropicSession {
@@ -49,16 +49,18 @@ impl AnthropicSession {
         let now = Utc::now();
         let id = uuid::Uuid::new_v4().to_string();
 
-        let session = query_as::<_, Session>(r#"
+        let session = query_as::<_, Session>(
+            r#"
             INSERT INTO anthropic_sessions (id, user_id, account_id, created_at, expires_at)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING *
-            "#)
-            .bind(&id)
-            .bind(user_id)
-            .bind(account_id)
-            .bind(now)
-            .bind(now + chrono::Duration::hours(ttl_hours))
+            "#,
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(account_id)
+        .bind(now)
+        .bind(now + chrono::Duration::hours(ttl_hours))
         .fetch_one(&self.pool)
         .await?;
 
@@ -82,15 +84,17 @@ impl AnthropicSession {
 
     /// Add message
     pub async fn add_message(&self, id: &str, message: Message) -> Result<(), SessionError> {
-        query(r#"
+        query(
+            r#"
             UPDATE anthropic_sessions
             SET messages = messages || $1::jsonb
             WHERE id = $2
-            "#)
-            .bind(serde_json::to_value(&message).unwrap())
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(serde_json::to_value(&message).unwrap())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

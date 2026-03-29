@@ -128,7 +128,10 @@ impl OpenAIStickyCompat {
         let sessions = self.sessions.read().await;
         StickyStats {
             total_sessions: sessions.len(),
-            active_sessions: sessions.values().filter(|s| self.is_session_valid(s)).count(),
+            active_sessions: sessions
+                .values()
+                .filter(|s| self.is_session_valid(s))
+                .count(),
         }
     }
 }
@@ -146,10 +149,10 @@ mod tests {
     #[tokio::test]
     async fn test_sticky_session() {
         let compat = OpenAIStickyCompat::new(StickyConfig::default());
-        
+
         let session_id = compat.get_or_create(1, 100, "gpt-4").await.unwrap();
         assert!(session_id.starts_with("sticky:"));
-        
+
         let session = compat.get(&session_id).await;
         assert!(session.is_some());
     }

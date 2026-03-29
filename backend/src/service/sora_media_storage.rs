@@ -45,7 +45,12 @@ impl SoraMediaStorage {
     }
 
     /// Upload video
-    pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<UploadResult, StorageError> {
+    pub async fn upload(
+        &self,
+        key: &str,
+        data: &[u8],
+        content_type: &str,
+    ) -> Result<UploadResult, StorageError> {
         // In real implementation, would upload to S3/GCS/etc
         let url = format!(
             "https://{}.s3.{}.amazonaws.com/{}",

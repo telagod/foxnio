@@ -41,12 +41,13 @@ impl AccountTestService {
             message: "Test passed".to_string(),
             tested_at: chrono::Utc::now().timestamp(),
         };
-        
+
         let mut results = self.results.write().await;
-        results.entry(account_id)
+        results
+            .entry(account_id)
             .or_insert_with(Vec::new)
             .push(result.clone());
-        
+
         result
     }
 
@@ -68,10 +69,10 @@ mod tests {
     #[tokio::test]
     async fn test_account_test() {
         let service = AccountTestService::new();
-        
+
         let result = service.run_test(123, "connection").await;
         assert!(result.passed);
-        
+
         let results = service.get_results(123).await;
         assert_eq!(results.len(), 1);
     }

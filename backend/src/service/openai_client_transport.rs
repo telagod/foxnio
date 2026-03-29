@@ -185,10 +185,7 @@ impl OpenAIClientTransport {
     }
 
     /// Execute streaming request
-    pub async fn execute_stream(
-        &self,
-        config: RequestConfig,
-    ) -> TransportResult<StreamResponse> {
+    pub async fn execute_stream(&self, config: RequestConfig) -> TransportResult<StreamResponse> {
         let response = self.execute(config).await?;
 
         if !response.status().is_success() {
@@ -226,7 +223,9 @@ impl OpenAIClientTransport {
             TransportError::Timeout(_) => true,
             TransportError::ConnectionError(_) => true,
             TransportError::Http(e) => {
-                e.is_timeout() || e.is_connect() || e.status().map_or(false, |s| s.is_server_error())
+                e.is_timeout()
+                    || e.is_connect()
+                    || e.status().map_or(false, |s| s.is_server_error())
             }
             _ => false,
         }
@@ -318,11 +317,11 @@ mod tests {
     fn test_retry_delay_calculation() {
         let config = TransportConfig::default();
         let transport = OpenAIClientTransport::new(config).unwrap();
-        
+
         let delay1 = transport.calculate_retry_delay(1);
         let delay2 = transport.calculate_retry_delay(2);
         let delay3 = transport.calculate_retry_delay(3);
-        
+
         assert!(delay2 > delay1);
         assert!(delay3 > delay2);
     }

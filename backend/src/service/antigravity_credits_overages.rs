@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Credits and overages management for Antigravity
 pub struct AntigravityCreditsOverages {
@@ -40,12 +40,14 @@ impl AntigravityCreditsOverages {
 
     /// Get credit balance for user
     pub async fn get_balance(&self, user_id: i64) -> Result<CreditBalance, CreditsError> {
-        let balance = query_as::<_, CreditBalance>(r#"
+        let balance = query_as::<_, CreditBalance>(
+            r#"
             SELECT user_id, credits_remaining, credits_used, overage_amount, last_updated
             FROM credit_balances
             WHERE user_id = $1
-            "#)
-            .bind(user_id)
+            "#,
+        )
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?
         .unwrap_or(CreditBalance {
@@ -61,7 +63,8 @@ impl AntigravityCreditsOverages {
 
     /// Consume credits
     pub async fn consume(&self, user_id: i64, amount: f64) -> Result<(), CreditsError> {
-        query(r#"
+        query(
+            r#"
             UPDATE credit_balances
             SET
                 credits_remaining = GREATEST(credits_remaining - $1, 0),
@@ -69,28 +72,31 @@ impl AntigravityCreditsOverages {
                 overage_amount = overage_amount + GREATEST($1 - credits_remaining, 0),
                 last_updated = NOW()
             WHERE user_id = $2
-            "#)
-            .bind(amount)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(amount)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
     /// Add credits
     pub async fn add(&self, user_id: i64, amount: f64) -> Result<(), CreditsError> {
-        query(r#"
+        query(
+            r#"
             INSERT INTO credit_balances (user_id, credits_remaining, last_updated)
             VALUES ($1, $2, NOW())
             ON CONFLICT (user_id) DO UPDATE SET
                 credits_remaining = credit_balances.credits_remaining + $2,
                 last_updated = NOW()
-            "#)
-            .bind(user_id)
-            .bind(amount)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(user_id)
+        .bind(amount)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

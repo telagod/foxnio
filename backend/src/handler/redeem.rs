@@ -2,11 +2,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Extension,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::Extension, http::StatusCode, Json};
 use serde_json::{json, Value};
 
 use super::ApiError;
@@ -21,7 +17,7 @@ pub async fn redeem_code(
     Json(req): Json<RedeemCodeRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let redeem_service = RedeemCodeService::new(state.db.clone());
-    
+
     let result = redeem_service
         .redeem(req)
         .await
@@ -42,10 +38,10 @@ pub async fn get_redemption_history(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
     let redeem_service = RedeemCodeService::new(state.db.clone());
-    
+
     let user_id = uuid::Uuid::parse_str(&claims.sub)
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
-    
+
     let redemptions = redeem_service
         .get_user_redemptions(user_id)
         .await
@@ -77,7 +73,7 @@ pub async fn admin_generate_codes(
     }
 
     let redeem_service = RedeemCodeService::new(state.db.clone());
-    
+
     let codes = redeem_service
         .generate_batch(req)
         .await
@@ -108,7 +104,7 @@ pub async fn admin_get_redeem_stats(
     }
 
     let redeem_service = RedeemCodeService::new(state.db.clone());
-    
+
     let stats = redeem_service
         .get_stats()
         .await
@@ -140,10 +136,11 @@ pub async fn admin_cancel_code(
         .ok_or(ApiError(StatusCode::BAD_REQUEST, "Missing code_id".into()))?;
 
     let redeem_service = RedeemCodeService::new(state.db.clone());
-    
-    let code_uuid: uuid::Uuid = code_id.parse()
+
+    let code_uuid: uuid::Uuid = code_id
+        .parse()
         .map_err(|e: uuid::Error| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-    
+
     redeem_service
         .cancel(code_uuid)
         .await

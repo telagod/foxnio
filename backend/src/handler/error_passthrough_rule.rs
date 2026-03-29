@@ -13,9 +13,11 @@ use serde_json::{json, Value};
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
+use crate::service::error_passthrough_rule::{
+    CreateErrorRuleRequest, ErrorPassthroughRuleService, UpdateErrorRuleRequest,
+};
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
-use crate::service::error_passthrough_rule::{ErrorPassthroughRuleService, CreateErrorRuleRequest, UpdateErrorRuleRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -78,7 +80,8 @@ pub async fn get_rule(
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let rule = rules.into_iter()
+    let rule = rules
+        .into_iter()
         .find(|r| r.id == id)
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Rule not found".into()))?;
 
@@ -174,8 +177,9 @@ pub async fn apply_error_rules(
         body.platform.as_deref(),
         body.response_code,
         body.response_body.as_deref(),
-    ).await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    )
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!(result)))
 }

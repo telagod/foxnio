@@ -56,23 +56,14 @@ impl RequestMetadata {
     /// Inject metadata into headers
     pub fn inject(metadata: &Metadata, headers: &mut HeaderMap) {
         if let Some(user_id) = metadata.user_id {
-            headers.insert(
-                "X-User-ID",
-                user_id.to_string().parse().unwrap(),
-            );
+            headers.insert("X-User-ID", user_id.to_string().parse().unwrap());
         }
 
         if let Some(api_key_id) = metadata.api_key_id {
-            headers.insert(
-                "X-API-Key-ID",
-                api_key_id.to_string().parse().unwrap(),
-            );
+            headers.insert("X-API-Key-ID", api_key_id.to_string().parse().unwrap());
         }
 
-        headers.insert(
-            "X-Request-ID",
-            metadata.request_id.parse().unwrap(),
-        );
+        headers.insert("X-Request-ID", metadata.request_id.parse().unwrap());
     }
 }
 
@@ -84,9 +75,9 @@ mod tests {
     fn test_extract_metadata() {
         let mut headers = HeaderMap::new();
         headers.insert("X-User-ID", "123".parse().unwrap());
-        
+
         let metadata = RequestMetadata::extract(&headers);
-        
+
         assert_eq!(metadata.user_id, Some(123));
     }
 }

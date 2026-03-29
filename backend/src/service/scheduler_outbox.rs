@@ -86,7 +86,7 @@ impl SchedulerOutboxService {
     /// 添加事件到发件箱
     pub async fn enqueue(&self, event: SchedulerEvent) -> Result<i64> {
         let mut entries = self.entries.write().await;
-        
+
         // 检查容量
         if entries.len() >= self.config.max_entries {
             // 移除最旧的已完成条目
@@ -160,7 +160,7 @@ impl SchedulerOutboxService {
         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
             entry.status = OutboxStatus::Sent;
             entry.updated_at = Utc::now();
-            
+
             let mut stats = self.stats.write().await;
             stats.pending_events = stats.pending_events.saturating_sub(1);
             stats.sent_events += 1;
@@ -176,7 +176,7 @@ impl SchedulerOutboxService {
             if entry.status == OutboxStatus::Failed {
                 return Ok(());
             }
-            
+
             entry.retry_count += 1;
             entry.last_error = Some(error.to_string());
             entry.updated_at = Utc::now();
@@ -217,9 +217,9 @@ impl SchedulerOutboxService {
     pub async fn cleanup(&self) -> usize {
         let mut entries = self.entries.write().await;
         let before = entries.len();
-        
+
         entries.retain(|e| e.status != OutboxStatus::Sent && e.status != OutboxStatus::Failed);
-        
+
         before - entries.len()
     }
 
@@ -248,10 +248,10 @@ mod tests {
     async fn test_enqueue() {
         let service = SchedulerOutboxService::default();
         let event = SchedulerEvent::account_changed(123);
-        
+
         let id = service.enqueue(event).await.unwrap();
         assert_eq!(id, 1);
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.total_events, 1);
         assert_eq!(stats.pending_events, 1);
@@ -260,9 +260,15 @@ mod tests {
     #[tokio::test]
     async fn test_get_pending() {
         let service = SchedulerOutboxService::default();
-        service.enqueue(SchedulerEvent::account_changed(1)).await.unwrap();
-        service.enqueue(SchedulerEvent::account_changed(2)).await.unwrap();
-        
+        service
+            .enqueue(SchedulerEvent::account_changed(1))
+            .await
+            .unwrap();
+        service
+            .enqueue(SchedulerEvent::account_changed(2))
+            .await
+            .unwrap();
+
         let pending = service.get_pending(10).await;
         assert_eq!(pending.len(), 2);
     }
@@ -270,11 +276,14 @@ mod tests {
     #[tokio::test]
     async fn test_mark_sent() {
         let service = SchedulerOutboxService::default();
-        let id = service.enqueue(SchedulerEvent::account_changed(123)).await.unwrap();
-        
+        let id = service
+            .enqueue(SchedulerEvent::account_changed(123))
+            .await
+            .unwrap();
+
         service.mark_processing(id).await.unwrap();
         service.mark_sent(id).await.unwrap();
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.sent_events, 1);
         assert_eq!(stats.pending_events, 0);
@@ -283,11 +292,14 @@ mod tests {
     #[tokio::test]
     async fn test_mark_failed() {
         let service = SchedulerOutboxService::default();
-        let id = service.enqueue(SchedulerEvent::account_changed(123)).await.unwrap();
-        
+        let id = service
+            .enqueue(SchedulerEvent::account_changed(123))
+            .await
+            .unwrap();
+
         service.mark_processing(id).await.unwrap();
         service.mark_failed(id, "test error").await.unwrap();
-        
+
         // 第一次失败，应该还可以重试
         let pending = service.get_pending(10).await;
         assert!(!pending.is_empty());
@@ -295,16 +307,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_max_retries() {
-        let config = OutboxConfig { max_retries: 2, ..Default::default() };
+        let config = OutboxConfig {
+            max_retries: 2,
+            ..Default::default()
+        };
         let service = SchedulerOutboxService::new(config);
-        let id = service.enqueue(SchedulerEvent::account_changed(123)).await.unwrap();
-        
+        let id = service
+            .enqueue(SchedulerEvent::account_changed(123))
+            .await
+            .unwrap();
+
         // 失败 3 次
         for _ in 0..3 {
             service.mark_processing(id).await.unwrap();
             service.mark_failed(id, "test error").await.unwrap();
         }
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.failed_events, 1);
     }

@@ -63,7 +63,7 @@ mod tests {
     #[tokio::test]
     async fn test_proxy_service() {
         let service = ProxyService::new();
-        
+
         let config = ProxyConfig {
             id: "proxy-1".to_string(),
             host: "127.0.0.1".to_string(),
@@ -73,7 +73,7 @@ mod tests {
             password: None,
             is_active: true,
         };
-        
+
         service.add(config).await;
         let proxy = service.get("proxy-1").await.unwrap();
         assert_eq!(proxy.host, "127.0.0.1");

@@ -181,6 +181,8 @@ mod tests {
             frequency_penalty: None,
         };
 
-        assert!(!OpenAICompatPromptCacheKey::is_cacheable(&params_non_cacheable));
+        assert!(!OpenAICompatPromptCacheKey::is_cacheable(
+            &params_non_cacheable
+        ));
     }
 }

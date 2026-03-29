@@ -77,10 +77,16 @@ mod tests {
     #[tokio::test]
     async fn test_set_and_get() {
         let service = UserAttributeService::new();
-        
-        service.set(123, "theme".to_string(), AttributeValue::String("dark".to_string())).await;
+
+        service
+            .set(
+                123,
+                "theme".to_string(),
+                AttributeValue::String("dark".to_string()),
+            )
+            .await;
         let value = service.get(123, "theme").await.unwrap();
-        
+
         match value {
             AttributeValue::String(s) => assert_eq!(s, "dark"),
             _ => panic!("Wrong type"),

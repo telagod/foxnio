@@ -1,4 +1,6 @@
-use crate::service::antigravity_token_provider::{AntigravityToken, AntigravityTokenProvider, TokenError};
+use crate::service::antigravity_token_provider::{
+    AntigravityToken, AntigravityTokenProvider, TokenError,
+};
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -29,10 +31,7 @@ pub enum RefreshError {
 }
 
 impl AntigravityTokenRefresher {
-    pub fn new(
-        provider: std::sync::Arc<AntigravityTokenProvider>,
-        config: RefreshConfig,
-    ) -> Self {
+    pub fn new(provider: std::sync::Arc<AntigravityTokenProvider>, config: RefreshConfig) -> Self {
         Self {
             provider,
             client: Client::new(),
@@ -41,7 +40,10 @@ impl AntigravityTokenRefresher {
     }
 
     /// Refresh token if needed
-    pub async fn refresh_if_needed(&self, account_id: i64) -> Result<AntigravityToken, RefreshError> {
+    pub async fn refresh_if_needed(
+        &self,
+        account_id: i64,
+    ) -> Result<AntigravityToken, RefreshError> {
         let token = self.provider.get(account_id).await?;
 
         let refresh_time = token.expires_at - Duration::seconds(self.config.refresh_ahead_seconds);

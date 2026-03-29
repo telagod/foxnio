@@ -23,7 +23,9 @@ use crate::gateway::middleware::permission::check_permission;
 use crate::handler;
 use crate::health::HealthChecker;
 use crate::service::permission::Permission;
-use crate::service::{LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService};
+use crate::service::{
+    LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService,
+};
 use crate::state::AppState;
 
 pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router {
@@ -51,11 +53,20 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .route("/api/v1/auth/refresh", post(handler::auth::refresh))
         .route("/api/v1/auth/logout", post(handler::auth::logout))
         // 验证码发送
-        .route("/api/v1/auth/send-verify-code", post(handler::verify::send_verify_code))
+        .route(
+            "/api/v1/auth/send-verify-code",
+            post(handler::verify::send_verify_code),
+        )
         // 优惠码验证（公开）
-        .route("/api/v1/auth/validate-promo-code", post(handler::verify::validate_promo_code))
+        .route(
+            "/api/v1/auth/validate-promo-code",
+            post(handler::verify::validate_promo_code),
+        )
         // 邀请码验证（公开）
-        .route("/api/v1/auth/validate-invitation-code", post(handler::verify::validate_invitation_code))
+        .route(
+            "/api/v1/auth/validate-invitation-code",
+            post(handler::verify::validate_invitation_code),
+        )
         // TOTP 登录（公开，使用临时 token）
         .route("/api/v1/auth/totp/login", post(handler::auth::totp_login))
         .route(
@@ -120,16 +131,34 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .route("/api/v1/user/apikeys/:id", delete(delete_user_apikey))
         .route("/api/v1/user/apikeys/:id", put(update_user_apikey))
         // 用户端分组信息
-        .route("/api/v1/groups/available", get(handler::user_groups::list_available_groups))
-        .route("/api/v1/groups/rates", get(handler::user_groups::list_group_rates))
+        .route(
+            "/api/v1/groups/available",
+            get(handler::user_groups::list_available_groups),
+        )
+        .route(
+            "/api/v1/groups/rates",
+            get(handler::user_groups::list_group_rates),
+        )
         // 用户端公告
-        .route("/api/v1/announcements", get(handler::user_announcement::list_user_announcements))
+        .route(
+            "/api/v1/announcements",
+            get(handler::user_announcement::list_user_announcements),
+        )
         // 用户端订阅
-        .route("/api/v1/subscriptions", get(handler::subscription::list_user_subscriptions))
-        .route("/api/v1/subscriptions/:id", get(handler::subscription::get_subscription_detail))
+        .route(
+            "/api/v1/subscriptions",
+            get(handler::subscription::list_user_subscriptions),
+        )
+        .route(
+            "/api/v1/subscriptions/:id",
+            get(handler::subscription::get_subscription_detail),
+        )
         // 卡密兑换（用户端）
         .route("/api/v1/redeem", post(handler::redeem::redeem_code))
-        .route("/api/v1/redeem/history", get(handler::redeem::get_redemption_history))
+        .route(
+            "/api/v1/redeem/history",
+            get(handler::redeem::get_redemption_history),
+        )
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // 管理后台路由 - 使用权限系统
@@ -150,7 +179,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         // 账号管理 - 需要 AccountRead/Write 权限
         .route("/api/v1/admin/accounts", get(handler::admin::list_accounts))
         .route("/api/v1/admin/accounts", post(handler::admin::add_account))
-        .route("/api/v1/admin/accounts/batch", post(handler::admin_accounts::batch_create_accounts))
+        .route(
+            "/api/v1/admin/accounts/batch",
+            post(handler::admin_accounts::batch_create_accounts),
+        )
         .route("/api/v1/admin/accounts/:id", get(get_account_detail))
         .route("/api/v1/admin/accounts/:id", put(update_account))
         .route(
@@ -159,20 +191,62 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         )
         .route("/api/v1/admin/accounts/test", post(test_account))
         // 账号操作端点
-        .route("/api/v1/admin/accounts/:id/refresh", post(handler::admin_accounts::refresh_account_token))
-        .route("/api/v1/admin/accounts/:id/recover-state", post(handler::admin_accounts::recover_account_state))
-        .route("/api/v1/admin/accounts/:id/set-privacy", post(handler::admin_accounts::set_account_privacy))
-        .route("/api/v1/admin/accounts/:id/refresh-tier", post(handler::admin_accounts::refresh_account_tier))
-        .route("/api/v1/admin/accounts/:id/clear-error", post(handler::admin_accounts::clear_account_error))
-        .route("/api/v1/admin/accounts/:id/usage", get(handler::admin_accounts::get_account_usage))
-        .route("/api/v1/admin/accounts/:id/today-stats", get(handler::admin_accounts::get_account_today_stats))
-        .route("/api/v1/admin/accounts/today-stats/batch", post(handler::admin_accounts::batch_get_today_stats))
-        .route("/api/v1/admin/accounts/:id/clear-rate-limit", post(handler::admin_accounts::clear_account_rate_limit))
-        .route("/api/v1/admin/accounts/:id/reset-quota", post(handler::admin_accounts::reset_account_quota))
-        .route("/api/v1/admin/accounts/data", get(handler::admin_accounts::export_accounts_data))
-        .route("/api/v1/admin/accounts/data", post(handler::admin_accounts::import_accounts_data))
-        .route("/api/v1/admin/accounts/batch-update-credentials", post(handler::admin_accounts::batch_update_credentials))
-        .route("/api/v1/admin/accounts/batch-refresh-tier", post(handler::admin_accounts::batch_refresh_tier))
+        .route(
+            "/api/v1/admin/accounts/:id/refresh",
+            post(handler::admin_accounts::refresh_account_token),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/recover-state",
+            post(handler::admin_accounts::recover_account_state),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/set-privacy",
+            post(handler::admin_accounts::set_account_privacy),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/refresh-tier",
+            post(handler::admin_accounts::refresh_account_tier),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/clear-error",
+            post(handler::admin_accounts::clear_account_error),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/usage",
+            get(handler::admin_accounts::get_account_usage),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/today-stats",
+            get(handler::admin_accounts::get_account_today_stats),
+        )
+        .route(
+            "/api/v1/admin/accounts/today-stats/batch",
+            post(handler::admin_accounts::batch_get_today_stats),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/clear-rate-limit",
+            post(handler::admin_accounts::clear_account_rate_limit),
+        )
+        .route(
+            "/api/v1/admin/accounts/:id/reset-quota",
+            post(handler::admin_accounts::reset_account_quota),
+        )
+        .route(
+            "/api/v1/admin/accounts/data",
+            get(handler::admin_accounts::export_accounts_data),
+        )
+        .route(
+            "/api/v1/admin/accounts/data",
+            post(handler::admin_accounts::import_accounts_data),
+        )
+        .route(
+            "/api/v1/admin/accounts/batch-update-credentials",
+            post(handler::admin_accounts::batch_update_credentials),
+        )
+        .route(
+            "/api/v1/admin/accounts/batch-refresh-tier",
+            post(handler::admin_accounts::batch_refresh_tier),
+        )
         // API Key 管理 - 需要 ApiKeyRead 权限
         .route("/api/v1/admin/apikeys", get(handler::admin::list_apikeys))
         // 统计和监控 - 需要 BillingRead 权限
@@ -315,70 +389,226 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .route("/api/v1/admin/proxies", get(handler::proxy::list_proxies))
         .route("/api/v1/admin/proxies", post(handler::proxy::create_proxy))
         .route("/api/v1/admin/proxies/:id", get(handler::proxy::get_proxy))
-        .route("/api/v1/admin/proxies/:id", put(handler::proxy::update_proxy))
-        .route("/api/v1/admin/proxies/:id", delete(handler::proxy::delete_proxy))
-        .route("/api/v1/admin/proxies/:id/test", post(handler::proxy::test_proxy))
-        .route("/api/v1/admin/proxies/test-all", post(handler::proxy::test_all_proxies))
-        .route("/api/v1/admin/proxies/:id/quality", get(handler::proxy::get_proxy_quality))
+        .route(
+            "/api/v1/admin/proxies/:id",
+            put(handler::proxy::update_proxy),
+        )
+        .route(
+            "/api/v1/admin/proxies/:id",
+            delete(handler::proxy::delete_proxy),
+        )
+        .route(
+            "/api/v1/admin/proxies/:id/test",
+            post(handler::proxy::test_proxy),
+        )
+        .route(
+            "/api/v1/admin/proxies/test-all",
+            post(handler::proxy::test_all_proxies),
+        )
+        .route(
+            "/api/v1/admin/proxies/:id/quality",
+            get(handler::proxy::get_proxy_quality),
+        )
         // 卡密兑换管理 API（管理端）
-        .route("/api/v1/admin/redeem/generate", post(handler::redeem::admin_generate_codes))
-        .route("/api/v1/admin/redeem/stats", get(handler::redeem::admin_get_redeem_stats))
-        .route("/api/v1/admin/redeem/cancel", post(handler::redeem::admin_cancel_code))
+        .route(
+            "/api/v1/admin/redeem/generate",
+            post(handler::redeem::admin_generate_codes),
+        )
+        .route(
+            "/api/v1/admin/redeem/stats",
+            get(handler::redeem::admin_get_redeem_stats),
+        )
+        .route(
+            "/api/v1/admin/redeem/cancel",
+            post(handler::redeem::admin_cancel_code),
+        )
         // 配额管理 API
         .route("/api/v1/quota", get(handler::quota::get_user_quota))
         .route("/api/v1/quota", post(handler::quota::update_user_quota))
-        .route("/api/v1/admin/quota/:user_id/reset", post(handler::quota::reset_user_quota))
-        .route("/api/v1/admin/quota/:user_id/history", get(handler::quota::get_quota_history))
-        .route("/api/v1/admin/quota/stats", get(handler::quota::get_quota_stats))
+        .route(
+            "/api/v1/admin/quota/:user_id/reset",
+            post(handler::quota::reset_user_quota),
+        )
+        .route(
+            "/api/v1/admin/quota/:user_id/history",
+            get(handler::quota::get_quota_history),
+        )
+        .route(
+            "/api/v1/admin/quota/stats",
+            get(handler::quota::get_quota_stats),
+        )
         // 公告管理 API
-        .route("/api/v1/admin/announcements", get(handler::announcement::list_announcements))
-        .route("/api/v1/admin/announcements", post(handler::announcement::create_announcement))
-        .route("/api/v1/admin/announcements/:id", get(handler::announcement::get_announcement))
-        .route("/api/v1/admin/announcements/:id", put(handler::announcement::update_announcement))
-        .route("/api/v1/admin/announcements/:id", delete(handler::announcement::delete_announcement))
-        .route("/api/v1/announcements/:id/read", post(handler::announcement::mark_announcement_read))
-        .route("/api/v1/announcements/unread", get(handler::announcement::get_unread_announcements))
+        .route(
+            "/api/v1/admin/announcements",
+            get(handler::announcement::list_announcements),
+        )
+        .route(
+            "/api/v1/admin/announcements",
+            post(handler::announcement::create_announcement),
+        )
+        .route(
+            "/api/v1/admin/announcements/:id",
+            get(handler::announcement::get_announcement),
+        )
+        .route(
+            "/api/v1/admin/announcements/:id",
+            put(handler::announcement::update_announcement),
+        )
+        .route(
+            "/api/v1/admin/announcements/:id",
+            delete(handler::announcement::delete_announcement),
+        )
+        .route(
+            "/api/v1/announcements/:id/read",
+            post(handler::announcement::mark_announcement_read),
+        )
+        .route(
+            "/api/v1/announcements/unread",
+            get(handler::announcement::get_unread_announcements),
+        )
         // 优惠码管理 API
-        .route("/api/v1/admin/promo-codes", get(handler::promo_code::list_promo_codes))
-        .route("/api/v1/admin/promo-codes", post(handler::promo_code::create_promo_code))
-        .route("/api/v1/admin/promo-codes/:id", get(handler::promo_code::get_promo_code))
-        .route("/api/v1/admin/promo-codes/:id", put(handler::promo_code::update_promo_code))
-        .route("/api/v1/admin/promo-codes/:id", delete(handler::promo_code::delete_promo_code))
-        .route("/api/v1/promo-codes/verify", post(handler::promo_code::verify_promo_code))
+        .route(
+            "/api/v1/admin/promo-codes",
+            get(handler::promo_code::list_promo_codes),
+        )
+        .route(
+            "/api/v1/admin/promo-codes",
+            post(handler::promo_code::create_promo_code),
+        )
+        .route(
+            "/api/v1/admin/promo-codes/:id",
+            get(handler::promo_code::get_promo_code),
+        )
+        .route(
+            "/api/v1/admin/promo-codes/:id",
+            put(handler::promo_code::update_promo_code),
+        )
+        .route(
+            "/api/v1/admin/promo-codes/:id",
+            delete(handler::promo_code::delete_promo_code),
+        )
+        .route(
+            "/api/v1/promo-codes/verify",
+            post(handler::promo_code::verify_promo_code),
+        )
         // 用户属性 API
-        .route("/api/v1/admin/attributes/definitions", post(handler::user_attribute::create_attribute_definition))
-        .route("/api/v1/admin/attributes/definitions", get(handler::user_attribute::list_attribute_definitions))
-        .route("/api/v1/admin/attributes/definitions/:id", put(handler::user_attribute::update_attribute_definition))
-        .route("/api/v1/admin/attributes/definitions/:id", delete(handler::user_attribute::delete_attribute_definition))
-        .route("/api/v1/user/attributes", post(handler::user_attribute::set_user_attribute))
-        .route("/api/v1/user/attributes", get(handler::user_attribute::get_user_attributes))
+        .route(
+            "/api/v1/admin/attributes/definitions",
+            post(handler::user_attribute::create_attribute_definition),
+        )
+        .route(
+            "/api/v1/admin/attributes/definitions",
+            get(handler::user_attribute::list_attribute_definitions),
+        )
+        .route(
+            "/api/v1/admin/attributes/definitions/:id",
+            put(handler::user_attribute::update_attribute_definition),
+        )
+        .route(
+            "/api/v1/admin/attributes/definitions/:id",
+            delete(handler::user_attribute::delete_attribute_definition),
+        )
+        .route(
+            "/api/v1/user/attributes",
+            post(handler::user_attribute::set_user_attribute),
+        )
+        .route(
+            "/api/v1/user/attributes",
+            get(handler::user_attribute::get_user_attributes),
+        )
         // 错误透传规则 API
-        .route("/api/v1/admin/error-rules", post(handler::error_passthrough_rule::create_error_rule))
-        .route("/api/v1/admin/error-rules", get(handler::error_passthrough_rule::list_error_rules))
-        .route("/api/v1/admin/error-rules/:id", put(handler::error_passthrough_rule::update_error_rule))
-        .route("/api/v1/admin/error-rules/:id", delete(handler::error_passthrough_rule::delete_error_rule))
-        .route("/api/v1/error-rules/apply", post(handler::error_passthrough_rule::apply_error_rules))
+        .route(
+            "/api/v1/admin/error-rules",
+            post(handler::error_passthrough_rule::create_error_rule),
+        )
+        .route(
+            "/api/v1/admin/error-rules",
+            get(handler::error_passthrough_rule::list_error_rules),
+        )
+        .route(
+            "/api/v1/admin/error-rules/:id",
+            put(handler::error_passthrough_rule::update_error_rule),
+        )
+        .route(
+            "/api/v1/admin/error-rules/:id",
+            delete(handler::error_passthrough_rule::delete_error_rule),
+        )
+        .route(
+            "/api/v1/error-rules/apply",
+            post(handler::error_passthrough_rule::apply_error_rules),
+        )
         // 定时测试计划 API
-        .route("/api/v1/admin/test-plans", post(handler::scheduled_test_plan::create_test_plan))
-        .route("/api/v1/admin/test-plans", get(handler::scheduled_test_plan::list_test_plans))
-        .route("/api/v1/admin/test-plans/:id", put(handler::scheduled_test_plan::update_test_plan))
-        .route("/api/v1/admin/test-plans/:id", delete(handler::scheduled_test_plan::delete_test_plan))
-        .route("/api/v1/admin/test-plans/record", post(handler::scheduled_test_plan::record_test_result))
-        .route("/api/v1/admin/test-plans/:id/results", get(handler::scheduled_test_plan::get_test_results))
+        .route(
+            "/api/v1/admin/test-plans",
+            post(handler::scheduled_test_plan::create_test_plan),
+        )
+        .route(
+            "/api/v1/admin/test-plans",
+            get(handler::scheduled_test_plan::list_test_plans),
+        )
+        .route(
+            "/api/v1/admin/test-plans/:id",
+            put(handler::scheduled_test_plan::update_test_plan),
+        )
+        .route(
+            "/api/v1/admin/test-plans/:id",
+            delete(handler::scheduled_test_plan::delete_test_plan),
+        )
+        .route(
+            "/api/v1/admin/test-plans/record",
+            post(handler::scheduled_test_plan::record_test_result),
+        )
+        .route(
+            "/api/v1/admin/test-plans/:id/results",
+            get(handler::scheduled_test_plan::get_test_results),
+        )
         // 数据备份 API
-        .route("/api/v1/admin/backup/export", post(handler::backup::export_data))
-        .route("/api/v1/admin/backup/import", post(handler::backup::import_data))
+        .route(
+            "/api/v1/admin/backup/export",
+            post(handler::backup::export_data),
+        )
+        .route(
+            "/api/v1/admin/backup/import",
+            post(handler::backup::import_data),
+        )
         // 分组管理扩展 API
-        .route("/api/v1/admin/groups/usage-summary", get(handler::admin_groups::get_groups_usage_summary))
-        .route("/api/v1/admin/groups/capacity-summary", get(handler::admin_groups::get_groups_capacity_summary))
-        .route("/api/v1/admin/groups/sort-order", put(handler::admin_groups::update_groups_sort_order))
-        .route("/api/v1/admin/groups/:id/stats", get(handler::admin_groups::get_group_stats))
-        .route("/api/v1/admin/groups/:id/rate-multipliers", get(handler::admin_groups::get_group_rate_multipliers))
-        .route("/api/v1/admin/groups/:id/api-keys", get(handler::admin_groups::get_group_api_keys))
-        .route("/api/v1/admin/groups/all", get(handler::admin_groups::list_all_groups))
+        .route(
+            "/api/v1/admin/groups/usage-summary",
+            get(handler::admin_groups::get_groups_usage_summary),
+        )
+        .route(
+            "/api/v1/admin/groups/capacity-summary",
+            get(handler::admin_groups::get_groups_capacity_summary),
+        )
+        .route(
+            "/api/v1/admin/groups/sort-order",
+            put(handler::admin_groups::update_groups_sort_order),
+        )
+        .route(
+            "/api/v1/admin/groups/:id/stats",
+            get(handler::admin_groups::get_group_stats),
+        )
+        .route(
+            "/api/v1/admin/groups/:id/rate-multipliers",
+            get(handler::admin_groups::get_group_rate_multipliers),
+        )
+        .route(
+            "/api/v1/admin/groups/:id/api-keys",
+            get(handler::admin_groups::get_group_api_keys),
+        )
+        .route(
+            "/api/v1/admin/groups/all",
+            get(handler::admin_groups::list_all_groups),
+        )
         .route("/api/v1/admin/groups", post(handler::groups::create_group))
-        .route("/api/v1/admin/groups/:id", put(handler::groups::update_group))
-        .route("/api/v1/admin/groups/:id", delete(handler::groups::delete_group))
+        .route(
+            "/api/v1/admin/groups/:id",
+            put(handler::groups::update_group),
+        )
+        .route(
+            "/api/v1/admin/groups/:id",
+            delete(handler::groups::delete_group),
+        )
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // WebSocket 路由 - OpenAI Realtime/Responses API

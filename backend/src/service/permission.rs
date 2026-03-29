@@ -239,7 +239,9 @@ impl Permission {
         match self {
             Self::UserRead | Self::UserWrite | Self::UserDelete => PermissionGroup::User,
             Self::ApiKeyRead | Self::ApiKeyWrite | Self::ApiKeyDelete => PermissionGroup::ApiKey,
-            Self::AccountRead | Self::AccountWrite | Self::AccountDelete => PermissionGroup::Account,
+            Self::AccountRead | Self::AccountWrite | Self::AccountDelete => {
+                PermissionGroup::Account
+            }
             Self::ModelRead | Self::ModelWrite => PermissionGroup::Model,
             Self::SystemConfig => PermissionGroup::System,
             Self::AuditLogRead => PermissionGroup::Audit,

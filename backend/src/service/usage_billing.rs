@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query_as, FromRow};
+use sqlx::{query_as, FromRow, PgPool};
 
 /// Billing service for usage tracking
 pub struct UsageBilling {
@@ -74,7 +74,8 @@ impl UsageBilling {
         period_start: DateTime<Utc>,
         period_end: DateTime<Utc>,
     ) -> Result<BillingSummary, BillingError> {
-        let summary = query_as::<_, BillingSummary>(r#"
+        let summary = query_as::<_, BillingSummary>(
+            r#"
             SELECT
                 user_id,
                 COALESCE(SUM(cost), 0) as total_cost,
@@ -85,10 +86,11 @@ impl UsageBilling {
             FROM billing_records
             WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
             GROUP BY user_id
-            "#)
-            .bind(user_id)
-            .bind(period_start)
-            .bind(period_end)
+            "#,
+        )
+        .bind(user_id)
+        .bind(period_start)
+        .bind(period_end)
         .fetch_optional(&self.pool)
         .await?
         .unwrap_or(BillingSummary {

@@ -14,8 +14,10 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::permission::Permission;
+use crate::service::scheduled_test_plan::{
+    CreateTestPlanRequest, ScheduledTestPlanService, UpdateTestPlanRequest,
+};
 use crate::service::user::Claims;
-use crate::service::scheduled_test_plan::{ScheduledTestPlanService, CreateTestPlanRequest, UpdateTestPlanRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -31,8 +33,12 @@ pub struct ResultsQuery {
     pub page_size: u64,
 }
 
-fn default_page() -> u64 { 0 }
-fn default_page_size() -> u64 { 20 }
+fn default_page() -> u64 {
+    0
+}
+fn default_page_size() -> u64 {
+    20
+}
 
 /// 列出所有测试计划
 pub async fn list_plans(
@@ -65,7 +71,9 @@ pub async fn create_plan(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
     body.created_by = Some(user_id);
 
@@ -92,7 +100,8 @@ pub async fn get_plan(
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let plan = plans.into_iter()
+    let plan = plans
+        .into_iter()
         .find(|p| p.id == id)
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Test plan not found".into()))?;
 
@@ -135,9 +144,14 @@ pub async fn delete_plan(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if deleted {
-        Ok(Json(json!({ "success": true, "message": "Test plan deleted" })))
+        Ok(Json(
+            json!({ "success": true, "message": "Test plan deleted" }),
+        ))
     } else {
-        Err(ApiError(StatusCode::NOT_FOUND, "Test plan not found".into()))
+        Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "Test plan not found".into(),
+        ))
     }
 }
 
@@ -174,16 +188,16 @@ pub async fn run_plan(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     let db = &state.db;
-    
+
     // TODO: 实现实际的测试执行逻辑
     // 这里只是记录一个测试结果
     let start = std::time::Instant::now();
-    
+
     // 模拟测试执行
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    
+
     let duration_ms = start.elapsed().as_millis() as i64;
-    
+
     ScheduledTestPlanService::record_result(
         db,
         id,
@@ -191,8 +205,9 @@ pub async fn run_plan(
         Some(json!({ "manual_run": true, "duration_ms": duration_ms })),
         None,
         Some(duration_ms),
-    ).await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    )
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
         "success": true,

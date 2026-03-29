@@ -13,9 +13,11 @@ use serde_json::{json, Value};
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
+use crate::service::announcement::{
+    AnnouncementService, CreateAnnouncementRequest, UpdateAnnouncementRequest,
+};
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
-use crate::service::announcement::{AnnouncementService, CreateAnnouncementRequest, UpdateAnnouncementRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ListAnnouncementsQuery {
@@ -26,8 +28,12 @@ pub struct ListAnnouncementsQuery {
     pub page_size: u64,
 }
 
-fn default_page() -> u64 { 0 }
-fn default_page_size() -> u64 { 20 }
+fn default_page() -> u64 {
+    0
+}
+fn default_page_size() -> u64 {
+    20
+}
 
 /// 列出所有公告
 pub async fn list_announcements(
@@ -61,7 +67,9 @@ pub async fn create_announcement(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     // Set created_by from claims
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
     body.created_by = Some(user_id);
 
@@ -104,7 +112,9 @@ pub async fn update_announcement(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     // Set updated_by from claims
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
     body.updated_by = Some(user_id);
 
@@ -133,9 +143,14 @@ pub async fn delete_announcement(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if deleted {
-        Ok(Json(json!({ "success": true, "message": "Announcement deleted" })))
+        Ok(Json(
+            json!({ "success": true, "message": "Announcement deleted" }),
+        ))
     } else {
-        Err(ApiError(StatusCode::NOT_FOUND, "Announcement not found".into()))
+        Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "Announcement not found".into(),
+        ))
     }
 }
 
@@ -146,8 +161,10 @@ pub async fn mark_announcement_read(
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
     let db = &state.db;
-    
-    let user_id: i64 = claims.sub.parse()
+
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
 
     AnnouncementService::mark_as_read(db, id, user_id)
@@ -163,8 +180,10 @@ pub async fn get_unread_announcements(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
     let db = &state.db;
-    
-    let user_id: i64 = claims.sub.parse()
+
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
 
     let announcements = AnnouncementService::get_active_for_user(db, user_id)

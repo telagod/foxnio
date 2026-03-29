@@ -94,10 +94,7 @@ pub struct GatewayService {
 
 impl GatewayService {
     /// 创建新的网关服务
-    pub fn new(
-        config: GatewayConfig,
-        scheduler: SchedulerService,
-    ) -> Self {
+    pub fn new(config: GatewayConfig, scheduler: SchedulerService) -> Self {
         Self {
             config,
             request_service: Arc::new(GatewayRequestService::default()),
@@ -117,7 +114,9 @@ impl GatewayService {
         let start_time = std::time::Instant::now();
 
         // 1. 解析请求
-        let parsed = self.request_service.parse_request(method, path, headers.clone(), body)?;
+        let parsed = self
+            .request_service
+            .parse_request(method, path, headers.clone(), body)?;
 
         // 2. 验证请求
         let validation = self.request_service.validate_request(&parsed);
@@ -135,30 +134,38 @@ impl GatewayService {
         let result = self.forward_request(&parsed, &account, &route).await?;
 
         // 6. 更新统计
-        self.update_stats(&result, start_time.elapsed().as_millis() as u64).await;
+        self.update_stats(&result, start_time.elapsed().as_millis() as u64)
+            .await;
 
         Ok(result)
     }
 
     /// 选择账号
-    async fn select_account(&self, route: &super::gateway_request::ModelRoute) -> Result<GatewayAccount> {
+    async fn select_account(
+        &self,
+        route: &super::gateway_request::ModelRoute,
+    ) -> Result<GatewayAccount> {
         let scheduler = self.scheduler.read().await;
-        
+
         // 调用调度器选择账号
-        let account_opt = scheduler.select_account(&route.mapped_model, None, 5).await?;
-        
-        account_opt.map(|acc| GatewayAccount {
-            id: acc.id.to_string(),
-            name: acc.name,
-            provider: acc.provider,
-            account_type: "api_key".to_string(),
-            status: acc.status,
-            priority: acc.priority,
-            concurrent_limit: acc.concurrent_limit.unwrap_or(5) as u32,
-            rate_limit_rpm: acc.rate_limit_rpm.unwrap_or(60) as u32,
-            model_mapping: HashMap::new(),
-            extra: serde_json::json!({}),
-        }).ok_or_else(|| anyhow!("No available account for model: {}", route.mapped_model))
+        let account_opt = scheduler
+            .select_account(&route.mapped_model, None, 5)
+            .await?;
+
+        account_opt
+            .map(|acc| GatewayAccount {
+                id: acc.id.to_string(),
+                name: acc.name,
+                provider: acc.provider,
+                account_type: "api_key".to_string(),
+                status: acc.status,
+                priority: acc.priority,
+                concurrent_limit: acc.concurrent_limit.unwrap_or(5) as u32,
+                rate_limit_rpm: acc.rate_limit_rpm.unwrap_or(60) as u32,
+                model_mapping: HashMap::new(),
+                extra: serde_json::json!({}),
+            })
+            .ok_or_else(|| anyhow!("No available account for model: {}", route.mapped_model))
     }
 
     /// 转发请求
@@ -172,7 +179,8 @@ impl GatewayService {
 
         // 根据路径选择转发方式
         let result = if parsed.path.contains("/chat/completions") {
-            self.forward_chat_completions(parsed, account, route).await?
+            self.forward_chat_completions(parsed, account, route)
+                .await?
         } else if parsed.path.contains("/responses") {
             self.forward_responses(parsed, account, route).await?
         } else {
@@ -262,7 +270,7 @@ impl GatewayService {
     async fn update_stats(&self, result: &ForwardResult, latency_ms: u64) {
         let mut stats = self.stats.write().await;
         stats.total_requests += 1;
-        
+
         if result.status_code >= 200 && result.status_code < 300 {
             stats.successful_requests += 1;
         } else {
@@ -275,7 +283,8 @@ impl GatewayService {
 
         // 更新平均延迟
         let count = stats.total_requests;
-        stats.avg_latency_ms = (stats.avg_latency_ms * (count - 1) as f64 + latency_ms as f64) / count as f64;
+        stats.avg_latency_ms =
+            (stats.avg_latency_ms * (count - 1) as f64 + latency_ms as f64) / count as f64;
     }
 
     /// 获取统计信息
@@ -287,13 +296,13 @@ impl GatewayService {
     pub async fn health_check(&self) -> bool {
         // 检查服务状态
         let stats = self.stats.read().await;
-        
+
         // 如果最近有成功的请求，认为健康
         if stats.successful_requests > 0 {
             let success_rate = stats.successful_requests as f64 / stats.total_requests as f64;
             return success_rate > 0.5;
         }
-        
+
         true
     }
 

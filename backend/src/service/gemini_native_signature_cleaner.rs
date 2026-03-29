@@ -90,6 +90,8 @@ mod tests {
         assert!(GeminiNativeSignatureCleaner::has_signatures(content_with));
 
         let content_without = "Hello world";
-        assert!(!GeminiNativeSignatureCleaner::has_signatures(content_without));
+        assert!(!GeminiNativeSignatureCleaner::has_signatures(
+            content_without
+        ));
     }
 }

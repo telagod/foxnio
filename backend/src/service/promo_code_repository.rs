@@ -29,9 +29,11 @@ pub struct PromoCode {
 impl PromoCode {
     /// Check if code is valid
     pub fn is_valid(&self) -> bool {
-        self.is_active && 
-        self.current_uses < self.max_uses &&
-        self.expires_at.map_or(true, |exp| exp > chrono::Utc::now().timestamp())
+        self.is_active
+            && self.current_uses < self.max_uses
+            && self
+                .expires_at
+                .map_or(true, |exp| exp > chrono::Utc::now().timestamp())
     }
 
     /// Calculate discount
@@ -67,11 +69,11 @@ impl PromoCodeRepository {
     /// Add a promo code
     pub async fn add(&self, code: PromoCode) -> Result<(), String> {
         let mut codes = self.codes.write().await;
-        
+
         if codes.contains_key(&code.code) {
             return Err("Code already exists".to_string());
         }
-        
+
         codes.insert(code.code.clone(), code);
         Ok(())
     }
@@ -85,14 +87,13 @@ impl PromoCodeRepository {
     /// Use a promo code
     pub async fn use_code(&self, code: &str) -> Result<PromoCode, String> {
         let mut codes = self.codes.write().await;
-        
-        let promo = codes.get_mut(code)
-            .ok_or("Code not found")?;
-        
+
+        let promo = codes.get_mut(code).ok_or("Code not found")?;
+
         if !promo.is_valid() {
             return Err("Code is not valid".to_string());
         }
-        
+
         promo.current_uses += 1;
         Ok(promo.clone())
     }
@@ -100,10 +101,9 @@ impl PromoCodeRepository {
     /// Deactivate a code
     pub async fn deactivate(&self, code: &str) -> Result<(), String> {
         let mut codes = self.codes.write().await;
-        
-        let promo = codes.get_mut(code)
-            .ok_or("Code not found")?;
-        
+
+        let promo = codes.get_mut(code).ok_or("Code not found")?;
+
         promo.is_active = false;
         Ok(())
     }
@@ -117,10 +117,7 @@ impl PromoCodeRepository {
     /// List active codes
     pub async fn list_active(&self) -> Vec<PromoCode> {
         let codes = self.codes.read().await;
-        codes.values()
-            .filter(|c| c.is_valid())
-            .cloned()
-            .collect()
+        codes.values().filter(|c| c.is_valid()).cloned().collect()
     }
 }
 
@@ -131,7 +128,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_and_get() {
         let repo = PromoCodeRepository::new();
-        
+
         let code = PromoCode {
             code: "SAVE20".to_string(),
             discount_percent: 20,
@@ -142,7 +139,7 @@ mod tests {
             is_active: true,
             description: Some("Save 20%".to_string()),
         };
-        
+
         repo.add(code.clone()).await.unwrap();
         let retrieved = repo.get("SAVE20").await.unwrap();
         assert_eq!(retrieved.code, "SAVE20");
@@ -160,7 +157,7 @@ mod tests {
             is_active: true,
             description: None,
         };
-        
+
         let discount = code.calculate_discount(100.0);
         assert_eq!(discount, 20.0);
     }

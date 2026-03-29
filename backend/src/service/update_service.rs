@@ -40,7 +40,8 @@ impl UpdateService {
     }
 
     pub fn is_update_available(&self) -> bool {
-        self.latest_version.as_ref()
+        self.latest_version
+            .as_ref()
             .map(|v| v.version != self.current_version)
             .unwrap_or(false)
     }
@@ -53,9 +54,9 @@ mod tests {
     #[test]
     fn test_update_check() {
         let mut service = UpdateService::new("1.0.0");
-        
+
         assert!(!service.is_update_available());
-        
+
         service.set_latest(UpdateInfo {
             version: "1.1.0".to_string(),
             release_date: chrono::Utc::now().timestamp(),
@@ -63,7 +64,7 @@ mod tests {
             is_critical: false,
             download_url: None,
         });
-        
+
         assert!(service.is_update_available());
     }
 }

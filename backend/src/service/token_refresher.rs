@@ -131,7 +131,9 @@ impl TokenRefresher {
         refresh_token: &str,
         scope: Option<&str>,
     ) -> Result<RefreshResult> {
-        let config = self.providers.get(provider)
+        let config = self
+            .providers
+            .get(provider)
             .ok_or_else(|| anyhow!("Unknown provider: {}", provider))?;
 
         let request = RefreshRequest {
@@ -139,10 +141,13 @@ impl TokenRefresher {
             refresh_token: refresh_token.to_string(),
             client_id: config.client_id.clone(),
             client_secret: config.client_secret.clone(),
-            scope: scope.map(|s| s.to_string()).or(config.default_scope.clone()),
+            scope: scope
+                .map(|s| s.to_string())
+                .or(config.default_scope.clone()),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&config.token_url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -158,7 +163,8 @@ impl TokenRefresher {
 
         let refresh_response: RefreshResponse = response.json().await?;
 
-        let expires_at = refresh_response.expires_in
+        let expires_at = refresh_response
+            .expires_in
             .map(|seconds| Utc::now() + chrono::Duration::seconds(seconds as i64))
             .unwrap_or_else(|| Utc::now() + chrono::Duration::hours(1));
 
@@ -166,7 +172,9 @@ impl TokenRefresher {
             access_token: refresh_response.access_token,
             refresh_token: refresh_response.refresh_token,
             expires_at,
-            token_type: refresh_response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            token_type: refresh_response
+                .token_type
+                .unwrap_or_else(|| "Bearer".to_string()),
             scope: refresh_response.scope,
         })
     }
@@ -177,12 +185,18 @@ impl TokenRefresher {
         provider: &str,
         scope: Option<&str>,
     ) -> Result<RefreshResult> {
-        let config = self.providers.get(provider)
+        let config = self
+            .providers
+            .get(provider)
             .ok_or_else(|| anyhow!("Unknown provider: {}", provider))?;
 
-        let client_id = config.client_id.as_ref()
+        let client_id = config
+            .client_id
+            .as_ref()
             .ok_or_else(|| anyhow!("Client ID not configured for provider: {}", provider))?;
-        let client_secret = config.client_secret.as_ref()
+        let client_secret = config
+            .client_secret
+            .as_ref()
             .ok_or_else(|| anyhow!("Client secret not configured for provider: {}", provider))?;
 
         let mut body = HashMap::new();
@@ -193,7 +207,8 @@ impl TokenRefresher {
             body.insert("scope", s);
         }
 
-        let response = self.client
+        let response = self
+            .client
             .post(&config.token_url)
             .form(&body)
             .timeout(Duration::from_secs(config.timeout_seconds))
@@ -208,7 +223,8 @@ impl TokenRefresher {
 
         let refresh_response: RefreshResponse = response.json().await?;
 
-        let expires_at = refresh_response.expires_in
+        let expires_at = refresh_response
+            .expires_in
             .map(|seconds| Utc::now() + chrono::Duration::seconds(seconds as i64))
             .unwrap_or_else(|| Utc::now() + chrono::Duration::hours(1));
 
@@ -216,14 +232,18 @@ impl TokenRefresher {
             access_token: refresh_response.access_token,
             refresh_token: refresh_response.refresh_token,
             expires_at,
-            token_type: refresh_response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            token_type: refresh_response
+                .token_type
+                .unwrap_or_else(|| "Bearer".to_string()),
             scope: refresh_response.scope,
         })
     }
 
     /// 撤销 Token
     pub async fn revoke(&self, provider: &str, token: &str) -> Result<()> {
-        let config = self.providers.get(provider)
+        let config = self
+            .providers
+            .get(provider)
             .ok_or_else(|| anyhow!("Unknown provider: {}", provider))?;
 
         // 构建 revoke URL（通常在 token_url 基础上）
@@ -232,7 +252,8 @@ impl TokenRefresher {
         let mut body = HashMap::new();
         body.insert("token", token);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&revoke_url)
             .form(&body)
             .timeout(Duration::from_secs(config.timeout_seconds))
@@ -316,7 +337,7 @@ mod tests {
     #[test]
     fn test_token_refresher_creation() {
         let refresher = TokenRefresher::new();
-        
+
         assert!(refresher.supports_provider("openai"));
         assert!(refresher.supports_provider("anthropic"));
         assert!(refresher.supports_provider("gemini"));
@@ -327,7 +348,7 @@ mod tests {
     fn test_supported_providers() {
         let refresher = TokenRefresher::new();
         let providers = refresher.supported_providers();
-        
+
         assert!(providers.contains(&"openai".to_string()));
         assert!(providers.contains(&"anthropic".to_string()));
         assert!(providers.contains(&"gemini".to_string()));
@@ -336,7 +357,7 @@ mod tests {
     #[test]
     fn test_add_provider() {
         let mut refresher = TokenRefresher::new();
-        
+
         refresher.add_provider(ProviderConfig {
             name: "custom".to_string(),
             token_url: "https://custom.example.com/token".to_string(),
@@ -345,7 +366,7 @@ mod tests {
             default_scope: None,
             timeout_seconds: 30,
         });
-        
+
         assert!(refresher.supports_provider("custom"));
     }
 }

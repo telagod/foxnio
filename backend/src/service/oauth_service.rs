@@ -58,14 +58,14 @@ impl OAuthService {
 
     pub async fn store_token(&self, user_id: i64, provider: &str, token: OAuthToken) {
         let mut tokens = self.tokens.write().await;
-        let user_tokens = tokens.entry(user_id)
-            .or_insert_with(HashMap::new);
+        let user_tokens = tokens.entry(user_id).or_insert_with(HashMap::new);
         user_tokens.insert(provider.to_string(), token);
     }
 
     pub async fn get_token(&self, user_id: i64, provider: &str) -> Option<OAuthToken> {
         let tokens = self.tokens.read().await;
-        tokens.get(&user_id)
+        tokens
+            .get(&user_id)
             .and_then(|ut| ut.get(provider).cloned())
     }
 
@@ -101,17 +101,19 @@ mod tests {
     #[tokio::test]
     async fn test_oauth() {
         let service = OAuthService::new();
-        
-        service.register_provider(OAuthProvider {
-            name: "google".to_string(),
-            client_id: "client-id".to_string(),
-            client_secret: "secret".to_string(),
-            auth_url: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
-            token_url: "https://oauth2.googleapis.com/token".to_string(),
-            redirect_uri: "http://localhost/callback".to_string(),
-            scopes: vec!["email".to_string()],
-        }).await;
-        
+
+        service
+            .register_provider(OAuthProvider {
+                name: "google".to_string(),
+                client_id: "client-id".to_string(),
+                client_secret: "secret".to_string(),
+                auth_url: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
+                token_url: "https://oauth2.googleapis.com/token".to_string(),
+                redirect_uri: "http://localhost/callback".to_string(),
+                scopes: vec!["email".to_string()],
+            })
+            .await;
+
         let provider = service.get_provider("google").await.unwrap();
         assert_eq!(provider.client_id, "client-id");
     }

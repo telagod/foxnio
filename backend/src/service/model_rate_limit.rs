@@ -1,9 +1,9 @@
 //! Model rate limit service
 
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 /// Rate limit configuration for a model
 #[derive(Debug, Clone)]
@@ -65,41 +65,43 @@ impl ModelRateLimitService {
     /// Check if request is allowed
     pub async fn check_rate_limit(&self, model: &str) -> Result<(), String> {
         let configs = self.configs.read().await;
-        let config = configs.get(model)
+        let config = configs
+            .get(model)
             .ok_or_else(|| format!("No rate limit config for model: {}", model))?;
-        
+
         let mut usage = self.usage.write().await;
-        let model_usage = usage.entry(model.to_string())
+        let model_usage = usage
+            .entry(model.to_string())
             .or_insert_with(|| RateLimitUsage {
                 rpm_count: 0,
                 tpm_count: 0,
                 rpd_count: 0,
                 last_reset: Utc::now(),
             });
-        
+
         // Reset counters if needed
         let now = Utc::now();
         let elapsed = (now - model_usage.last_reset).num_seconds();
-        
+
         if elapsed >= 60 {
             model_usage.rpm_count = 0;
             model_usage.tpm_count = 0;
             model_usage.last_reset = now;
         }
-        
+
         if elapsed >= 86400 {
             model_usage.rpd_count = 0;
         }
-        
+
         // Check limits
         if model_usage.rpm_count >= config.rpm {
             return Err("RPM limit exceeded".to_string());
         }
-        
+
         if model_usage.rpd_count >= config.rpd {
             return Err("RPD limit exceeded".to_string());
         }
-        
+
         Ok(())
     }
 
@@ -127,15 +129,17 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limit() {
         let service = ModelRateLimitService::new();
-        
-        service.set_config(ModelRateLimitConfig {
-            model: "gpt-4".to_string(),
-            rpm: 60,
-            tpm: 100000,
-            rpd: 1000,
-            burst: 10,
-        }).await;
-        
+
+        service
+            .set_config(ModelRateLimitConfig {
+                model: "gpt-4".to_string(),
+                rpm: 60,
+                tpm: 100000,
+                rpd: 1000,
+                burst: 10,
+            })
+            .await;
+
         let result = service.check_rate_limit("gpt-4").await;
         assert!(result.is_ok());
     }

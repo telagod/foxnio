@@ -6,10 +6,10 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sea_orm::DatabaseConnection;
-use uuid::Uuid;
 use futures::stream::{self, StreamExt};
+use sea_orm::DatabaseConnection;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// 批量创建账号请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -388,10 +388,7 @@ impl BatchOperationService {
     }
 
     /// 批量获取今日统计
-    pub async fn batch_get_today_stats(
-        &self,
-        account_ids: &[String],
-    ) -> Result<serde_json::Value> {
+    pub async fn batch_get_today_stats(&self, account_ids: &[String]) -> Result<serde_json::Value> {
         let mut stats = Vec::new();
 
         for id in account_ids {
@@ -443,7 +440,7 @@ mod tests {
             account_ids: vec![Uuid::new_v4(); 8],
             errors: vec!["error1".to_string(), "error2".to_string()],
         };
-        
+
         assert_eq!(result.total, 10);
         assert_eq!(result.succeeded, 8);
         assert_eq!(result.failed, 2);

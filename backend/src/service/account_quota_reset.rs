@@ -39,12 +39,17 @@ impl AccountQuotaResetService {
         quotas.insert(account_id, quota);
     }
 
-    pub async fn reset_quota(&self, account_id: i64, new_quota: u64, reason: &str) -> QuotaResetRecord {
+    pub async fn reset_quota(
+        &self,
+        account_id: i64,
+        new_quota: u64,
+        reason: &str,
+    ) -> QuotaResetRecord {
         let mut quotas = self.quotas.write().await;
         let previous = quotas.get(&account_id).copied().unwrap_or(0);
-        
+
         quotas.insert(account_id, new_quota);
-        
+
         let record = QuotaResetRecord {
             account_id,
             previous_quota: previous,
@@ -52,12 +57,13 @@ impl AccountQuotaResetService {
             reset_at: chrono::Utc::now().timestamp(),
             reason: reason.to_string(),
         };
-        
+
         let mut records = self.records.write().await;
-        records.entry(account_id)
+        records
+            .entry(account_id)
             .or_insert_with(Vec::new)
             .push(record.clone());
-        
+
         record
     }
 
@@ -79,13 +85,13 @@ mod tests {
     #[tokio::test]
     async fn test_quota_reset() {
         let service = AccountQuotaResetService::new();
-        
+
         service.set_quota(123, 1000).await;
         let record = service.reset_quota(123, 2000, "Monthly reset").await;
-        
+
         assert_eq!(record.previous_quota, 1000);
         assert_eq!(record.new_quota, 2000);
-        
+
         let quota = service.get_quota(123).await.unwrap();
         assert_eq!(quota, 2000);
     }

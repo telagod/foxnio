@@ -552,7 +552,7 @@ impl GroupService {
                 group_id: g.id,
                 group_name: g.name,
                 platform: g.platform,
-                daily_used_usd: 0.0,  // TODO: 实现实际统计
+                daily_used_usd: 0.0, // TODO: 实现实际统计
                 daily_limit_usd: g.daily_limit_usd.unwrap_or(0.0),
                 monthly_used_usd: 0.0,
                 monthly_limit_usd: g.monthly_limit_usd.unwrap_or(0.0),

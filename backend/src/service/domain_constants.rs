@@ -6,22 +6,22 @@ pub struct DomainConstants;
 lazy_static! {
     /// Default page size for list queries
     pub static ref DEFAULT_PAGE_SIZE: u32 = 20;
-    
+
     /// Max page size for list queries
     pub static ref MAX_PAGE_SIZE: u32 = 100;
-    
+
     /// Default token expiry in seconds
     pub static ref DEFAULT_TOKEN_EXPIRY_SECONDS: u64 = 3600;
-    
+
     /// Max token expiry in seconds
     pub static ref MAX_TOKEN_EXPIRY_SECONDS: u64 = 86400;
-    
+
     /// Default cache TTL in seconds
     pub static ref DEFAULT_CACHE_TTL_SECONDS: u64 = 300;
-    
+
     /// Max retry attempts
     pub static ref MAX_RETRY_ATTEMPTS: u32 = 5;
-    
+
     /// Request timeout in seconds
     pub static ref REQUEST_TIMEOUT_SECONDS: u64 = 30;
 }

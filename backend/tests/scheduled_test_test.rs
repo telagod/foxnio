@@ -10,9 +10,15 @@ mod tests {
         assert_eq!(TestResultStatus::Failed.as_str(), "failed");
         assert_eq!(TestResultStatus::Timeout.as_str(), "timeout");
 
-        assert_eq!(TestResultStatus::parse("success"), TestResultStatus::Success);
+        assert_eq!(
+            TestResultStatus::parse("success"),
+            TestResultStatus::Success
+        );
         assert_eq!(TestResultStatus::parse("failed"), TestResultStatus::Failed);
-        assert_eq!(TestResultStatus::parse("timeout"), TestResultStatus::Timeout);
+        assert_eq!(
+            TestResultStatus::parse("timeout"),
+            TestResultStatus::Timeout
+        );
         assert_eq!(TestResultStatus::parse("unknown"), TestResultStatus::Failed);
     }
 }

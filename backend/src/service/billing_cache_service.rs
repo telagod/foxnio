@@ -81,12 +81,12 @@ mod tests {
     #[tokio::test]
     async fn test_billing_cache() {
         let cache = BillingCacheService::new(CacheConfig::default());
-        
+
         cache.set(1, 100.0, None).await;
-        
+
         let balance = cache.get(1).await;
         assert_eq!(balance, Some(100.0));
-        
+
         cache.invalidate(1).await;
         let balance = cache.get(1).await;
         assert!(balance.is_none());

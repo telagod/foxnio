@@ -60,7 +60,10 @@ impl Setting {
     where
         T: serde::de::DeserializeOwned,
     {
-        let value = self.value.as_ref().ok_or(SettingError::NotFound(self.key.clone()))?;
+        let value = self
+            .value
+            .as_ref()
+            .ok_or(SettingError::NotFound(self.key.clone()))?;
         serde_json::from_str(value).map_err(|e| SettingError::ParseError {
             key: self.key.clone(),
             source: e,
@@ -68,7 +71,10 @@ impl Setting {
     }
 
     pub fn to_json(&self) -> Result<String, SettingError> {
-        let value = self.value.as_ref().ok_or(SettingError::NotFound(self.key.clone()))?;
+        let value = self
+            .value
+            .as_ref()
+            .ok_or(SettingError::NotFound(self.key.clone()))?;
         serde_json::to_string(&value).map_err(|e| SettingError::SerializeError {
             key: self.key.clone(),
             source: e,
@@ -109,7 +115,7 @@ mod tests {
             "1000".to_string(),
             SettingCategory::RateLimit,
         );
-        
+
         assert_eq!(setting.key, "max_rate_limit");
         assert_eq!(setting.value, Some("1000".to_string()));
     }
@@ -120,8 +126,9 @@ mod tests {
             "api_timeout".to_string(),
             "30".to_string(),
             SettingCategory::System,
-        ).with_description("API request timeout in seconds".to_string());
-        
+        )
+        .with_description("API request timeout in seconds".to_string());
+
         assert!(setting.value.is_some());
     }
 
@@ -131,8 +138,9 @@ mod tests {
             "public_key".to_string(),
             "value".to_string(),
             SettingCategory::Custom("app".to_string()),
-        ).public();
-        
+        )
+        .public();
+
         assert!(setting.value.is_some());
     }
 }

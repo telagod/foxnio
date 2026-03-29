@@ -68,10 +68,10 @@ mod tests {
     #[tokio::test]
     async fn test_dashboard() {
         let service = DashboardService::new();
-        
+
         service.increment_requests(10).await;
         service.add_revenue(5.0).await;
-        
+
         let stats = service.get_stats().await;
         assert_eq!(stats.total_requests, 10);
         assert_eq!(stats.revenue, 5.0);

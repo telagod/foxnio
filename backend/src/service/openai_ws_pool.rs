@@ -68,7 +68,10 @@ impl OpenAIWsPool {
 
         // Find idle connection
         for (id, conn) in connections.iter_mut() {
-            if conn.account_id == account_id && conn.model == model && conn.status == ConnectionStatus::Idle {
+            if conn.account_id == account_id
+                && conn.model == model
+                && conn.status == ConnectionStatus::Idle
+            {
                 conn.status = ConnectionStatus::Busy;
                 conn.last_used_at = chrono::Utc::now().timestamp();
                 debug!("Reusing connection {} for account {}", id, account_id);
@@ -120,17 +123,23 @@ impl OpenAIWsPool {
     pub async fn cleanup_idle(&self) {
         let mut connections = self.connections.write().await;
         let now = chrono::Utc::now().timestamp();
-        connections.retain(|_, conn| {
-            now - conn.last_used_at < self.config.idle_timeout_seconds as i64
-        });
+        connections
+            .retain(|_, conn| now - conn.last_used_at < self.config.idle_timeout_seconds as i64);
     }
 
     /// Get pool stats
     pub async fn get_stats(&self) -> PoolStats {
         let connections = self.connections.read().await;
         let total = connections.len();
-        let idle = connections.values().filter(|c| c.status == ConnectionStatus::Idle).count();
-        PoolStats { total, idle, busy: total - idle }
+        let idle = connections
+            .values()
+            .filter(|c| c.status == ConnectionStatus::Idle)
+            .count();
+        PoolStats {
+            total,
+            idle,
+            busy: total - idle,
+        }
     }
 }
 
@@ -148,14 +157,14 @@ mod tests {
     #[tokio::test]
     async fn test_pool_operations() {
         let pool = OpenAIWsPool::new(PoolConfig::default());
-        
+
         let conn_id = pool.get_or_create(1, "gpt-4o-realtime").await.unwrap();
         assert!(!conn_id.is_empty());
-        
+
         let stats = pool.get_stats().await;
         assert_eq!(stats.total, 1);
         assert_eq!(stats.busy, 1);
-        
+
         pool.release(&conn_id).await.unwrap();
         let stats = pool.get_stats().await;
         assert_eq!(stats.idle, 1);

@@ -60,39 +60,39 @@ impl DeferredService {
             stop_signal: Arc::new(RwLock::new(false)),
         }
     }
-    
+
     /// 启动服务
     pub async fn start(&self) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
         }
-        
-        let mut interval = tokio::time::interval(
-            std::time::Duration::from_secs(self.config.poll_interval_secs)
-        );
-        
+
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            self.config.poll_interval_secs,
+        ));
+
         loop {
             if *self.stop_signal.read().await {
                 break;
             }
-            
+
             interval.tick().await;
-            
+
             if let Err(e) = self.process_pending_tasks().await {
                 tracing::error!("处理延迟任务失败: {}", e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// 停止服务
     pub async fn stop(&self) -> Result<()> {
         let mut stop = self.stop_signal.write().await;
         *stop = true;
         Ok(())
     }
-    
+
     /// 添加延迟任务
     pub async fn add_task(
         &self,
@@ -101,18 +101,18 @@ impl DeferredService {
         execute_after: Duration,
     ) -> Result<i64> {
         let _execute_at = Utc::now() + execute_after;
-        
+
         // TODO: 插入数据库
-        
+
         Ok(0)
     }
-    
+
     /// 处理待执行任务
     async fn process_pending_tasks(&self) -> Result<i64> {
         let tasks = self.fetch_pending_tasks().await?;
-        
+
         let mut executed = 0i64;
-        
+
         for task in tasks {
             match self.execute_task(&task).await {
                 Ok(_) => {
@@ -124,28 +124,28 @@ impl DeferredService {
                 }
             }
         }
-        
+
         Ok(executed)
     }
-    
+
     /// 获取待执行任务
     async fn fetch_pending_tasks(&self) -> Result<Vec<DeferredTask>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 执行任务
     async fn execute_task(&self, _task: &DeferredTask) -> Result<()> {
         // TODO: 实现任务执行逻辑
         Ok(())
     }
-    
+
     /// 标记为已执行
     async fn mark_executed(&self, _task_id: i64) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 标记为失败
     async fn mark_failed(&self, _task_id: i64, _error: &str) -> Result<()> {
         // TODO: 更新数据库
@@ -156,7 +156,7 @@ impl DeferredService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_deferred_service_config() {
         let config = DeferredServiceConfig::default();

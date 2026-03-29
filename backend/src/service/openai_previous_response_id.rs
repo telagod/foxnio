@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Service for managing OpenAI previous response IDs (for context continuity)
 pub struct OpenAIPreviousResponseId {
@@ -45,21 +45,23 @@ impl OpenAIPreviousResponseId {
         let now = Utc::now();
         let expires_at = now + chrono::Duration::hours(ttl_hours);
 
-        let record = query_as::<_, ResponseIdRecord>(r#"
+        let record = query_as::<_, ResponseIdRecord>(
+            r#"
             INSERT INTO response_ids (
                 user_id, conversation_id, response_id, model, created_at, expires_at
             )
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, user_id, conversation_id, response_id, model, created_at, expires_at
-            "#)
-            .bind(user_id)
-            .bind(&conversation_id)
-            .bind(&response_id)
-            .bind(&model)
-            .bind(now)
-            .bind(expires_at)
-            .fetch_one(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(user_id)
+        .bind(&conversation_id)
+        .bind(&response_id)
+        .bind(&model)
+        .bind(now)
+        .bind(expires_at)
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok(record)
     }
@@ -70,32 +72,36 @@ impl OpenAIPreviousResponseId {
         user_id: i64,
         conversation_id: &str,
     ) -> Result<Option<ResponseIdRecord>, ResponseIdError> {
-        let record = query_as::<_, ResponseIdRecord>(r#"
+        let record = query_as::<_, ResponseIdRecord>(
+            r#"
             SELECT id, user_id, conversation_id, response_id, model, created_at, expires_at
             FROM response_ids
             WHERE user_id = $1 AND conversation_id = $2
             ORDER BY created_at DESC
             LIMIT 1
-            "#)
-            .bind(user_id)
-            .bind(conversation_id)
-            .fetch_optional(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(user_id)
+        .bind(conversation_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
         Ok(record)
     }
 
     /// Validate response ID is still valid
     pub async fn validate(&self, response_id: &str) -> Result<ResponseIdRecord, ResponseIdError> {
-        let record = query_as::<_, ResponseIdRecord>(r#"
+        let record = query_as::<_, ResponseIdRecord>(
+            r#"
             SELECT id, user_id, conversation_id, response_id, model, created_at, expires_at
             FROM response_ids
             WHERE response_id = $1
-            "#)
-            .bind(response_id)
-            .fetch_optional(&self.pool)
-            .await?
-            .ok_or(ResponseIdError::NotFound)?;
+            "#,
+        )
+        .bind(response_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(ResponseIdError::NotFound)?;
 
         if record.expires_at < Utc::now() {
             return Err(ResponseIdError::Expired);

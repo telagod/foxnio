@@ -42,7 +42,7 @@ pub struct InvalidationPolicy {
 impl Default for InvalidationPolicy {
     fn default() -> Self {
         Self {
-            max_age_seconds: 3600,            // 1 小时
+            max_age_seconds: 3600,              // 1 小时
             refresh_before_expiry_seconds: 300, // 5 分钟前刷新
             invalidate_on_error: true,
             invalidate_on_revocation: true,
@@ -97,7 +97,7 @@ impl TokenCacheInvalidator {
         {
             let mut log = self.invalidation_log.write().await;
             log.push(event);
-            
+
             // 限制日志大小
             if log.len() > 10000 {
                 log.remove(0);
@@ -114,7 +114,7 @@ impl TokenCacheInvalidator {
         {
             let mut stats = self.stats.write().await;
             stats.total_invalidations += 1;
-            
+
             match reason {
                 InvalidationReason::TokenExpired => stats.expired_invalidations += 1,
                 InvalidationReason::TokenRevoked => stats.revoked_invalidations += 1,
@@ -205,13 +205,15 @@ mod tests {
     async fn test_invalidate() {
         let invalidator = TokenCacheInvalidator::default();
         let key = TokenCacheKey::new("openai", "account1");
-        
-        invalidator.invalidate(
-            &key,
-            InvalidationReason::TokenExpired,
-            Some("Token expired".to_string()),
-        ).await;
-        
+
+        invalidator
+            .invalidate(
+                &key,
+                InvalidationReason::TokenExpired,
+                Some("Token expired".to_string()),
+            )
+            .await;
+
         let stats = invalidator.get_stats().await;
         assert_eq!(stats.total_invalidations, 1);
         assert_eq!(stats.expired_invalidations, 1);
@@ -220,10 +222,10 @@ mod tests {
     #[tokio::test]
     async fn test_should_invalidate() {
         let invalidator = TokenCacheInvalidator::default();
-        
+
         let old_time = Utc::now() - chrono::Duration::hours(2);
         assert!(invalidator.should_invalidate(old_time));
-        
+
         let recent_time = Utc::now() - chrono::Duration::minutes(30);
         assert!(!invalidator.should_invalidate(recent_time));
     }
@@ -231,10 +233,10 @@ mod tests {
     #[tokio::test]
     async fn test_should_refresh() {
         let invalidator = TokenCacheInvalidator::default();
-        
+
         let soon_expiry = Utc::now() + chrono::Duration::minutes(2);
         assert!(invalidator.should_refresh(soon_expiry));
-        
+
         let far_expiry = Utc::now() + chrono::Duration::hours(1);
         assert!(!invalidator.should_refresh(far_expiry));
     }
@@ -243,15 +245,13 @@ mod tests {
     async fn test_is_invalidated() {
         let invalidator = TokenCacheInvalidator::default();
         let key = TokenCacheKey::new("openai", "account1");
-        
+
         assert!(!invalidator.is_invalidated(&key.to_string()).await);
-        
-        invalidator.invalidate(
-            &key,
-            InvalidationReason::ManualInvalidation,
-            None,
-        ).await;
-        
+
+        invalidator
+            .invalidate(&key, InvalidationReason::ManualInvalidation, None)
+            .await;
+
         assert!(invalidator.is_invalidated(&key.to_string()).await);
     }
 
@@ -262,13 +262,11 @@ mod tests {
             TokenCacheKey::new("openai", "account1"),
             TokenCacheKey::new("openai", "account2"),
         ];
-        
-        invalidator.invalidate_batch(
-            &keys,
-            InvalidationReason::AccountUpdated,
-            None,
-        ).await;
-        
+
+        invalidator
+            .invalidate_batch(&keys, InvalidationReason::AccountUpdated, None)
+            .await;
+
         let stats = invalidator.get_stats().await;
         assert_eq!(stats.total_invalidations, 2);
     }

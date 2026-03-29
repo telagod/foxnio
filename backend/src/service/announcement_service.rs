@@ -46,7 +46,8 @@ impl AnnouncementService {
 
     pub async fn list_active(&self) -> Vec<Announcement> {
         let announcements = self.announcements.read().await;
-        let mut active: Vec<_> = announcements.values()
+        let mut active: Vec<_> = announcements
+            .values()
             .filter(|a| a.is_active)
             .cloned()
             .collect();
@@ -72,16 +73,18 @@ mod tests {
     #[tokio::test]
     async fn test_announcement() {
         let service = AnnouncementService::new();
-        
-        service.create(Announcement {
-            id: "1".to_string(),
-            title: "Test".to_string(),
-            content: "Content".to_string(),
-            created_at: chrono::Utc::now().timestamp(),
-            is_active: true,
-            priority: 1,
-        }).await;
-        
+
+        service
+            .create(Announcement {
+                id: "1".to_string(),
+                title: "Test".to_string(),
+                content: "Content".to_string(),
+                created_at: chrono::Utc::now().timestamp(),
+                is_active: true,
+                priority: 1,
+            })
+            .await;
+
         let active = service.list_active().await;
         assert_eq!(active.len(), 1);
     }

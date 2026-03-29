@@ -4,10 +4,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Query,
-    Extension, Json,
-};
+use axum::{extract::Query, Extension, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -23,8 +20,12 @@ pub struct UserAnnouncementsQuery {
     pub page_size: u64,
 }
 
-fn default_page() -> u64 { 0 }
-fn default_page_size() -> u64 { 20 }
+fn default_page() -> u64 {
+    0
+}
+fn default_page_size() -> u64 {
+    20
+}
 
 /// GET /api/v1/announcements - 获取用户可见公告列表（用户端）
 pub async fn list_user_announcements(

@@ -49,12 +49,15 @@ impl GroupCapacityService {
 
     pub async fn set_capacity(&self, group_id: i64, total: u64) {
         let mut capacities = self.capacities.write().await;
-        capacities.insert(group_id, GroupCapacity {
+        capacities.insert(
             group_id,
-            total_capacity: total,
-            used_capacity: 0,
-            reserved_capacity: 0,
-        });
+            GroupCapacity {
+                group_id,
+                total_capacity: total,
+                used_capacity: 0,
+                reserved_capacity: 0,
+            },
+        );
     }
 
     pub async fn get_capacity(&self, group_id: i64) -> Option<GroupCapacity> {
@@ -64,13 +67,12 @@ impl GroupCapacityService {
 
     pub async fn allocate(&self, group_id: i64, amount: u64) -> Result<(), String> {
         let mut capacities = self.capacities.write().await;
-        let cap = capacities.get_mut(&group_id)
-            .ok_or("Group not found")?;
-        
+        let cap = capacities.get_mut(&group_id).ok_or("Group not found")?;
+
         if cap.available() < amount {
             return Err("Insufficient capacity".to_string());
         }
-        
+
         cap.used_capacity += amount;
         Ok(())
     }
@@ -84,13 +86,12 @@ impl GroupCapacityService {
 
     pub async fn reserve(&self, group_id: i64, amount: u64) -> Result<(), String> {
         let mut capacities = self.capacities.write().await;
-        let cap = capacities.get_mut(&group_id)
-            .ok_or("Group not found")?;
-        
+        let cap = capacities.get_mut(&group_id).ok_or("Group not found")?;
+
         if cap.available() < amount {
             return Err("Insufficient capacity".to_string());
         }
-        
+
         cap.reserved_capacity += amount;
         Ok(())
     }
@@ -103,10 +104,10 @@ mod tests {
     #[tokio::test]
     async fn test_capacity() {
         let service = GroupCapacityService::new();
-        
+
         service.set_capacity(1, 1000).await;
         service.allocate(1, 500).await.unwrap();
-        
+
         let cap = service.get_capacity(1).await.unwrap();
         assert_eq!(cap.used_capacity, 500);
         assert_eq!(cap.available(), 500);

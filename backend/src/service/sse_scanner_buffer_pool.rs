@@ -56,12 +56,12 @@ mod tests {
     #[tokio::test]
     async fn test_buffer_pool() {
         let pool = SseScannerBufferPool::new(4096, 10);
-        
+
         let buffer = pool.acquire().await;
         assert_eq!(buffer.len(), 4096);
-        
+
         pool.release(buffer).await;
-        
+
         let stats = pool.stats().await;
         assert_eq!(stats.available_buffers, 1);
     }

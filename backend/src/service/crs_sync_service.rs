@@ -59,45 +59,45 @@ impl CRSSyncService {
             stop_signal: Arc::new(RwLock::new(false)),
         }
     }
-    
+
     /// 启动同步服务
     pub async fn start(&self) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
         }
-        
-        let mut interval = tokio::time::interval(
-            std::time::Duration::from_secs(self.config.sync_interval_secs)
-        );
-        
+
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            self.config.sync_interval_secs,
+        ));
+
         loop {
             if *self.stop_signal.read().await {
                 break;
             }
-            
+
             interval.tick().await;
-            
+
             if let Err(e) = self.run_sync().await {
                 tracing::error!("CRS 同步失败: {}", e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// 停止同步服务
     pub async fn stop(&self) -> Result<()> {
         let mut stop = self.stop_signal.write().await;
         *stop = true;
         Ok(())
     }
-    
+
     /// 执行同步
     async fn run_sync(&self) -> Result<i64> {
         let records = self.fetch_pending_records().await?;
-        
+
         let mut synced = 0i64;
-        
+
         for record in records {
             match self.sync_record(&record).await {
                 Ok(_) => {
@@ -109,34 +109,34 @@ impl CRSSyncService {
                 }
             }
         }
-        
+
         Ok(synced)
     }
-    
+
     /// 获取待同步记录
     async fn fetch_pending_records(&self) -> Result<Vec<CRSSyncRecord>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 同步单条记录
     async fn sync_record(&self, _record: &CRSSyncRecord) -> Result<()> {
         // TODO: 实现实际的同步逻辑
         Ok(())
     }
-    
+
     /// 标记为已同步
     async fn mark_synced(&self, _record_id: i64) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 标记为失败
     async fn mark_failed(&self, _record_id: i64, _error: &str) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 添加同步记录
     pub async fn add_sync_record(
         &self,
@@ -152,7 +152,7 @@ impl CRSSyncService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_crs_sync_config() {
         let config = CRSSyncConfig::default();

@@ -1,5 +1,5 @@
 use crate::service::{Setting, SettingCategory, SettingError, SettingMap};
-use sqlx::{PgPool, query, query_as};
+use sqlx::{query, query_as, PgPool};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -29,12 +29,14 @@ impl SettingService {
         }
 
         // Query database
-        let result = query_as::<_, Setting>(r#"
+        let result = query_as::<_, Setting>(
+            r#"
             SELECT key, value, category, description, is_public, updated_at
             FROM settings
             WHERE key = $1
-            "#)
-            .bind(key)
+            "#,
+        )
+        .bind(key)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -54,14 +56,14 @@ impl SettingService {
         value: String,
         category: SettingCategory,
     ) -> Result<Setting, SettingError> {
-        let category_str = serde_json::to_string(&category).map_err(|e| {
-            SettingError::SerializeError {
+        let category_str =
+            serde_json::to_string(&category).map_err(|e| SettingError::SerializeError {
                 key: key.clone(),
                 source: e,
-            }
-        })?;
+            })?;
 
-        let setting = query_as::<_, Setting>(r#"
+        let setting = query_as::<_, Setting>(
+            r#"
             INSERT INTO settings (key, value, category, updated_at)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (key) DO UPDATE SET
@@ -69,10 +71,11 @@ impl SettingService {
                 category = EXCLUDED.category,
                 updated_at = NOW()
             RETURNING key, value, category, description, is_public, updated_at
-            "#)
-            .bind(&key)
-            .bind(&value)
-            .bind(&category_str)
+            "#,
+        )
+        .bind(&key)
+        .bind(&value)
+        .bind(&category_str)
         .fetch_one(&self.pool)
         .await?;
 
@@ -102,20 +105,21 @@ impl SettingService {
         &self,
         category: &SettingCategory,
     ) -> Result<Vec<Setting>, SettingError> {
-        let category_str = serde_json::to_string(category).map_err(|e| {
-            SettingError::SerializeError {
+        let category_str =
+            serde_json::to_string(category).map_err(|e| SettingError::SerializeError {
                 key: "category".to_string(),
                 source: e,
-            }
-        })?;
+            })?;
 
-        let settings = query_as::<_, Setting>(r#"
+        let settings = query_as::<_, Setting>(
+            r#"
             SELECT key, value, category, description, is_public, updated_at
             FROM settings
             WHERE category = $1
             ORDER BY key
-            "#)
-            .bind(&category_str)
+            "#,
+        )
+        .bind(&category_str)
         .fetch_all(&self.pool)
         .await?;
 
@@ -130,12 +134,14 @@ impl SettingService {
 
     /// Get all public settings
     pub async fn get_public(&self) -> Result<Vec<Setting>, SettingError> {
-        let settings = query_as::<_, Setting>(r#"
+        let settings = query_as::<_, Setting>(
+            r#"
             SELECT key, value, category, description, is_public, updated_at
             FROM settings
             WHERE is_public = true
             ORDER BY key
-            "#)
+            "#,
+        )
         .fetch_all(&self.pool)
         .await?;
 
@@ -144,10 +150,12 @@ impl SettingService {
 
     /// Reload cache from database
     pub async fn reload_cache(&self) -> Result<(), SettingError> {
-        let settings = query_as::<_, Setting>(r#"
+        let settings = query_as::<_, Setting>(
+            r#"
             SELECT key, value, category, description, is_public, updated_at
             FROM settings
-            "#)
+            "#,
+        )
         .fetch_all(&self.pool)
         .await?;
 
@@ -181,7 +189,7 @@ mod tests {
     #[test]
     fn test_setting_map_operations() {
         let mut map: SettingMap = HashMap::new();
-        
+
         let setting = Setting {
             id: 1,
             key: "test_key".to_string(),
@@ -189,11 +197,14 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
-        
+
         map.insert("test_key".to_string(), setting.clone());
-        
+
         assert!(map.contains_key("test_key"));
-        assert_eq!(map.get("test_key").unwrap().value, Some("test_value".to_string()));
+        assert_eq!(
+            map.get("test_key").unwrap().value,
+            Some("test_value".to_string())
+        );
     }
 
     // Database-dependent tests are skipped in CI
@@ -201,21 +212,24 @@ mod tests {
     #[ignore]
     async fn test_setting_service_basic(pool: PgPool) {
         let service = SettingService::new(pool);
-        
+
         // Test set and get
-        let setting = service.set(
-            "test_key".to_string(),
-            "test_value".to_string(),
-            SettingCategory::System,
-        ).await.unwrap();
-        
+        let setting = service
+            .set(
+                "test_key".to_string(),
+                "test_value".to_string(),
+                SettingCategory::System,
+            )
+            .await
+            .unwrap();
+
         assert_eq!(setting.key, "test_key");
         assert_eq!(setting.value, Some("test_value".to_string()));
-        
+
         // Test get from cache
         let cached = service.get("test_key").await.unwrap();
         assert!(cached.is_some());
-        
+
         // Test delete
         service.delete("test_key").await.unwrap();
         let deleted = service.get("test_key").await.unwrap();

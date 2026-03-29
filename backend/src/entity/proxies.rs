@@ -35,7 +35,10 @@ impl Model {
     pub fn url(&self) -> String {
         match (&self.username, &self.password) {
             (Some(user), Some(pass)) => {
-                format!("{}://{}:{}@{}:{}", self.protocol, user, pass, self.host, self.port)
+                format!(
+                    "{}://{}:{}@{}:{}",
+                    self.protocol, user, pass, self.host, self.port
+                )
             }
             (Some(user), None) => {
                 format!("{}://{}@{}:{}", self.protocol, user, self.host, self.port)

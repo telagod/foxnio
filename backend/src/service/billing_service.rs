@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow, Row};
+use sqlx::{query, query_as, FromRow, PgPool, Row};
 
 /// Billing service
 pub struct BillingService {
@@ -69,17 +69,19 @@ impl BillingService {
         description: String,
     ) -> Result<Transaction, BillingError> {
         // Update balance
-        query(r#"
+        query(
+            r#"
             INSERT INTO billing_accounts (user_id, balance, created_at, updated_at)
             VALUES ($1, $2, NOW(), NOW())
             ON CONFLICT (user_id) DO UPDATE SET
                 balance = billing_accounts.balance + $2,
                 updated_at = NOW()
-            "#)
-            .bind(user_id)
-            .bind(amount)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(user_id)
+        .bind(amount)
+        .execute(&self.pool)
+        .await?;
 
         // Record transaction
         let transaction = query_as::<_, Transaction>(r#"

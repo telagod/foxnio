@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -59,12 +59,14 @@ impl GeminiTokenProvider {
         }
 
         // Fetch from database
-        let token = query_as::<_, GeminiToken>(r#"
+        let token = query_as::<_, GeminiToken>(
+            r#"
             SELECT access_token, refresh_token, expires_at, scope, token_type
             FROM gemini_tokens
             WHERE account_id = $1
-            "#)
-            .bind(account_id)
+            "#,
+        )
+        .bind(account_id)
         .fetch_optional(&self.pool)
         .await?
         .ok_or(TokenError::TokenNotFound)?;
@@ -82,11 +84,7 @@ impl GeminiTokenProvider {
     }
 
     /// Store new token
-    pub async fn store_token(
-        &self,
-        account_id: i64,
-        token: GeminiToken,
-    ) -> Result<(), TokenError> {
+    pub async fn store_token(&self, account_id: i64, token: GeminiToken) -> Result<(), TokenError> {
         query(r#"
             INSERT INTO gemini_tokens (account_id, access_token, refresh_token, expires_at, scope, token_type)
             VALUES ($1, $2, $3, $4, $5, $6)

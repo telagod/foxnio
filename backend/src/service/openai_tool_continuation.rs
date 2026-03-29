@@ -55,10 +55,7 @@ pub enum ContinuationError {
 
 impl OpenAIToolContinuation {
     /// Create new tool call context
-    pub fn create_context(
-        tool_name: String,
-        tool_args: Value,
-    ) -> ToolCallContext {
+    pub fn create_context(tool_name: String, tool_args: Value) -> ToolCallContext {
         let now = chrono::Utc::now().timestamp();
         ToolCallContext {
             call_id: uuid::Uuid::new_v4().to_string(),
@@ -73,7 +70,10 @@ impl OpenAIToolContinuation {
 
     /// Check if tool call requires continuation
     pub fn requires_continuation(context: &ToolCallContext) -> bool {
-        matches!(context.status, ToolCallStatus::Pending | ToolCallStatus::Running)
+        matches!(
+            context.status,
+            ToolCallStatus::Pending | ToolCallStatus::Running
+        )
     }
 
     /// Update tool call status
@@ -125,11 +125,7 @@ impl OpenAIToolContinuation {
     }
 
     /// Generate tool call message for API
-    pub fn generate_tool_message(
-        tool_call_id: &str,
-        tool_name: &str,
-        result: &Value,
-    ) -> Value {
+    pub fn generate_tool_message(tool_call_id: &str, tool_name: &str, result: &Value) -> Value {
         serde_json::json!({
             "role": "tool",
             "tool_call_id": tool_call_id,
@@ -173,6 +169,8 @@ mod tests {
             ..context.clone()
         };
 
-        assert!(!OpenAIToolContinuation::requires_continuation(&completed_context));
+        assert!(!OpenAIToolContinuation::requires_continuation(
+            &completed_context
+        ));
     }
 }

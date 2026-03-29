@@ -42,8 +42,8 @@ impl SoraConfig {
             .or_else(|_| std::env::var("OPENAI_BASE_URL"))
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
 
-        let media_url = std::env::var("SORA_MEDIA_URL")
-            .unwrap_or_else(|_| format!("{}/media", base_url));
+        let media_url =
+            std::env::var("SORA_MEDIA_URL").unwrap_or_else(|_| format!("{}/media", base_url));
 
         Ok(Self {
             api_key,
@@ -211,7 +211,10 @@ impl SoraClient {
     }
 
     /// 生成视频
-    pub async fn generate_video(&self, request: SoraGenerateRequest) -> Result<SoraGenerateResponse> {
+    pub async fn generate_video(
+        &self,
+        request: SoraGenerateRequest,
+    ) -> Result<SoraGenerateResponse> {
         let url = format!("{}/videos/generations", self.config.base_url);
 
         let response = self
@@ -266,7 +269,10 @@ impl SoraClient {
 
     /// 取消任务
     pub async fn cancel_task(&self, task_id: &str) -> Result<()> {
-        let url = format!("{}/videos/generations/{}/cancel", self.config.base_url, task_id);
+        let url = format!(
+            "{}/videos/generations/{}/cancel",
+            self.config.base_url, task_id
+        );
 
         let response = self
             .http_client
@@ -339,8 +345,7 @@ impl SoraClient {
         let url = format!("{}/uploads", self.config.media_url);
 
         // 读取文件
-        let file_content = std::fs::read(file_path)
-            .context("Failed to read media file")?;
+        let file_content = std::fs::read(file_path).context("Failed to read media file")?;
 
         let response = self
             .http_client
@@ -410,7 +415,11 @@ impl SoraClient {
 
         loop {
             if start.elapsed() > max_wait {
-                bail!("Task {} did not complete within {} seconds", task_id, max_wait_secs);
+                bail!(
+                    "Task {} did not complete within {} seconds",
+                    task_id,
+                    max_wait_secs
+                );
             }
 
             let status = self.get_task_status(task_id).await?;
@@ -426,7 +435,10 @@ impl SoraClient {
                         .send()
                         .await?;
 
-                    return response.json().await.context("Failed to parse final response");
+                    return response
+                        .json()
+                        .await
+                        .context("Failed to parse final response");
                 }
                 SoraTaskStatus::Failed => {
                     bail!(
@@ -476,9 +488,9 @@ pub fn get_pricing_table() -> HashMap<&'static str, SoraPricing> {
 /// 计算视频生成费用
 pub fn calculate_cost(duration_secs: u32, model: &str) -> f64 {
     let pricing_table = get_pricing_table();
-    let pricing = pricing_table.get(model).unwrap_or_else(|| {
-        pricing_table.get("sora-1.0").unwrap()
-    });
+    let pricing = pricing_table
+        .get(model)
+        .unwrap_or_else(|| pricing_table.get("sora-1.0").unwrap());
 
     pricing.price_per_second * duration_secs as f64
 }

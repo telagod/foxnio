@@ -69,14 +69,14 @@ impl AntigravityGatewayService {
             .timeout(std::time::Duration::from_secs(config.timeout_secs))
             .build()
             .unwrap();
-        
+
         Self {
             db,
             config,
             http_client,
         }
     }
-    
+
     /// 发送 Messages 请求
     pub async fn send_messages(
         &self,
@@ -85,10 +85,11 @@ impl AntigravityGatewayService {
         request_body: serde_json::Value,
     ) -> Result<AntigravityResponseInfo> {
         let start_time = std::time::Instant::now();
-        
+
         let url = format!("{}/messages", self.config.base_url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("x-api-key", api_key)
             .header("anthropic-version", &self.config.api_version)
@@ -96,26 +97,30 @@ impl AntigravityGatewayService {
             .json(&request_body)
             .send()
             .await?;
-        
+
         let status_code = response.status().as_u16();
         let response_body = response.json::<serde_json::Value>().await?;
-        
+
         // 解析响应
-        let model = response_body.get("model")
+        let model = response_body
+            .get("model")
             .and_then(|m| m.as_str())
             .unwrap_or(&ctx.model)
             .to_string();
-        
+
         let usage = response_body.get("usage");
-        let input_tokens = usage.and_then(|u| u.get("input_tokens"))
+        let input_tokens = usage
+            .and_then(|u| u.get("input_tokens"))
             .and_then(|v| v.as_i64());
-        let output_tokens = usage.and_then(|u| u.get("output_tokens"))
+        let output_tokens = usage
+            .and_then(|u| u.get("output_tokens"))
             .and_then(|v| v.as_i64());
-        
-        let stop_reason = response_body.get("stop_reason")
+
+        let stop_reason = response_body
+            .get("stop_reason")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
+
         Ok(AntigravityResponseInfo {
             request_id: ctx.request_id.clone(),
             status_code,
@@ -127,26 +132,27 @@ impl AntigravityGatewayService {
             created_at: Utc::now(),
         })
     }
-    
+
     /// 检查 API 连接
     pub async fn check_connection(&self, api_key: &str) -> Result<bool> {
         // Anthropic 没有专门的检查端点，发送一个简单请求测试
         let url = format!("{}/messages", self.config.base_url);
-        
+
         let test_body = serde_json::json!({
             "model": "claude-3-haiku-20240307",
             "max_tokens": 1,
             "messages": [{"role": "user", "content": "Hi"}]
         });
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("x-api-key", api_key)
             .header("anthropic-version", &self.config.api_version)
             .json(&test_body)
             .send()
             .await?;
-        
+
         Ok(response.status().as_u16() != 401)
     }
 }
@@ -154,7 +160,7 @@ impl AntigravityGatewayService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_gateway_config() {
         let config = AntigravityGatewayConfig::default();

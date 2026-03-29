@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Video generation service for Sora API
 pub struct SoraGenerationService {
@@ -58,16 +58,18 @@ impl SoraGenerationService {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now();
 
-        let generation = query_as::<_, Generation>(r#"
+        let generation = query_as::<_, Generation>(
+            r#"
             INSERT INTO sora_generations (id, user_id, status, prompt, duration_seconds, created_at)
             VALUES ($1, $2, 'pending', $3, $4, $5)
             RETURNING *
-            "#)
-            .bind(&id)
-            .bind(req.user_id)
-            .bind(&req.prompt)
-            .bind(req.duration_seconds.unwrap_or(10) as i32)
-            .bind(now)
+            "#,
+        )
+        .bind(&id)
+        .bind(req.user_id)
+        .bind(&req.prompt)
+        .bind(req.duration_seconds.unwrap_or(10) as i32)
+        .bind(now)
         .fetch_one(&self.pool)
         .await?;
 
@@ -78,9 +80,9 @@ impl SoraGenerationService {
     pub async fn get(&self, id: &str) -> Result<Generation, GenerationError> {
         let generation = query_as::<_, Generation>("SELECT * FROM sora_generations WHERE id = $1")
             .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(GenerationError::NotFound)?;
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(GenerationError::NotFound)?;
 
         Ok(generation)
     }
@@ -110,7 +112,8 @@ impl SoraGenerationService {
 
     /// Cancel generation
     pub async fn cancel(&self, id: &str) -> Result<(), GenerationError> {
-        self.update_status(id, GenerationStatus::Cancelled, None).await
+        self.update_status(id, GenerationStatus::Cancelled, None)
+            .await
     }
 
     /// Get generations for user
@@ -119,14 +122,16 @@ impl SoraGenerationService {
         user_id: i64,
         limit: i64,
     ) -> Result<Vec<Generation>, GenerationError> {
-        let generations = query_as::<_, Generation>(r#"
+        let generations = query_as::<_, Generation>(
+            r#"
             SELECT * FROM sora_generations
             WHERE user_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#)
-            .bind(user_id)
-            .bind(limit)
+            "#,
+        )
+        .bind(user_id)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 

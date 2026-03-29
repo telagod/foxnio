@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use crate::entity::{promo_codes, promo_code_usages};
+use crate::entity::{promo_code_usages, promo_codes};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sea_orm::*;
@@ -101,15 +101,16 @@ impl PromoCodeService {
 
     /// Get promo code by ID
     pub async fn get_by_id(db: &DatabaseConnection, id: i64) -> Result<Option<PromoCodeResponse>> {
-        let result = promo_codes::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let result = promo_codes::Entity::find_by_id(id).one(db).await?;
 
         Ok(result.map(|m| m.into()))
     }
 
     /// Get promo code by code
-    pub async fn get_by_code(db: &DatabaseConnection, code: &str) -> Result<Option<PromoCodeResponse>> {
+    pub async fn get_by_code(
+        db: &DatabaseConnection,
+        code: &str,
+    ) -> Result<Option<PromoCodeResponse>> {
         let result = promo_codes::Entity::find()
             .filter(promo_codes::Column::Code.eq(code))
             .one(db)
@@ -146,14 +147,12 @@ impl PromoCodeService {
         id: i64,
         req: UpdatePromoCodeRequest,
     ) -> Result<Option<PromoCodeResponse>> {
-        let promo_code = promo_codes::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let promo_code = promo_codes::Entity::find_by_id(id).one(db).await?;
 
         match promo_code {
             Some(model) => {
                 let mut active_model: promo_codes::ActiveModel = model.into();
-                
+
                 if let Some(code) = req.code {
                     active_model.code = ActiveValue::Set(code);
                 }
@@ -183,9 +182,7 @@ impl PromoCodeService {
 
     /// Delete promo code
     pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<bool> {
-        let result = promo_codes::Entity::delete_by_id(id)
-            .exec(db)
-            .await?;
+        let result = promo_codes::Entity::delete_by_id(id).exec(db).await?;
 
         Ok(result.rows_affected > 0)
     }
@@ -225,11 +222,7 @@ impl PromoCodeService {
     }
 
     /// Use promo code
-    pub async fn use_code(
-        db: &DatabaseConnection,
-        code: &str,
-        user_id: i64,
-    ) -> Result<f64> {
+    pub async fn use_code(db: &DatabaseConnection, code: &str, user_id: i64) -> Result<f64> {
         let promo_code = promo_codes::Entity::find()
             .filter(promo_codes::Column::Code.eq(code))
             .one(db)

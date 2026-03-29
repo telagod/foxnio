@@ -65,9 +65,15 @@ impl OpenAIWsStateStore {
     }
 
     /// Add conversation item
-    pub async fn add_item(&self, session_id: &str, item: ConversationItem) -> Result<(), StateError> {
+    pub async fn add_item(
+        &self,
+        session_id: &str,
+        item: ConversationItem,
+    ) -> Result<(), StateError> {
         let mut states = self.states.write().await;
-        let state = states.get_mut(session_id).ok_or(StateError::SessionNotFound)?;
+        let state = states
+            .get_mut(session_id)
+            .ok_or(StateError::SessionNotFound)?;
         state.conversation_items.push(item);
         state.updated_at = chrono::Utc::now().timestamp();
         Ok(())
@@ -76,7 +82,9 @@ impl OpenAIWsStateStore {
     /// Append audio buffer
     pub async fn append_audio(&self, session_id: &str, audio: &[u8]) -> Result<(), StateError> {
         let mut states = self.states.write().await;
-        let state = states.get_mut(session_id).ok_or(StateError::SessionNotFound)?;
+        let state = states
+            .get_mut(session_id)
+            .ok_or(StateError::SessionNotFound)?;
         state.audio_buffer.extend_from_slice(audio);
         state.updated_at = chrono::Utc::now().timestamp();
         Ok(())
@@ -85,7 +93,9 @@ impl OpenAIWsStateStore {
     /// Clear audio buffer
     pub async fn clear_audio(&self, session_id: &str) -> Result<(), StateError> {
         let mut states = self.states.write().await;
-        let state = states.get_mut(session_id).ok_or(StateError::SessionNotFound)?;
+        let state = states
+            .get_mut(session_id)
+            .ok_or(StateError::SessionNotFound)?;
         state.audio_buffer.clear();
         state.updated_at = chrono::Utc::now().timestamp();
         Ok(())
@@ -106,12 +116,12 @@ mod tests {
     async fn test_state_operations() {
         let store = OpenAIWsStateStore::new();
         let session_id = "test_session".to_string();
-        
+
         store.create(session_id.clone()).await.unwrap();
-        
+
         let state = store.get(&session_id).await;
         assert!(state.is_some());
-        
+
         store.delete(&session_id).await;
         let state = store.get(&session_id).await;
         assert!(state.is_none());

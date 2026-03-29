@@ -26,8 +26,8 @@ impl GeminiTokenEntry {
 
     /// Check if token expires within duration
     pub fn expires_within(&self, duration: Duration) -> bool {
-        Instant::now().duration_since(Instant::now()) >= 
-            self.expires_at.saturating_duration_since(Instant::now()) - duration
+        Instant::now().duration_since(Instant::now())
+            >= self.expires_at.saturating_duration_since(Instant::now()) - duration
     }
 }
 
@@ -55,9 +55,15 @@ impl GeminiTokenCache {
     }
 
     /// Store a token
-    pub async fn store(&self, user_id: i64, access_token: String, refresh_token: Option<String>, expires_in: Option<Duration>) {
+    pub async fn store(
+        &self,
+        user_id: i64,
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_in: Option<Duration>,
+    ) {
         let mut tokens = self.tokens.write().await;
-        
+
         let ttl = expires_in.unwrap_or(self.default_ttl);
         let entry = GeminiTokenEntry {
             access_token,
@@ -65,7 +71,7 @@ impl GeminiTokenCache {
             expires_at: Instant::now() + ttl,
             scope: "gemini".to_string(),
         };
-        
+
         tokens.insert(user_id, entry);
     }
 
@@ -78,9 +84,7 @@ impl GeminiTokenCache {
     /// Get valid token (not expired)
     pub async fn get_valid(&self, user_id: i64) -> Option<GeminiTokenEntry> {
         let tokens = self.tokens.read().await;
-        tokens.get(&user_id)
-            .filter(|t| !t.is_expired())
-            .cloned()
+        tokens.get(&user_id).filter(|t| !t.is_expired()).cloned()
     }
 
     /// Remove a token
@@ -108,10 +112,10 @@ mod tests {
     #[tokio::test]
     async fn test_store_and_get() {
         let cache = GeminiTokenCache::new(Duration::from_secs(60));
-        
+
         cache.store(123, "token-123".to_string(), None, None).await;
         let entry = cache.get(123).await;
-        
+
         assert!(entry.is_some());
         assert_eq!(entry.unwrap().access_token, "token-123");
     }
@@ -119,10 +123,17 @@ mod tests {
     #[tokio::test]
     async fn test_expired_token() {
         let cache = GeminiTokenCache::new(Duration::from_secs(60));
-        
-        cache.store(123, "token-123".to_string(), None, Some(Duration::from_millis(1))).await;
+
+        cache
+            .store(
+                123,
+                "token-123".to_string(),
+                None,
+                Some(Duration::from_millis(1)),
+            )
+            .await;
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         let entry = cache.get_valid(123).await;
         assert!(entry.is_none());
     }

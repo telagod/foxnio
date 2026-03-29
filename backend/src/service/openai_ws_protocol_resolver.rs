@@ -25,7 +25,7 @@ impl OpenAIWsProtocolResolver {
     /// Parse raw message
     pub fn parse(raw: &str) -> Result<ProtocolMessage, ResolverError> {
         let value: Value = serde_json::from_str(raw)?;
-        
+
         let message_type = value
             .get("type")
             .and_then(|t| t.as_str())
@@ -42,16 +42,16 @@ impl OpenAIWsProtocolResolver {
     /// Validate message
     pub fn validate(message: &ProtocolMessage) -> Result<(), ResolverError> {
         match message.message_type.as_str() {
-            "session.update" |
-            "session.created" |
-            "input_audio_buffer.append" |
-            "input_audio_buffer.commit" |
-            "input_audio_buffer.clear" |
-            "conversation.item.create" |
-            "response.create" |
-            "response.audio.delta" |
-            "response.audio.done" |
-            "error" => Ok(()),
+            "session.update"
+            | "session.created"
+            | "input_audio_buffer.append"
+            | "input_audio_buffer.commit"
+            | "input_audio_buffer.clear"
+            | "conversation.item.create"
+            | "response.create"
+            | "response.audio.delta"
+            | "response.audio.done"
+            | "error" => Ok(()),
             _ => Err(ResolverError::UnknownType(message.message_type.clone())),
         }
     }

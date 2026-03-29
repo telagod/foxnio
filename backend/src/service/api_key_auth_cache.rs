@@ -84,7 +84,11 @@ impl ApiKeyAuthCache {
         entries.sort_by_key(|(_, entry)| entry.cached_at);
 
         // Remove oldest 10%
-        let to_remove: Vec<_> = entries.into_iter().take(self.config.max_entries / 10).map(|(k, _)| k.clone()).collect();
+        let to_remove: Vec<_> = entries
+            .into_iter()
+            .take(self.config.max_entries / 10)
+            .map(|(k, _)| k.clone())
+            .collect();
         for key in to_remove {
             cache.remove(&key);
         }
@@ -98,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_operations() {
         let cache = ApiKeyAuthCache::new(CacheConfig::default());
-        
+
         let entry = CacheEntry {
             key_hash: "test".to_string(),
             user_id: 1,
@@ -108,7 +112,7 @@ mod tests {
         };
 
         cache.set("test".to_string(), entry.clone()).await;
-        
+
         let cached = cache.get("test").await;
         assert!(cached.is_some());
 

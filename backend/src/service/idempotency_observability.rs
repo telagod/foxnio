@@ -97,7 +97,7 @@ impl IdempotencyObservabilityService {
         // 添加事件
         let mut events = self.events.write().await;
         events.push(event);
-        
+
         // 限制事件数量
         if events.len() > self.max_events {
             events.remove(0);
@@ -185,7 +185,7 @@ impl IdempotencyObservabilityService {
     /// 生成报告
     pub async fn generate_report(&self) -> IdempotencyReport {
         let metrics = self.get_metrics().await;
-        
+
         IdempotencyReport {
             timestamp: Utc::now(),
             metrics: metrics.clone(),
@@ -217,15 +217,17 @@ mod tests {
     #[tokio::test]
     async fn test_record_event() {
         let service = IdempotencyObservabilityService::default();
-        
-        service.record_event(
-            EventType::RequestStart,
-            "test".to_string(),
-            "hash123".to_string(),
-            "processing".to_string(),
-            None,
-            None,
-        ).await;
+
+        service
+            .record_event(
+                EventType::RequestStart,
+                "test".to_string(),
+                "hash123".to_string(),
+                "processing".to_string(),
+                None,
+                None,
+            )
+            .await;
 
         let metrics = service.get_metrics().await;
         assert_eq!(metrics.total_requests, 1);
@@ -234,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_metrics() {
         let service = IdempotencyObservabilityService::default();
-        
+
         service.record_cache_hit().await;
         service.record_cache_miss().await;
         service.record_cache_hit().await;
@@ -250,16 +252,18 @@ mod tests {
     #[tokio::test]
     async fn test_get_recent_events() {
         let service = IdempotencyObservabilityService::default();
-        
+
         for i in 0..5 {
-            service.record_event(
-                EventType::RequestStart,
-                format!("scope{}", i),
-                format!("hash{}", i),
-                "processing".to_string(),
-                None,
-                None,
-            ).await;
+            service
+                .record_event(
+                    EventType::RequestStart,
+                    format!("scope{}", i),
+                    format!("hash{}", i),
+                    "processing".to_string(),
+                    None,
+                    None,
+                )
+                .await;
         }
 
         let events = service.get_recent_events(3).await;
@@ -269,15 +273,17 @@ mod tests {
     #[tokio::test]
     async fn test_generate_report() {
         let service = IdempotencyObservabilityService::default();
-        
-        service.record_event(
-            EventType::RequestStart,
-            "test".to_string(),
-            "hash".to_string(),
-            "processing".to_string(),
-            None,
-            None,
-        ).await;
+
+        service
+            .record_event(
+                EventType::RequestStart,
+                "test".to_string(),
+                "hash".to_string(),
+                "processing".to_string(),
+                None,
+                None,
+            )
+            .await;
 
         let report = service.generate_report().await;
         assert_eq!(report.metrics.total_requests, 1);

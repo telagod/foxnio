@@ -15,7 +15,10 @@ use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
-use crate::service::user_attribute::{UserAttributeService, CreateAttributeDefinitionRequest, UpdateAttributeDefinitionRequest, SetAttributeValueRequest};
+use crate::service::user_attribute::{
+    CreateAttributeDefinitionRequest, SetAttributeValueRequest, UpdateAttributeDefinitionRequest,
+    UserAttributeService,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -79,7 +82,12 @@ pub async fn update_definition(
     let definition = UserAttributeService::update_definition(db, id, body)
         .await
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?
-        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Attribute definition not found".into()))?;
+        .ok_or_else(|| {
+            ApiError(
+                StatusCode::NOT_FOUND,
+                "Attribute definition not found".into(),
+            )
+        })?;
 
     Ok(Json(json!(definition)))
 }
@@ -100,9 +108,14 @@ pub async fn delete_definition(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if deleted {
-        Ok(Json(json!({ "success": true, "message": "Attribute definition deleted" })))
+        Ok(Json(
+            json!({ "success": true, "message": "Attribute definition deleted" }),
+        ))
     } else {
-        Err(ApiError(StatusCode::NOT_FOUND, "Attribute definition not found".into()))
+        Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "Attribute definition not found".into(),
+        ))
     }
 }
 
@@ -116,9 +129,11 @@ pub async fn set_value(
     Json(body): Json<SetAttributeValueRequest>,
 ) -> Result<Json<Value>, ApiError> {
     // 只能设置自己的属性，或者管理员可以设置所有人的属性
-    let current_user_id: i64 = claims.sub.parse()
+    let current_user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
-    
+
     if user_id != current_user_id {
         check_permission(&claims, Permission::BillingWrite)
             .await
@@ -140,9 +155,11 @@ pub async fn get_user_values(
     Path(user_id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
     // 只能查看自己的属性，或者管理员可以查看所有人的属性
-    let current_user_id: i64 = claims.sub.parse()
+    let current_user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
-    
+
     if user_id != current_user_id {
         check_permission(&claims, Permission::BillingRead)
             .await
@@ -199,15 +216,18 @@ pub async fn set_user_attribute(
     Extension(claims): Extension<Claims>,
     Json(body): Json<SetUserAttributeRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
-    
+
     set_value(
         Extension(state),
         Extension(claims),
         Path((user_id, body.attribute_id)),
         Json(SetAttributeValueRequest { value: body.value }),
-    ).await
+    )
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -220,8 +240,10 @@ pub async fn get_user_attributes(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
-    
+
     get_user_values(Extension(state), Extension(claims), Path(user_id)).await
 }

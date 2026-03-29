@@ -66,34 +66,31 @@ impl UsageLog {
     pub fn new(db: sea_orm::DatabaseConnection) -> Self {
         Self { db }
     }
-    
+
     /// 插入使用日志
     pub async fn insert(&self, entry: UsageLogEntry) -> Result<i64> {
         // TODO: 实现数据库插入
         Ok(entry.id)
     }
-    
+
     /// 批量插入使用日志
     pub async fn insert_batch(&self, entries: Vec<UsageLogEntry>) -> Result<Vec<i64>> {
         let mut ids = Vec::with_capacity(entries.len());
-        
+
         for entry in entries {
             let id = self.insert(entry).await?;
             ids.push(id);
         }
-        
+
         Ok(ids)
     }
-    
+
     /// 查询使用日志
-    pub async fn query(
-        &self,
-        _params: UsageLogQueryParams,
-    ) -> Result<Vec<UsageLogEntry>> {
+    pub async fn query(&self, _params: UsageLogQueryParams) -> Result<Vec<UsageLogEntry>> {
         // TODO: 实现数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 获取统计数据
     pub async fn get_stats(
         &self,
@@ -111,7 +108,7 @@ impl UsageLog {
             success_rate: 0.0,
         })
     }
-    
+
     /// 按平台分组统计
     pub async fn get_stats_by_platform(
         &self,
@@ -121,7 +118,7 @@ impl UsageLog {
         // TODO: 实现分组统计
         Ok(std::collections::HashMap::new())
     }
-    
+
     /// 按模型分组统计
     pub async fn get_stats_by_model(
         &self,
@@ -131,7 +128,7 @@ impl UsageLog {
         // TODO: 实现分组统计
         Ok(std::collections::HashMap::new())
     }
-    
+
     /// 按用户分组统计
     pub async fn get_stats_by_user(
         &self,
@@ -141,7 +138,7 @@ impl UsageLog {
         // TODO: 实现分组统计
         Ok(std::collections::HashMap::new())
     }
-    
+
     /// 获取用户排行榜
     pub async fn get_user_leaderboard(
         &self,
@@ -152,7 +149,7 @@ impl UsageLog {
         // TODO: 实现排行榜查询
         Ok(Vec::new())
     }
-    
+
     /// 获取模型排行榜
     pub async fn get_model_leaderboard(
         &self,
@@ -196,49 +193,49 @@ impl UsageLogBuilder {
             },
         }
     }
-    
+
     /// 设置用户 ID
     pub fn user_id(mut self, user_id: i64) -> Self {
         self.entry.user_id = Some(user_id);
         self
     }
-    
+
     /// 设置 API Key ID
     pub fn api_key_id(mut self, api_key_id: i64) -> Self {
         self.entry.api_key_id = Some(api_key_id);
         self
     }
-    
+
     /// 设置账号 ID
     pub fn account_id(mut self, account_id: i64) -> Self {
         self.entry.account_id = Some(account_id);
         self
     }
-    
+
     /// 设置分组 ID
     pub fn group_id(mut self, group_id: i64) -> Self {
         self.entry.group_id = Some(group_id);
         self
     }
-    
+
     /// 设置请求类型
     pub fn request_type(mut self, request_type: i16) -> Self {
         self.entry.request_type = request_type;
         self
     }
-    
+
     /// 设置是否流式
     pub fn stream(mut self, stream: bool) -> Self {
         self.entry.stream = stream;
         self
     }
-    
+
     /// 设置状态码
     pub fn status_code(mut self, status_code: i16) -> Self {
         self.entry.status_code = status_code;
         self
     }
-    
+
     /// 设置 tokens
     pub fn tokens(mut self, prompt: i64, completion: i64) -> Self {
         self.entry.prompt_tokens = prompt;
@@ -246,25 +243,25 @@ impl UsageLogBuilder {
         self.entry.total_tokens = prompt + completion;
         self
     }
-    
+
     /// 设置成本
     pub fn cost(mut self, cost_usd: f64) -> Self {
         self.entry.cost_usd = cost_usd;
         self
     }
-    
+
     /// 设置计费类型
     pub fn billing_type(mut self, billing_type: i8) -> Self {
         self.entry.billing_type = billing_type;
         self
     }
-    
+
     /// 设置响应时间
     pub fn response_time_ms(mut self, response_time_ms: i64) -> Self {
         self.entry.response_time_ms = response_time_ms;
         self
     }
-    
+
     /// 构建条目
     pub fn build(self) -> UsageLogEntry {
         self.entry
@@ -274,7 +271,7 @@ impl UsageLogBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_usage_log_builder() {
         let entry = UsageLogBuilder::new(
@@ -288,7 +285,7 @@ mod tests {
         .cost(0.01)
         .response_time_ms(500)
         .build();
-        
+
         assert_eq!(entry.request_id, "req_123");
         assert_eq!(entry.platform, "openai");
         assert_eq!(entry.model, "gpt-4");

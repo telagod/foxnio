@@ -129,14 +129,12 @@ impl ScheduledTestPlanService {
         id: i64,
         req: UpdateTestPlanRequest,
     ) -> Result<Option<TestPlanResponse>> {
-        let plan = scheduled_test_plans::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let plan = scheduled_test_plans::Entity::find_by_id(id).one(db).await?;
 
         match plan {
             Some(model) => {
                 let mut active_model: scheduled_test_plans::ActiveModel = model.into();
-                
+
                 if let Some(name) = req.name {
                     active_model.name = ActiveValue::Set(name);
                 }

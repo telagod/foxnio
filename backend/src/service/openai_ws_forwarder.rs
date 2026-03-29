@@ -74,7 +74,11 @@ impl OpenAIWsForwarder {
 
             // Try to parse complete message
             if let Ok(text) = std::str::from_utf8(&buffer) {
-                debug!("Forwarding message for session {}: {} bytes", ctx.session_id, buffer.len());
+                debug!(
+                    "Forwarding message for session {}: {} bytes",
+                    ctx.session_id,
+                    buffer.len()
+                );
                 outbound
                     .send(text.to_string())
                     .await
@@ -93,7 +97,11 @@ impl OpenAIWsForwarder {
         mut inbound: mpsc::Receiver<String>,
     ) -> Result<(), ForwarderError> {
         while let Some(msg) = inbound.recv().await {
-            debug!("Forwarding downstream for session {}: {} bytes", ctx.session_id, msg.len());
+            debug!(
+                "Forwarding downstream for session {}: {} bytes",
+                ctx.session_id,
+                msg.len()
+            );
             // In real implementation, send to client
         }
 

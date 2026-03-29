@@ -1,7 +1,7 @@
 //! User message queue service
 
-use std::collections::VecDeque;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -49,20 +49,25 @@ impl UserMessageQueue {
     }
 
     /// Enqueue a message
-    pub async fn enqueue(&self, user_id: i64, msg_type: String, payload: Vec<u8>, priority: u8) -> Result<u64, String> {
+    pub async fn enqueue(
+        &self,
+        user_id: i64,
+        msg_type: String,
+        payload: Vec<u8>,
+        priority: u8,
+    ) -> Result<u64, String> {
         let mut queues = self.queues.write().await;
         let mut counter = self.counter.write().await;
-        
-        let queue = queues.entry(user_id)
-            .or_insert_with(VecDeque::new);
-        
+
+        let queue = queues.entry(user_id).or_insert_with(VecDeque::new);
+
         if queue.len() >= self.max_queue_size {
             return Err("Queue is full".to_string());
         }
-        
+
         let id = *counter;
         *counter += 1;
-        
+
         let msg = QueueMessage {
             id,
             user_id,
@@ -71,21 +76,22 @@ impl UserMessageQueue {
             priority,
             created_at: chrono::Utc::now().timestamp(),
         };
-        
+
         // Insert by priority
-        let pos = queue.iter()
+        let pos = queue
+            .iter()
             .position(|m| m.priority < priority)
             .unwrap_or(queue.len());
-        
+
         queue.insert(pos, msg);
-        
+
         Ok(id)
     }
 
     /// Dequeue a message
     pub async fn dequeue(&self, user_id: i64) -> Option<QueueMessage> {
         let mut queues = self.queues.write().await;
-        
+
         if let Some(queue) = queues.get_mut(&user_id) {
             queue.pop_front()
         } else {
@@ -96,9 +102,8 @@ impl UserMessageQueue {
     /// Peek at the next message
     pub async fn peek(&self, user_id: i64) -> Option<QueueMessage> {
         let queues = self.queues.read().await;
-        
-        queues.get(&user_id)
-            .and_then(|q| q.front().cloned())
+
+        queues.get(&user_id).and_then(|q| q.front().cloned())
     }
 
     /// Get queue size for a user
@@ -127,10 +132,13 @@ mod tests {
     #[tokio::test]
     async fn test_enqueue_dequeue() {
         let queue = UserMessageQueue::new(100);
-        
-        let id = queue.enqueue(123, "test".to_string(), b"payload".to_vec(), 5).await.unwrap();
+
+        let id = queue
+            .enqueue(123, "test".to_string(), b"payload".to_vec(), 5)
+            .await
+            .unwrap();
         assert_eq!(id, 1);
-        
+
         let msg = queue.dequeue(123).await.unwrap();
         assert_eq!(msg.msg_type, "test");
     }
@@ -138,10 +146,16 @@ mod tests {
     #[tokio::test]
     async fn test_priority() {
         let queue = UserMessageQueue::new(100);
-        
-        queue.enqueue(123, "low".to_string(), vec![], 1).await.unwrap();
-        queue.enqueue(123, "high".to_string(), vec![], 10).await.unwrap();
-        
+
+        queue
+            .enqueue(123, "low".to_string(), vec![], 1)
+            .await
+            .unwrap();
+        queue
+            .enqueue(123, "high".to_string(), vec![], 10)
+            .await
+            .unwrap();
+
         let msg = queue.dequeue(123).await.unwrap();
         assert_eq!(msg.msg_type, "high");
     }

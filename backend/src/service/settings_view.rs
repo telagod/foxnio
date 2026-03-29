@@ -53,7 +53,10 @@ impl SettingsView {
                 is_editable: true,
             };
 
-            categories.entry(category).or_insert_with(Vec::new).push(setting);
+            categories
+                .entry(category)
+                .or_insert_with(Vec::new)
+                .push(setting);
         }
 
         let categories: Vec<SettingsCategory> = categories

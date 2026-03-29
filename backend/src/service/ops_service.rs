@@ -128,14 +128,13 @@ impl OpsService {
     /// 准备请求体用于队列存储
     ///
     /// 执行脱敏和裁剪，返回可直接写入数据库的字段
-    pub fn prepare_request_body_for_queue(
-        raw: &[u8],
-    ) -> (Option<String>, bool, Option<i32>) {
+    pub fn prepare_request_body_for_queue(raw: &[u8]) -> (Option<String>, bool, Option<i32>) {
         if raw.is_empty() {
             return (None, false, None);
         }
 
-        let sanitized = Self::sanitize_and_trim_request_body(raw, OPS_MAX_STORED_REQUEST_BODY_BYTES);
+        let sanitized =
+            Self::sanitize_and_trim_request_body(raw, OPS_MAX_STORED_REQUEST_BODY_BYTES);
         let (json, truncated, bytes_len) = sanitized;
 
         let request_body_json = json.map(|s| s);
@@ -156,11 +155,7 @@ impl OpsService {
         let bytes_len = raw.len();
         let truncated = bytes_len > max_bytes;
 
-        let slice = if truncated {
-            &raw[..max_bytes]
-        } else {
-            raw
-        };
+        let slice = if truncated { &raw[..max_bytes] } else { raw };
 
         // 尝试解析为 JSON 并脱敏
         let sanitized = String::from_utf8_lossy(slice).to_string();
@@ -175,8 +170,14 @@ impl OpsService {
     fn redact_sensitive_fields(json_str: &str) -> String {
         // 移除常见的敏感字段
         let sensitive_keys = [
-            "password", "token", "api_key", "secret", "credential",
-            "authorization", "bearer", "private_key",
+            "password",
+            "token",
+            "api_key",
+            "secret",
+            "credential",
+            "authorization",
+            "bearer",
+            "private_key",
         ];
 
         let result = json_str.to_string();

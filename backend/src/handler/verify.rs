@@ -4,10 +4,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    http::StatusCode,
-    Extension, Json,
-};
+use axum::{http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -48,7 +45,10 @@ pub async fn send_verify_code(
 ) -> Result<Json<Value>, ApiError> {
     // 验证邮箱格式
     if !req.email.contains('@') {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "Invalid email format".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Invalid email format".into(),
+        ));
     }
 
     // 验证类型
@@ -92,7 +92,10 @@ pub async fn validate_promo_code(
             "description": "10% discount",
         })))
     } else {
-        Err(ApiError(StatusCode::BAD_REQUEST, "Invalid promo code".into()))
+        Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Invalid promo code".into(),
+        ))
     }
 }
 

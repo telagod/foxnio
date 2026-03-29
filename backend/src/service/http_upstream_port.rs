@@ -73,14 +73,22 @@ impl HttpUpstreamPortService {
     }
 
     /// 注册端点
-    pub async fn register_endpoint(&self, name: &str, config: UpstreamPortConfig, weight: u32) -> Result<()> {
+    pub async fn register_endpoint(
+        &self,
+        name: &str,
+        config: UpstreamPortConfig,
+        weight: u32,
+    ) -> Result<()> {
         let mut endpoints = self.endpoints.write().await;
-        endpoints.insert(name.to_string(), UpstreamEndpoint {
-            name: name.to_string(),
-            config,
-            weight,
-            healthy: true,
-        });
+        endpoints.insert(
+            name.to_string(),
+            UpstreamEndpoint {
+                name: name.to_string(),
+                config,
+                weight,
+                healthy: true,
+            },
+        );
         Ok(())
     }
 
@@ -100,13 +108,9 @@ impl HttpUpstreamPortService {
     /// 选择最佳端点
     pub async fn select_endpoint(&self) -> Option<UpstreamEndpoint> {
         let endpoints = self.endpoints.read().await;
-        
+
         // 简单的加权选择算法
-        let healthy_endpoints: Vec<_> = endpoints
-            .values()
-            .filter(|e| e.healthy)
-            .cloned()
-            .collect();
+        let healthy_endpoints: Vec<_> = endpoints.values().filter(|e| e.healthy).cloned().collect();
 
         if healthy_endpoints.is_empty() {
             return None;
@@ -121,7 +125,7 @@ impl HttpUpstreamPortService {
         // 加权随机选择
         let random_weight = rand_weight(total_weight);
         let mut accumulated = 0u32;
-        
+
         for endpoint in &healthy_endpoints {
             accumulated += endpoint.weight;
             if accumulated >= random_weight {
@@ -187,7 +191,7 @@ impl HttpUpstreamPortService {
         // 1. 建立连接
         // 2. 发送健康检查请求
         // 3. 验证响应
-        
+
         // 目前返回端点的健康状态
         endpoint.healthy
     }
@@ -204,7 +208,8 @@ impl HttpUpstreamPortService {
                 ..Default::default()
             },
             100,
-        ).await?;
+        )
+        .await?;
 
         // Anthropic
         self.register_endpoint(
@@ -216,7 +221,8 @@ impl HttpUpstreamPortService {
                 ..Default::default()
             },
             100,
-        ).await?;
+        )
+        .await?;
 
         // Gemini
         self.register_endpoint(
@@ -228,7 +234,8 @@ impl HttpUpstreamPortService {
                 ..Default::default()
             },
             80,
-        ).await?;
+        )
+        .await?;
 
         Ok(())
     }
@@ -258,9 +265,9 @@ mod tests {
     async fn test_register_endpoint() {
         let service = HttpUpstreamPortService::new();
         let config = UpstreamPortConfig::default();
-        
+
         service.register_endpoint("test", config, 50).await.unwrap();
-        
+
         let endpoint = service.get_endpoint("test").await;
         assert!(endpoint.is_some());
         assert_eq!(endpoint.unwrap().weight, 50);
@@ -270,10 +277,10 @@ mod tests {
     async fn test_remove_endpoint() {
         let service = HttpUpstreamPortService::new();
         let config = UpstreamPortConfig::default();
-        
+
         service.register_endpoint("test", config, 50).await.unwrap();
         service.remove_endpoint("test").await.unwrap();
-        
+
         let endpoint = service.get_endpoint("test").await;
         assert!(endpoint.is_none());
     }
@@ -282,10 +289,13 @@ mod tests {
     async fn test_select_endpoint() {
         let service = HttpUpstreamPortService::new();
         let config = UpstreamPortConfig::default();
-        
-        service.register_endpoint("ep1", config.clone(), 30).await.unwrap();
+
+        service
+            .register_endpoint("ep1", config.clone(), 30)
+            .await
+            .unwrap();
         service.register_endpoint("ep2", config, 70).await.unwrap();
-        
+
         let endpoint = service.select_endpoint().await;
         assert!(endpoint.is_some());
     }
@@ -294,10 +304,10 @@ mod tests {
     async fn test_mark_endpoint_health() {
         let service = HttpUpstreamPortService::new();
         let config = UpstreamPortConfig::default();
-        
+
         service.register_endpoint("test", config, 50).await.unwrap();
         service.mark_endpoint_health("test", false).await.unwrap();
-        
+
         let endpoint = service.get_endpoint("test").await.unwrap();
         assert!(!endpoint.healthy);
     }
@@ -310,7 +320,7 @@ mod tests {
             use_tls: true,
             ..Default::default()
         };
-        
+
         let url = HttpUpstreamPortService::get_base_url(&config);
         assert_eq!(url, "https://api.openai.com:443");
     }
@@ -319,10 +329,10 @@ mod tests {
     async fn test_initialize_default_endpoints() {
         let service = HttpUpstreamPortService::new();
         service.initialize_default_endpoints().await.unwrap();
-        
+
         let openai = service.get_endpoint("openai").await;
         assert!(openai.is_some());
-        
+
         let anthropic = service.get_endpoint("anthropic").await;
         assert!(anthropic.is_some());
     }

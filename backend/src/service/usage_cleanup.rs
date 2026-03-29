@@ -64,7 +64,7 @@ impl UsageCleanup {
     pub fn new(db: sea_orm::DatabaseConnection) -> Self {
         Self { db }
     }
-    
+
     /// 创建清理任务
     pub async fn create_task(
         &self,
@@ -85,12 +85,12 @@ impl UsageCleanup {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         // TODO: 保存到数据库
-        
+
         Ok(task)
     }
-    
+
     /// 列出清理任务
     pub async fn list_tasks(
         &self,
@@ -98,12 +98,15 @@ impl UsageCleanup {
         _page_token: Option<&str>,
     ) -> Result<(Vec<UsageCleanupTask>, PaginationResult)> {
         // TODO: 从数据库查询
-        Ok((Vec::new(), PaginationResult {
-            has_more: false,
-            next_token: None,
-        }))
+        Ok((
+            Vec::new(),
+            PaginationResult {
+                has_more: false,
+                next_token: None,
+            },
+        ))
     }
-    
+
     /// 抢占下一个待执行任务
     pub async fn claim_next_pending_task(
         &self,
@@ -114,44 +117,32 @@ impl UsageCleanup {
         // 2. 如果有 running 超过指定时间的任务，允许重新抢占
         Ok(None)
     }
-    
+
     /// 获取任务状态
     pub async fn get_task_status(&self, _task_id: i64) -> Result<String> {
         // TODO: 从数据库查询
         Ok(USAGE_CLEANUP_STATUS_PENDING.to_string())
     }
-    
+
     /// 更新任务进度
-    pub async fn update_task_progress(
-        &self,
-        _task_id: i64,
-        _deleted_rows: i64,
-    ) -> Result<()> {
+    pub async fn update_task_progress(&self, _task_id: i64, _deleted_rows: i64) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 取消任务
-    pub async fn cancel_task(
-        &self,
-        _task_id: i64,
-        _canceled_by: i64,
-    ) -> Result<bool> {
+    pub async fn cancel_task(&self, _task_id: i64, _canceled_by: i64) -> Result<bool> {
         // TODO: 实现取消逻辑
         // 只允许取消 pending 或 running 状态的任务
         Ok(false)
     }
-    
+
     /// 标记任务成功
-    pub async fn mark_task_succeeded(
-        &self,
-        _task_id: i64,
-        _deleted_rows: i64,
-    ) -> Result<()> {
+    pub async fn mark_task_succeeded(&self, _task_id: i64, _deleted_rows: i64) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 标记任务失败
     pub async fn mark_task_failed(
         &self,
@@ -162,7 +153,7 @@ impl UsageCleanup {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 批量删除使用日志
     pub async fn delete_usage_logs_batch(
         &self,
@@ -178,13 +169,13 @@ impl UsageCleanup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_usage_cleanup() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let cleanup = UsageCleanup::new(db);
-        
+
         let filters = UsageCleanupFilters {
             start_time: Utc::now() - Duration::days(30),
             end_time: Utc::now(),
@@ -197,7 +188,7 @@ mod tests {
             stream: None,
             billing_type: None,
         };
-        
+
         let task = cleanup.create_task(filters, 1).await.unwrap();
         assert_eq!(task.status, USAGE_CLEANUP_STATUS_PENDING);
     }

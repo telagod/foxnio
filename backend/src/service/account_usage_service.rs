@@ -73,13 +73,9 @@ impl AccountUsageService {
     pub fn new(db: sea_orm::DatabaseConnection) -> Self {
         Self { db }
     }
-    
+
     /// 获取使用量配额
-    pub async fn get_quota(
-        &self,
-        account_id: i64,
-        quota_type: &str,
-    ) -> Result<UsageQuota> {
+    pub async fn get_quota(&self, account_id: i64, quota_type: &str) -> Result<UsageQuota> {
         // TODO: 从数据库查询
         Ok(UsageQuota {
             account_id,
@@ -92,7 +88,7 @@ impl AccountUsageService {
             updated_at: Utc::now(),
         })
     }
-    
+
     /// 设置使用量配额
     pub async fn set_quota(
         &self,
@@ -109,7 +105,7 @@ impl AccountUsageService {
         );
         Ok(())
     }
-    
+
     /// 更新使用量
     pub async fn update_usage(
         &self,
@@ -121,7 +117,7 @@ impl AccountUsageService {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 检查是否超限
     pub async fn check_limits(
         &self,
@@ -129,20 +125,18 @@ impl AccountUsageService {
         limits: &UsageLimits,
     ) -> Result<UsageLimitCheckResult> {
         let now = Utc::now();
-        
+
         let mut result = UsageLimitCheckResult {
             within_limits: true,
             violations: Vec::new(),
         };
-        
+
         // 检查每日限制
         if let Some(max_requests) = limits.max_requests_per_day {
-            let daily_requests = self.get_requests_in_period(
-                account_id,
-                now - Duration::days(1),
-                now,
-            ).await?;
-            
+            let daily_requests = self
+                .get_requests_in_period(account_id, now - Duration::days(1), now)
+                .await?;
+
             if daily_requests >= max_requests {
                 result.within_limits = false;
                 result.violations.push(UsageLimitViolation {
@@ -152,14 +146,12 @@ impl AccountUsageService {
                 });
             }
         }
-        
+
         if let Some(max_tokens) = limits.max_tokens_per_day {
-            let daily_tokens = self.get_tokens_in_period(
-                account_id,
-                now - Duration::days(1),
-                now,
-            ).await?;
-            
+            let daily_tokens = self
+                .get_tokens_in_period(account_id, now - Duration::days(1), now)
+                .await?;
+
             if daily_tokens >= max_tokens {
                 result.within_limits = false;
                 result.violations.push(UsageLimitViolation {
@@ -169,14 +161,12 @@ impl AccountUsageService {
                 });
             }
         }
-        
+
         if let Some(max_cost) = limits.max_cost_per_day {
-            let daily_cost = self.get_cost_in_period(
-                account_id,
-                now - Duration::days(1),
-                now,
-            ).await?;
-            
+            let daily_cost = self
+                .get_cost_in_period(account_id, now - Duration::days(1), now)
+                .await?;
+
             if daily_cost >= max_cost {
                 result.within_limits = false;
                 result.violations.push(UsageLimitViolation {
@@ -186,15 +176,13 @@ impl AccountUsageService {
                 });
             }
         }
-        
+
         // 检查每小时限制
         if let Some(max_requests) = limits.max_requests_per_hour {
-            let hourly_requests = self.get_requests_in_period(
-                account_id,
-                now - Duration::hours(1),
-                now,
-            ).await?;
-            
+            let hourly_requests = self
+                .get_requests_in_period(account_id, now - Duration::hours(1), now)
+                .await?;
+
             if hourly_requests >= max_requests {
                 result.within_limits = false;
                 result.violations.push(UsageLimitViolation {
@@ -204,10 +192,10 @@ impl AccountUsageService {
                 });
             }
         }
-        
+
         Ok(result)
     }
-    
+
     /// 获取时间段内的请求数
     async fn get_requests_in_period(
         &self,
@@ -218,7 +206,7 @@ impl AccountUsageService {
         // TODO: 从数据库查询
         Ok(0)
     }
-    
+
     /// 获取时间段内的 token 数
     async fn get_tokens_in_period(
         &self,
@@ -229,7 +217,7 @@ impl AccountUsageService {
         // TODO: 从数据库查询
         Ok(0)
     }
-    
+
     /// 获取时间段内的成本
     async fn get_cost_in_period(
         &self,
@@ -240,7 +228,7 @@ impl AccountUsageService {
         // TODO: 从数据库查询
         Ok(0.0)
     }
-    
+
     /// 获取使用量统计
     pub async fn get_statistics(
         &self,
@@ -264,26 +252,22 @@ impl AccountUsageService {
             error_rate: 0.0,
         })
     }
-    
+
     /// 获取所有账号的使用量概览
     pub async fn get_all_accounts_overview(&self) -> Result<HashMap<i64, UsageStatistics>> {
         // TODO: 从数据库查询
         Ok(HashMap::new())
     }
-    
+
     /// 重置使用量
     pub async fn reset_usage(&self, account_id: i64, quota_type: &str) -> Result<()> {
         // TODO: 更新数据库
         tracing::info!("重置账号 {} 的 {} 使用量", account_id, quota_type);
         Ok(())
     }
-    
+
     /// 批量重置使用量
-    pub async fn reset_usage_batch(
-        &self,
-        account_ids: &[i64],
-        quota_type: &str,
-    ) -> Result<()> {
+    pub async fn reset_usage_batch(&self, account_ids: &[i64], quota_type: &str) -> Result<()> {
         for account_id in account_ids {
             self.reset_usage(*account_id, quota_type).await?;
         }
@@ -309,16 +293,16 @@ pub struct UsageLimitViolation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_account_usage_service() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let service = AccountUsageService::new(db);
-        
+
         let quota = service.get_quota(1, "requests").await.unwrap();
         assert_eq!(quota.account_id, 1);
-        
+
         let limits = UsageLimits::default();
         let result = service.check_limits(1, &limits).await.unwrap();
         assert!(result.within_limits);

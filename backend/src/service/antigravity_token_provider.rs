@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -54,13 +54,15 @@ impl AntigravityTokenProvider {
         }
 
         // Fetch from DB
-        let token = query_as::<_, AntigravityToken>(r#"
+        let token = query_as::<_, AntigravityToken>(
+            r#"
             SELECT access_token, refresh_token, expires_at, scope
             FROM antigravity_tokens
             WHERE account_id = $1
-            "#)
-            .bind(account_id)
-            .fetch_optional(&self.pool)
+            "#,
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
         .await?
         .ok_or(TokenError::NotFound)?;
 

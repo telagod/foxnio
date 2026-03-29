@@ -1,7 +1,7 @@
 use crate::model::account::Account;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, Row};
+use sqlx::{query, query_as, PgPool, Row};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -78,10 +78,7 @@ impl OpenAIAccountScheduler {
     }
 
     /// Select best account for request
-    pub async fn select_account(
-        &self,
-        ctx: &SchedulingContext,
-    ) -> Result<Account, SchedulerError> {
+    pub async fn select_account(&self, ctx: &SchedulingContext) -> Result<Account, SchedulerError> {
         // Try sticky session first
         if self.config.enable_sticky_session {
             if let Some(session_id) = &ctx.session_id {
@@ -115,14 +112,19 @@ impl OpenAIAccountScheduler {
     }
 
     /// Get account for sticky session
-    async fn get_sticky_account(&self, session_id: &str) -> Result<Option<Account>, SchedulerError> {
-        let result = query(r#"
+    async fn get_sticky_account(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Account>, SchedulerError> {
+        let result = query(
+            r#"
             SELECT account_id FROM sticky_sessions
             WHERE session_id = $1 AND created_at > NOW() - INTERVAL '5 minutes'
-            "#)
-            .bind(session_id)
-            .fetch_optional(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
         if let Some(row) = result {
             let account_id: i64 = row.try_get("account_id")?;
@@ -147,33 +149,37 @@ impl OpenAIAccountScheduler {
         session_id: &str,
         account_id: i64,
     ) -> Result<(), SchedulerError> {
-        query(r#"
+        query(
+            r#"
             INSERT INTO sticky_sessions (session_id, account_id, created_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT (session_id) DO UPDATE SET
                 account_id = EXCLUDED.account_id,
                 created_at = NOW()
-            "#)
-            .bind(session_id)
-            .bind(account_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(session_id)
+        .bind(account_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
     /// Get available accounts for model
     async fn get_available_accounts(&self, model: &str) -> Result<Vec<Account>, SchedulerError> {
-        let accounts = query_as::<_, Account>(r#"
+        let accounts = query_as::<_, Account>(
+            r#"
             SELECT * FROM accounts
             WHERE status = 'active'
             AND models @> $1
             AND deleted_at IS NULL
             ORDER BY created_at ASC
-            "#)
-            .bind(&[model])
-            .fetch_all(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(&[model])
+        .fetch_all(&self.pool)
+        .await?;
 
         // Filter by availability
         let mut available = Vec::new();
@@ -221,14 +227,16 @@ impl OpenAIAccountScheduler {
 
         // Get account states for load calculation
         let states = self.account_states.read().await;
-        
+
         // Simple weighted selection based on current load from account_states
         let selected = accounts
             .iter()
             .min_by(|a, b| {
                 let load_a = states.get(&a.id).map(|s| s.current_load).unwrap_or(0.0);
                 let load_b = states.get(&b.id).map(|s| s.current_load).unwrap_or(0.0);
-                load_a.partial_cmp(&load_b).unwrap_or(std::cmp::Ordering::Equal)
+                load_a
+                    .partial_cmp(&load_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or(SchedulerError::NoAvailableAccounts)?
             .clone();
@@ -262,7 +270,8 @@ impl OpenAIAccountScheduler {
         if let Some(state) = states.get_mut(&account_id) {
             state.error_count += 1;
             if state.request_count > 0 {
-                state.current_load = (state.error_count as f32 / state.request_count as f32).min(1.0);
+                state.current_load =
+                    (state.error_count as f32 / state.request_count as f32).min(1.0);
             }
         }
 
@@ -271,23 +280,23 @@ impl OpenAIAccountScheduler {
 
     /// Refresh account states
     pub async fn refresh_states(&self) -> Result<(), SchedulerError> {
-        let accounts = query_as::<_, Account>("SELECT * FROM accounts WHERE status = 'active' AND deleted_at IS NULL")
-            .fetch_all(&self.pool)
-            .await?;
+        let accounts = query_as::<_, Account>(
+            "SELECT * FROM accounts WHERE status = 'active' AND deleted_at IS NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
         let mut states = self.account_states.write().await;
         for account in accounts {
-            states
-                .entry(account.id)
-                .or_insert_with(|| AccountState {
-                    account_id: account.id,
-                    is_available: true,
-                    last_used_at: None,
-                    request_count: 0,
-                    error_count: 0,
-                    rpm: 0,
-                    current_load: 0.0,
-                });
+            states.entry(account.id).or_insert_with(|| AccountState {
+                account_id: account.id,
+                is_available: true,
+                last_used_at: None,
+                request_count: 0,
+                error_count: 0,
+                rpm: 0,
+                current_load: 0.0,
+            });
         }
 
         Ok(())

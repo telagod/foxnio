@@ -71,31 +71,30 @@ impl TokenCacheKey {
 
     /// 生成缓存键字符串
     pub fn to_cache_string(&self) -> String {
-        let mut key = format!("token:{}:{}:{}", 
-            self.provider,
-            self.account_id,
-            self.token_type
+        let mut key = format!(
+            "token:{}:{}:{}",
+            self.provider, self.account_id, self.token_type
         );
-        
+
         if let Some(scope) = &self.scope {
             key.push_str(&format!(":{}", scope));
         }
-        
+
         if let Some(context) = &self.context {
             key.push_str(&format!(":{}", context));
         }
-        
+
         key
     }
 
     /// 从缓存键字符串解析
     pub fn from_cache_string(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split(':').collect();
-        
+
         if parts.len() < 4 || parts[0] != "token" {
             return None;
         }
-        
+
         let token_type = match parts[3] {
             "access_token" => TokenType::AccessToken,
             "refresh_token" => TokenType::RefreshToken,
@@ -104,7 +103,7 @@ impl TokenCacheKey {
             "bearer_token" => TokenType::BearerToken,
             _ => return None,
         };
-        
+
         Some(Self {
             provider: parts[1].to_string(),
             account_id: parts[2].to_string(),
@@ -123,7 +122,7 @@ impl TokenCacheKey {
     pub fn hash(&self) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         self.to_cache_string().hash(&mut hasher);
         hasher.finish()
@@ -212,7 +211,7 @@ mod tests {
             .with_token_type(TokenType::RefreshToken)
             .with_scope("read write")
             .with_context("production");
-        
+
         assert_eq!(key.token_type, TokenType::RefreshToken);
         assert_eq!(key.scope, Some("read write".to_string()));
         assert_eq!(key.context, Some("production".to_string()));
@@ -223,9 +222,8 @@ mod tests {
         let key = TokenCacheKey::new("openai", "account123");
         let cache_str = key.to_cache_string();
         assert_eq!(cache_str, "token:openai:account123:access_token");
-        
-        let key_with_scope = TokenCacheKey::new("openai", "account123")
-            .with_scope("read");
+
+        let key_with_scope = TokenCacheKey::new("openai", "account123").with_scope("read");
         assert_eq!(
             key_with_scope.to_cache_string(),
             "token:openai:account123:access_token:read"
@@ -236,7 +234,7 @@ mod tests {
     fn test_from_cache_string() {
         let key_str = "token:openai:account123:access_token";
         let key = TokenCacheKey::from_cache_string(key_str).unwrap();
-        
+
         assert_eq!(key.provider, "openai");
         assert_eq!(key.account_id, "account123");
         assert_eq!(key.token_type, TokenType::AccessToken);
@@ -247,10 +245,10 @@ mod tests {
         let original = TokenCacheKey::new("anthropic", "acc456")
             .with_token_type(TokenType::RefreshToken)
             .with_scope("full");
-        
+
         let cache_str = original.to_cache_string();
         let parsed = TokenCacheKey::from_cache_string(&cache_str).unwrap();
-        
+
         assert_eq!(original, parsed);
     }
 
@@ -266,7 +264,7 @@ mod tests {
         let key1 = TokenCacheKey::new("openai", "account123");
         let key2 = TokenCacheKey::new("openai", "account123");
         let key3 = TokenCacheKey::new("anthropic", "account123");
-        
+
         assert_eq!(key1.hash(), key2.hash());
         assert_ne!(key1.hash(), key3.hash());
     }
@@ -278,7 +276,7 @@ mod tests {
             .scope("read")
             .context("production")
             .build();
-        
+
         assert_eq!(key.provider, "openai");
         assert_eq!(key.token_type, TokenType::RefreshToken);
         assert_eq!(key.scope, Some("read".to_string()));

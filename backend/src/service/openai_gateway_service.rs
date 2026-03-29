@@ -72,14 +72,14 @@ impl OpenAIGatewayService {
             .timeout(std::time::Duration::from_secs(config.timeout_secs))
             .build()
             .unwrap();
-        
+
         Self {
             db,
             config,
             http_client,
         }
     }
-    
+
     /// 发送 Chat Completions 请求
     pub async fn send_chat_completions(
         &self,
@@ -88,38 +88,46 @@ impl OpenAIGatewayService {
         request_body: serde_json::Value,
     ) -> Result<OpenAIResponseInfo> {
         let start_time = std::time::Instant::now();
-        
+
         // 构建请求
         let url = format!("{}/chat/completions", self.config.base_url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await?;
-        
+
         let status_code = response.status().as_u16();
         let response_body = response.json::<serde_json::Value>().await?;
-        
+
         // 解析响应
-        let model = request_body["model"].as_str().unwrap_or(&ctx.model).to_string();
+        let model = request_body["model"]
+            .as_str()
+            .unwrap_or(&ctx.model)
+            .to_string();
         let usage = response_body.get("usage");
-        
-        let prompt_tokens = usage.and_then(|u| u.get("prompt_tokens"))
+
+        let prompt_tokens = usage
+            .and_then(|u| u.get("prompt_tokens"))
             .and_then(|v| v.as_i64());
-        let completion_tokens = usage.and_then(|u| u.get("completion_tokens"))
+        let completion_tokens = usage
+            .and_then(|u| u.get("completion_tokens"))
             .and_then(|v| v.as_i64());
-        let total_tokens = usage.and_then(|u| u.get("total_tokens"))
+        let total_tokens = usage
+            .and_then(|u| u.get("total_tokens"))
             .and_then(|v| v.as_i64());
-        
-        let finish_reason = response_body.get("choices")
+
+        let finish_reason = response_body
+            .get("choices")
             .and_then(|c| c.get(0))
             .and_then(|c| c.get("finish_reason"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
+
         Ok(OpenAIResponseInfo {
             request_id: ctx.request_id.clone(),
             status_code,
@@ -132,7 +140,7 @@ impl OpenAIGatewayService {
             created_at: Utc::now(),
         })
     }
-    
+
     /// 发送 Embeddings 请求
     pub async fn send_embeddings(
         &self,
@@ -141,28 +149,34 @@ impl OpenAIGatewayService {
         request_body: serde_json::Value,
     ) -> Result<OpenAIResponseInfo> {
         let start_time = std::time::Instant::now();
-        
+
         let url = format!("{}/embeddings", self.config.base_url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await?;
-        
+
         let status_code = response.status().as_u16();
         let response_body = response.json::<serde_json::Value>().await?;
-        
-        let model = request_body["model"].as_str().unwrap_or(&ctx.model).to_string();
+
+        let model = request_body["model"]
+            .as_str()
+            .unwrap_or(&ctx.model)
+            .to_string();
         let usage = response_body.get("usage");
-        
-        let prompt_tokens = usage.and_then(|u| u.get("prompt_tokens"))
+
+        let prompt_tokens = usage
+            .and_then(|u| u.get("prompt_tokens"))
             .and_then(|v| v.as_i64());
-        let total_tokens = usage.and_then(|u| u.get("total_tokens"))
+        let total_tokens = usage
+            .and_then(|u| u.get("total_tokens"))
             .and_then(|v| v.as_i64());
-        
+
         Ok(OpenAIResponseInfo {
             request_id: ctx.request_id.clone(),
             status_code,
@@ -175,33 +189,36 @@ impl OpenAIGatewayService {
             created_at: Utc::now(),
         })
     }
-    
+
     /// 检查 API 连接
     pub async fn check_connection(&self, api_key: &str) -> Result<bool> {
         let url = format!("{}/models", self.config.base_url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .get(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await?;
-        
+
         Ok(response.status().is_success())
     }
-    
+
     /// 获取可用模型列表
     pub async fn list_models(&self, api_key: &str) -> Result<Vec<String>> {
         let url = format!("{}/models", self.config.base_url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .get(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await?;
-        
+
         let body: serde_json::Value = response.json().await?;
-        
-        let models = body.get("data")
+
+        let models = body
+            .get("data")
             .and_then(|d| d.as_array())
             .map(|arr| {
                 arr.iter()
@@ -210,7 +227,7 @@ impl OpenAIGatewayService {
                     .collect()
             })
             .unwrap_or_default();
-        
+
         Ok(models)
     }
 }
@@ -218,7 +235,7 @@ impl OpenAIGatewayService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_gateway_config() {
         let config = OpenAIGatewayConfig::default();

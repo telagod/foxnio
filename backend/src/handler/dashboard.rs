@@ -2,14 +2,10 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Extension,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::Extension, http::StatusCode, Json};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use chrono::{DateTime, Utc, Duration};
 
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
@@ -142,12 +138,14 @@ pub async fn get_trend_data(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     // 解析日期范围
-    let end_date = query.end_date
+    let end_date = query
+        .end_date
         .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
         .map(|d| d.and_hms_opt(23, 59, 59).unwrap())
         .unwrap_or_else(|| chrono::Utc::now().naive_utc());
-    
-    let start_date = query.start_date
+
+    let start_date = query
+        .start_date
         .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
         .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
         .unwrap_or_else(|| end_date - Duration::days(7));
@@ -157,7 +155,7 @@ pub async fn get_trend_data(
     let mut labels = Vec::new();
     let mut current = start_date.date();
     let end_naive = end_date.date();
-    
+
     while current <= end_naive {
         labels.push(current.format("%Y-%m-%d").to_string());
         current += chrono::Duration::days(1);

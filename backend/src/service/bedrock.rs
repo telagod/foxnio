@@ -4,9 +4,9 @@
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use hmac::{Hmac, Mac};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
-use hmac::{Hmac, Mac};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -124,10 +124,7 @@ impl AwsSignatureV4 {
         );
 
         // 创建待签字符串
-        let credential_scope = format!(
-            "{}/bedrock/aws4_request",
-            date_stamp
-        );
+        let credential_scope = format!("{}/bedrock/aws4_request", date_stamp);
 
         let canonical_request_hash = Self::hash(&canonical_request);
 
@@ -182,8 +179,7 @@ impl AwsSignatureV4 {
 
     /// HMAC-SHA256
     fn hmac_sha256(key: &[u8], data: &str) -> Result<Vec<u8>> {
-        let mut mac = HmacSha256::new_from_slice(key)
-            .context("Failed to create HMAC")?;
+        let mut mac = HmacSha256::new_from_slice(key).context("Failed to create HMAC")?;
         mac.update(data.as_bytes());
         Ok(mac.finalize().into_bytes().to_vec())
     }
@@ -201,10 +197,7 @@ impl AwsSignatureV4 {
         region: &str,
         service: &str,
     ) -> Result<Vec<u8>> {
-        let k_date = Self::hmac_sha256(
-            format!("AWS4{}", key).as_bytes(),
-            date_stamp,
-        )?;
+        let k_date = Self::hmac_sha256(format!("AWS4{}", key).as_bytes(), date_stamp)?;
         let k_region = Self::hmac_sha256(&k_date, region)?;
         let k_service = Self::hmac_sha256(&k_region, service)?;
         let k_signing = Self::hmac_sha256(&k_service, "aws4_request")?;
@@ -251,14 +244,19 @@ impl BedrockClient {
 
         let mut headers = vec![
             ("Content-Type".to_string(), "application/json".to_string()),
-            ("Host".to_string(), url::Url::parse(&endpoint)
-                .context("Invalid endpoint URL")?
-                .host_str()
-                .context("No host in endpoint URL")?
-                .to_string()),
+            (
+                "Host".to_string(),
+                url::Url::parse(&endpoint)
+                    .context("Invalid endpoint URL")?
+                    .host_str()
+                    .context("No host in endpoint URL")?
+                    .to_string(),
+            ),
         ];
 
-        let authorization = self.signer.sign("POST", &uri, "", &mut headers, &payload_hash)?;
+        let authorization = self
+            .signer
+            .sign("POST", &uri, "", &mut headers, &payload_hash)?;
         headers.push(("Authorization".to_string(), authorization));
 
         let mut request = self.http_client.post(&url);
@@ -298,15 +296,23 @@ impl BedrockClient {
 
         let mut headers = vec![
             ("Content-Type".to_string(), "application/json".to_string()),
-            ("Accept".to_string(), "application/vnd.amazon.eventstream".to_string()),
-            ("Host".to_string(), url::Url::parse(&endpoint)
-                .context("Invalid endpoint URL")?
-                .host_str()
-                .context("No host in endpoint URL")?
-                .to_string()),
+            (
+                "Accept".to_string(),
+                "application/vnd.amazon.eventstream".to_string(),
+            ),
+            (
+                "Host".to_string(),
+                url::Url::parse(&endpoint)
+                    .context("Invalid endpoint URL")?
+                    .host_str()
+                    .context("No host in endpoint URL")?
+                    .to_string(),
+            ),
         ];
 
-        let authorization = self.signer.sign("POST", &uri, "", &mut headers, &payload_hash)?;
+        let authorization = self
+            .signer
+            .sign("POST", &uri, "", &mut headers, &payload_hash)?;
         headers.push(("Authorization".to_string(), authorization));
 
         let mut request = self.http_client.post(&url);
@@ -380,8 +386,14 @@ pub mod model_mapping {
         map.insert("claude-3-opus", "anthropic.claude-3-opus-20240229-v1:0");
         map.insert("claude-3-sonnet", "anthropic.claude-3-sonnet-20240229-v1:0");
         map.insert("claude-3-haiku", "anthropic.claude-3-haiku-20240307-v1:0");
-        map.insert("claude-3-5-sonnet", "anthropic.claude-3-5-sonnet-20241022-v2:0");
-        map.insert("claude-3-5-haiku", "anthropic.claude-3-5-haiku-20241022-v1:0");
+        map.insert(
+            "claude-3-5-sonnet",
+            "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        );
+        map.insert(
+            "claude-3-5-haiku",
+            "anthropic.claude-3-5-haiku-20241022-v1:0",
+        );
 
         // Amazon 模型
         map.insert("titan-text", "amazon.titan-text-premier-v1:0");
@@ -455,8 +467,14 @@ mod tests {
     fn test_cross_region_prefix() {
         assert_eq!(BedrockClient::get_cross_region_prefix("us-east-1"), "us");
         assert_eq!(BedrockClient::get_cross_region_prefix("eu-west-1"), "eu");
-        assert_eq!(BedrockClient::get_cross_region_prefix("ap-northeast-1"), "jp");
-        assert_eq!(BedrockClient::get_cross_region_prefix("ap-southeast-2"), "au");
+        assert_eq!(
+            BedrockClient::get_cross_region_prefix("ap-northeast-1"),
+            "jp"
+        );
+        assert_eq!(
+            BedrockClient::get_cross_region_prefix("ap-southeast-2"),
+            "au"
+        );
         assert_eq!(BedrockClient::get_cross_region_prefix("ap-south-1"), "apac");
     }
 

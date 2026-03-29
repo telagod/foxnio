@@ -39,23 +39,22 @@ impl RedeemService {
 
     pub async fn redeem(&self, user_id: i64, code: &str) -> Result<f64, String> {
         let mut codes = self.codes.write().await;
-        let redeem_code = codes.get_mut(code)
-            .ok_or("Code not found")?;
-        
+        let redeem_code = codes.get_mut(code).ok_or("Code not found")?;
+
         if redeem_code.is_used {
             return Err("Code already used".to_string());
         }
-        
+
         if let Some(exp) = redeem_code.expires_at {
             if exp < chrono::Utc::now().timestamp() {
                 return Err("Code expired".to_string());
             }
         }
-        
+
         let value = redeem_code.value;
         redeem_code.is_used = true;
         redeem_code.used_by = Some(user_id);
-        
+
         Ok(value)
     }
 }
@@ -67,15 +66,17 @@ mod tests {
     #[tokio::test]
     async fn test_redeem() {
         let service = RedeemService::new();
-        
-        service.add_code(RedeemCode {
-            code: "CODE123".to_string(),
-            value: 10.0,
-            is_used: false,
-            used_by: None,
-            expires_at: None,
-        }).await;
-        
+
+        service
+            .add_code(RedeemCode {
+                code: "CODE123".to_string(),
+                value: 10.0,
+                is_used: false,
+                used_by: None,
+                expires_at: None,
+            })
+            .await;
+
         let value = service.redeem(123, "CODE123").await.unwrap();
         assert_eq!(value, 10.0);
     }

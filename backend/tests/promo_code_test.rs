@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use foxnio::entity::promo_codes::PromoCodeStatus;
     use chrono::Utc;
+    use foxnio::entity::promo_codes::PromoCodeStatus;
 
     #[test]
     fn test_promo_code_status() {
@@ -11,7 +11,10 @@ mod tests {
         assert_eq!(PromoCodeStatus::Disabled.as_str(), "disabled");
 
         assert_eq!(PromoCodeStatus::parse("active"), PromoCodeStatus::Active);
-        assert_eq!(PromoCodeStatus::parse("disabled"), PromoCodeStatus::Disabled);
+        assert_eq!(
+            PromoCodeStatus::parse("disabled"),
+            PromoCodeStatus::Disabled
+        );
         assert_eq!(PromoCodeStatus::parse("unknown"), PromoCodeStatus::Active);
     }
 }

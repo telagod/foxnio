@@ -27,7 +27,7 @@ impl OAuthToken {
         let expires_at = self.created_at + Duration::seconds(self.expires_in);
         expires_at < Utc::now()
     }
-    
+
     /// 检查是否即将过期（提前5分钟）
     pub fn is_expiring_soon(&self) -> bool {
         let expires_at = self.created_at + Duration::seconds(self.expires_in);
@@ -54,9 +54,7 @@ impl Default for GeminiOAuthConfig {
             redirect_uri: "http://localhost:8080/callback".to_string(),
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
             token_url: "https://oauth2.googleapis.com/token".to_string(),
-            scopes: vec![
-                "https://www.googleapis.com/auth/cloud-platform".to_string(),
-            ],
+            scopes: vec!["https://www.googleapis.com/auth/cloud-platform".to_string()],
         }
     }
 }
@@ -73,7 +71,7 @@ impl GeminiOAuthService {
     /// 创建新的 OAuth 服务
     pub fn new(db: sea_orm::DatabaseConnection, config: GeminiOAuthConfig) -> Self {
         let http_client = reqwest::Client::new();
-        
+
         Self {
             db,
             config,
@@ -81,7 +79,7 @@ impl GeminiOAuthService {
             token_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         }
     }
-    
+
     /// 获取授权 URL
     pub fn get_authorization_url(&self, state: &str) -> String {
         let scope_str = self.config.scopes.join(" ");
@@ -94,16 +92,16 @@ impl GeminiOAuthService {
             ("access_type", "offline"),
             ("prompt", "consent"),
         ];
-        
+
         let query = params
             .iter()
             .map(|(k, v)| format!("{}={}", k, urlencoding::encode(v)))
             .collect::<Vec<_>>()
             .join("&");
-        
+
         format!("{}?{}", self.config.auth_url, query)
     }
-    
+
     /// 用授权码换取 Token
     pub async fn exchange_code(&self, code: &str) -> Result<OAuthToken> {
         let params = vec![
@@ -113,18 +111,19 @@ impl GeminiOAuthService {
             ("redirect_uri", self.config.redirect_uri.as_str()),
             ("grant_type", "authorization_code"),
         ];
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await?;
-        
+
         let token: OAuthToken = response.json().await?;
-        
+
         Ok(token)
     }
-    
+
     /// 刷新 Token
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuthToken> {
         let params = vec![
@@ -133,20 +132,21 @@ impl GeminiOAuthService {
             ("refresh_token", refresh_token),
             ("grant_type", "refresh_token"),
         ];
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await?;
-        
+
         let mut token: OAuthToken = response.json().await?;
         token.refresh_token = Some(refresh_token.to_string());
         token.created_at = Utc::now();
-        
+
         Ok(token)
     }
-    
+
     /// 存储 Token
     pub async fn store_token(&self, account_id: i64, token: &OAuthToken) -> Result<()> {
         // 更新缓存
@@ -154,12 +154,12 @@ impl GeminiOAuthService {
             let mut cache = self.token_cache.write().await;
             cache.insert(account_id.to_string(), token.clone());
         }
-        
+
         // TODO: 存储到数据库
-        
+
         Ok(())
     }
-    
+
     /// 获取 Token
     pub async fn get_token(&self, account_id: i64) -> Result<Option<OAuthToken>> {
         // 先检查缓存
@@ -171,16 +171,16 @@ impl GeminiOAuthService {
                 }
             }
         }
-        
+
         // TODO: 从数据库加载
-        
+
         Ok(None)
     }
-    
+
     /// 获取有效的 Token（自动刷新）
     pub async fn get_valid_token(&self, account_id: i64) -> Result<Option<String>> {
         let token = self.get_token(account_id).await?;
-        
+
         if let Some(token) = token {
             // 检查是否需要刷新
             if token.is_expiring_soon() {
@@ -193,23 +193,24 @@ impl GeminiOAuthService {
                 return Ok(Some(token.access_token));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// 撤销 Token
     pub async fn revoke_token(&self, token: &str) -> Result<bool> {
         let revoke_url = "https://oauth2.googleapis.com/revoke";
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(revoke_url)
             .form(&[("token", token)])
             .send()
             .await?;
-        
+
         Ok(response.status().is_success())
     }
-    
+
     /// 删除 Token
     pub async fn delete_token(&self, account_id: i64) -> Result<()> {
         // 从缓存移除
@@ -217,9 +218,9 @@ impl GeminiOAuthService {
             let mut cache = self.token_cache.write().await;
             cache.remove(&account_id.to_string());
         }
-        
+
         // TODO: 从数据库删除
-        
+
         Ok(())
     }
 }
@@ -227,7 +228,7 @@ impl GeminiOAuthService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_oauth_token_expiry() {
         let token = OAuthToken {
@@ -238,11 +239,11 @@ mod tests {
             scope: None,
             created_at: Utc::now(),
         };
-        
+
         assert!(!token.is_expired());
         assert!(!token.is_expiring_soon());
     }
-    
+
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_authorization_url() {
@@ -250,10 +251,10 @@ mod tests {
             client_id: "test-client-id".to_string(),
             ..Default::default()
         };
-        
+
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let service = GeminiOAuthService::new(db, config);
-        
+
         let url = service.get_authorization_url("test-state");
         assert!(url.contains("test-client-id"));
         assert!(url.contains("test-state"));

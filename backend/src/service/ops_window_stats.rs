@@ -52,7 +52,7 @@ impl OpsWindowStats {
     /// Record latency
     pub fn record(&mut self, latency_ms: u64, success: bool) {
         self.stats.request_count += 1;
-        
+
         if success {
             self.stats.success_count += 1;
         } else {
@@ -95,11 +95,11 @@ mod tests {
     #[test]
     fn test_window_stats() {
         let mut stats = OpsWindowStats::new(60);
-        
+
         stats.record(100, true);
         stats.record(200, true);
         stats.record(150, false);
-        
+
         assert_eq!(stats.stats.request_count, 3);
         assert_eq!(stats.stats.error_count, 1);
         assert!(stats.error_rate() > 0.0);

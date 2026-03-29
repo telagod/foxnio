@@ -29,7 +29,7 @@ pub enum AccountProvider {
 
 impl TryFrom<String> for AccountProvider {
     type Error = String;
-    
+
     fn try_from(s: String) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "anthropic" => Ok(AccountProvider::Anthropic),
@@ -58,7 +58,7 @@ pub enum AccountStatus {
 
 impl TryFrom<String> for AccountStatus {
     type Error = String;
-    
+
     fn try_from(s: String) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
             "active" => Ok(AccountStatus::Active),
@@ -73,7 +73,7 @@ impl Account {
     pub fn provider_enum(&self) -> Result<AccountProvider, String> {
         AccountProvider::try_from(self.provider.clone())
     }
-    
+
     pub fn status_enum(&self) -> Result<AccountStatus, String> {
         AccountStatus::try_from(self.status.clone())
     }

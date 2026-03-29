@@ -16,10 +16,7 @@ pub struct FilterConfig {
 impl Default for FilterConfig {
     fn default() -> Self {
         Self {
-            remove_headers: vec![
-                "X-Powered-By".to_string(),
-                "Server".to_string(),
-            ],
+            remove_headers: vec!["X-Powered-By".to_string(), "Server".to_string()],
             add_headers: vec![
                 ("X-Content-Type-Options".to_string(), "nosniff".to_string()),
                 ("X-Frame-Options".to_string(), "DENY".to_string()),
@@ -69,11 +66,11 @@ mod tests {
     fn test_header_filter() {
         let filter = ResponseHeaderFilter::new(FilterConfig::default());
         let mut headers = HeaderMap::new();
-        
+
         headers.insert("X-Powered-By", "PHP".parse().unwrap());
-        
+
         filter.apply(&mut headers);
-        
+
         assert!(!headers.contains_key("X-Powered-By"));
         assert!(headers.contains_key("X-Content-Type-Options"));
     }

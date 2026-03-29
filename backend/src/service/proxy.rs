@@ -96,10 +96,7 @@ pub struct ProxyService;
 
 impl ProxyService {
     /// Create proxy
-    pub async fn create(
-        db: &DatabaseConnection,
-        req: CreateProxyRequest,
-    ) -> Result<ProxyResponse> {
+    pub async fn create(db: &DatabaseConnection, req: CreateProxyRequest) -> Result<ProxyResponse> {
         let now: DateTimeWithTimeZone = Utc::now().into();
         let proxy = proxies::ActiveModel {
             id: ActiveValue::NotSet,
@@ -148,9 +145,7 @@ impl ProxyService {
 
     /// Get proxy by ID
     pub async fn get_by_id(db: &DatabaseConnection, id: i64) -> Result<Option<ProxyResponse>> {
-        let result = proxies::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let result = proxies::Entity::find_by_id(id).one(db).await?;
 
         Ok(result.map(|m| m.into()))
     }
@@ -161,14 +156,12 @@ impl ProxyService {
         id: i64,
         req: UpdateProxyRequest,
     ) -> Result<Option<ProxyResponse>> {
-        let proxy = proxies::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let proxy = proxies::Entity::find_by_id(id).one(db).await?;
 
         match proxy {
             Some(model) => {
                 let mut active_model: proxies::ActiveModel = model.into();
-                
+
                 if let Some(name) = req.name {
                     active_model.name = ActiveValue::Set(name);
                 }
@@ -213,24 +206,20 @@ impl ProxyService {
 
     /// Delete proxy
     pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<bool> {
-        let result = proxies::Entity::delete_by_id(id)
-            .exec(db)
-            .await?;
+        let result = proxies::Entity::delete_by_id(id).exec(db).await?;
 
         Ok(result.rows_affected > 0)
     }
 
     /// Check proxy health
     pub async fn check_health(db: &DatabaseConnection, id: i64) -> Result<HealthCheckResult> {
-        let proxy = proxies::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let proxy = proxies::Entity::find_by_id(id).one(db).await?;
 
         match proxy {
             Some(model) => {
                 let start = std::time::Instant::now();
                 let url = model.url();
-                
+
                 // Try to connect through proxy
                 let healthy = Self::test_proxy_connection(&url).await;
                 let latency_ms = start.elapsed().as_millis() as i64;
@@ -238,9 +227,11 @@ impl ProxyService {
                 // Update proxy status
                 let mut active_model: proxies::ActiveModel = model.clone().into();
                 active_model.last_check_at = ActiveValue::Set(Some(Utc::now().into()));
-                active_model.last_check_status = ActiveValue::Set(
-                    if healthy { Some("healthy".to_string()) } else { Some("unhealthy".to_string()) }
-                );
+                active_model.last_check_status = ActiveValue::Set(if healthy {
+                    Some("healthy".to_string())
+                } else {
+                    Some("unhealthy".to_string())
+                });
                 active_model.updated_at = ActiveValue::Set(Utc::now().into());
                 active_model.update(db).await?;
 
@@ -248,17 +239,19 @@ impl ProxyService {
                     proxy_id: id,
                     healthy,
                     latency_ms: Some(latency_ms),
-                    error: if healthy { None } else { Some("Connection failed".to_string()) },
+                    error: if healthy {
+                        None
+                    } else {
+                        Some("Connection failed".to_string())
+                    },
                 })
             }
-            None => {
-                Ok(HealthCheckResult {
-                    proxy_id: id,
-                    healthy: false,
-                    latency_ms: None,
-                    error: Some("Proxy not found".to_string()),
-                })
-            }
+            None => Ok(HealthCheckResult {
+                proxy_id: id,
+                healthy: false,
+                latency_ms: None,
+                error: Some("Proxy not found".to_string()),
+            }),
         }
     }
 
@@ -282,9 +275,9 @@ impl ProxyService {
     async fn test_proxy_connection(proxy_url: &str) -> bool {
         // Simplified health check - just verify URL format
         // In production, this would make an actual HTTP request through the proxy
-        proxy_url.starts_with("http://") || 
-        proxy_url.starts_with("https://") || 
-        proxy_url.starts_with("socks5://")
+        proxy_url.starts_with("http://")
+            || proxy_url.starts_with("https://")
+            || proxy_url.starts_with("socks5://")
     }
 
     /// Get healthy proxy by priority

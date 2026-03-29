@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Account service for managing AI service accounts
 pub struct AccountService {
@@ -55,9 +55,11 @@ impl AccountService {
 
     /// List active accounts
     pub async fn list_active(&self) -> Result<Vec<Account>, AccountError> {
-        let accounts = query_as::<_, Account>("SELECT * FROM accounts WHERE status = 'active' ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await?;
+        let accounts = query_as::<_, Account>(
+            "SELECT * FROM accounts WHERE status = 'active' ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
         Ok(accounts)
     }

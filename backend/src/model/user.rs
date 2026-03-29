@@ -27,7 +27,7 @@ pub enum UserRole {
 
 impl TryFrom<String> for UserRole {
     type Error = String;
-    
+
     fn try_from(s: String) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "admin" => Ok(UserRole::Admin),
@@ -62,7 +62,7 @@ pub enum UserStatus {
 
 impl TryFrom<String> for UserStatus {
     type Error = String;
-    
+
     fn try_from(s: String) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "active" => Ok(UserStatus::Active),
@@ -77,7 +77,7 @@ impl User {
     pub fn role_enum(&self) -> Result<UserRole, String> {
         UserRole::try_from(self.role.clone())
     }
-    
+
     pub fn status_enum(&self) -> Result<UserStatus, String> {
         UserStatus::try_from(self.status.clone())
     }

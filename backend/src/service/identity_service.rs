@@ -1,7 +1,7 @@
 use crate::model::user::User;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 use uuid::Uuid;
 
 /// Identity service for user identity management
@@ -74,7 +74,8 @@ impl IdentityService {
     ) -> Result<UserIdentity, IdentityError> {
         let provider_str = provider.to_string();
 
-        let identity = query_as::<_, UserIdentity>(r#"
+        let identity = query_as::<_, UserIdentity>(
+            r#"
             INSERT INTO user_identities (
                 user_id, provider, provider_user_id, email, name, avatar_url
             )
@@ -82,13 +83,14 @@ impl IdentityService {
             RETURNING
                 user_id, provider, provider_user_id, email, name, avatar_url,
                 created_at, updated_at
-            "#)
-            .bind(user_id)
-            .bind(&provider_str)
-            .bind(&provider_user_id)
-            .bind(&email)
-            .bind(&name)
-            .bind(&avatar_url)
+            "#,
+        )
+        .bind(user_id)
+        .bind(&provider_str)
+        .bind(&provider_user_id)
+        .bind(&email)
+        .bind(&name)
+        .bind(&avatar_url)
         .fetch_one(&self.pool)
         .await?;
 
@@ -103,15 +105,17 @@ impl IdentityService {
     ) -> Result<Option<UserIdentity>, IdentityError> {
         let provider_str = provider.to_string();
 
-        let identity = query_as::<_, UserIdentity>(r#"
+        let identity = query_as::<_, UserIdentity>(
+            r#"
             SELECT
                 user_id, provider, provider_user_id, email, name, avatar_url,
                 created_at, updated_at
             FROM user_identities
             WHERE provider = $1 AND provider_user_id = $2
-            "#)
-            .bind(&provider_str)
-            .bind(provider_user_id)
+            "#,
+        )
+        .bind(&provider_str)
+        .bind(provider_user_id)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -123,15 +127,17 @@ impl IdentityService {
         &self,
         user_id: Uuid,
     ) -> Result<Vec<UserIdentity>, IdentityError> {
-        let identities = query_as::<_, UserIdentity>(r#"
+        let identities = query_as::<_, UserIdentity>(
+            r#"
             SELECT
                 user_id, provider, provider_user_id, email, name, avatar_url,
                 created_at, updated_at
             FROM user_identities
             WHERE user_id = $1
             ORDER BY created_at
-            "#)
-            .bind(user_id)
+            "#,
+        )
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -150,7 +156,8 @@ impl IdentityService {
     ) -> Result<UserIdentity, IdentityError> {
         let provider_str = provider.to_string();
 
-        let identity = query_as::<_, UserIdentity>(r#"
+        let identity = query_as::<_, UserIdentity>(
+            r#"
             UPDATE user_identities
             SET
                 email = COALESCE($3, email),
@@ -161,13 +168,14 @@ impl IdentityService {
             RETURNING
                 user_id, provider, provider_user_id, email, name, avatar_url,
                 created_at, updated_at
-            "#)
-            .bind(user_id)
-            .bind(&provider_str)
-            .bind(&email)
-            .bind(&name)
-            .bind(&avatar_url)
-            .bind(provider_user_id)
+            "#,
+        )
+        .bind(user_id)
+        .bind(&provider_str)
+        .bind(&email)
+        .bind(&name)
+        .bind(&avatar_url)
+        .bind(provider_user_id)
         .fetch_optional(&self.pool)
         .await?
         .ok_or(IdentityError::NotFound)?;
@@ -208,19 +216,21 @@ impl IdentityService {
         if let Some(identity) = self.get_by_provider(&provider, &provider_user_id).await? {
             let user = query_as::<_, User>("SELECT * FROM users WHERE id = $1")
                 .bind(identity.user_id)
-            .fetch_optional(&self.pool)
-            .await?
-            .ok_or(IdentityError::NotFound)?;
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or(IdentityError::NotFound)?;
             return Ok(user);
         }
 
         // Create new user
-        let user = query_as::<_, User>(r#"
+        let user = query_as::<_, User>(
+            r#"
             INSERT INTO users (email, role, password_hash, balance, status)
             VALUES ($1, 'user', '', 0, 'active')
             RETURNING *
-            "#)
-            .bind(&email)
+            "#,
+        )
+        .bind(&email)
         .fetch_one(&self.pool)
         .await?;
 

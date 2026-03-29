@@ -4,11 +4,7 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Path,
-    http::StatusCode,
-    Extension, Json,
-};
+use axum::{extract::Path, http::StatusCode, Extension, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -17,7 +13,9 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::account::AccountService;
-use crate::service::batch_operations::{BatchOperationService, BatchCreateAccountsRequest, CreateAccountItem};
+use crate::service::batch_operations::{
+    BatchCreateAccountsRequest, BatchOperationService, CreateAccountItem,
+};
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
 
@@ -39,11 +37,17 @@ pub async fn batch_create_accounts(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     if items.is_empty() {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "No accounts provided".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "No accounts provided".into(),
+        ));
     }
 
     if items.len() > 100 {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "Maximum 100 accounts per batch".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Maximum 100 accounts per batch".into(),
+        ));
     }
 
     let batch_service = BatchOperationService::new(state.db.clone());
@@ -73,8 +77,12 @@ pub async fn refresh_account_token(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     let result = account_service
@@ -99,8 +107,12 @@ pub async fn recover_account_state(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     let result = account_service
@@ -126,10 +138,15 @@ pub async fn set_account_privacy(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let _account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let _account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
-    let privacy_enabled = body.get("privacy_enabled")
+    let privacy_enabled = body
+        .get("privacy_enabled")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
@@ -153,8 +170,12 @@ pub async fn refresh_account_tier(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     let tier = account_service
@@ -179,8 +200,12 @@ pub async fn clear_account_error(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     account_service
@@ -204,8 +229,12 @@ pub async fn get_account_usage(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     let usage = account_service
@@ -229,8 +258,12 @@ pub async fn get_account_today_stats(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     let stats = account_service
@@ -257,10 +290,16 @@ pub async fn batch_get_today_stats(
     let account_ids: Vec<String> = body
         .get("account_ids")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(ApiError(StatusCode::BAD_REQUEST, "Missing account_ids".into()))?;
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Missing account_ids".into(),
+        ))?;
 
     if account_ids.is_empty() {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "No account_ids provided".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "No account_ids provided".into(),
+        ));
     }
 
     let batch_service = BatchOperationService::new(state.db.clone());
@@ -284,13 +323,17 @@ pub async fn clear_account_rate_limit(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     // 清除 Redis 中的限流键
     // 使用 scan 替代 keys 以避免阻塞
     let pattern = format!("rate_limit:*:{}*", account_id);
-    
+
     // 简化实现：直接返回成功
     // TODO: 实现实际的 Redis 键扫描和删除
     tracing::info!("Clearing rate limit keys matching pattern: {}", pattern);
@@ -312,8 +355,12 @@ pub async fn reset_account_quota(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = Uuid::parse_str(&id)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {}", e)))?;
+    let account_id = Uuid::parse_str(&id).map_err(|e| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid account ID: {}", e),
+        )
+    })?;
 
     let account_service = AccountService::new(state.db.clone());
     account_service
@@ -370,10 +417,16 @@ pub async fn import_accounts_data(
     let accounts: Vec<CreateAccountItem> = body
         .get("accounts")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(ApiError(StatusCode::BAD_REQUEST, "Missing accounts array".into()))?;
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Missing accounts array".into(),
+        ))?;
 
     if accounts.is_empty() {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "No accounts provided".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "No accounts provided".into(),
+        ));
     }
 
     let batch_service = BatchOperationService::new(state.db.clone());
@@ -401,7 +454,10 @@ pub async fn batch_update_credentials(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     if req.account_ids.is_empty() {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "No account_ids provided".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "No account_ids provided".into(),
+        ));
     }
 
     let batch_service = BatchOperationService::new(state.db.clone());
@@ -431,10 +487,16 @@ pub async fn batch_refresh_tier(
     let account_ids: Vec<String> = body
         .get("account_ids")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(ApiError(StatusCode::BAD_REQUEST, "Missing account_ids".into()))?;
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Missing account_ids".into(),
+        ))?;
 
     if account_ids.is_empty() {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "No account_ids provided".into()));
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "No account_ids provided".into(),
+        ));
     }
 
     let batch_service = BatchOperationService::new(state.db.clone());

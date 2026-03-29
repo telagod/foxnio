@@ -212,7 +212,10 @@ impl GatewayRequestService {
     /// 提取流式标志
     fn extract_stream_flag(&self, body: &[u8]) -> bool {
         if let Ok(json) = serde_json::from_slice::<JsonValue>(body) {
-            return json.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
+            return json
+                .get("stream")
+                .and_then(|s| s.as_bool())
+                .unwrap_or(false);
         }
         false
     }
@@ -278,14 +281,12 @@ impl GatewayRequestService {
     }
 
     /// 生成请求元数据
-    pub fn generate_metadata(
-        &self,
-        headers: &HashMap<String, String>,
-    ) -> RequestMetadata {
+    pub fn generate_metadata(&self, headers: &HashMap<String, String>) -> RequestMetadata {
         RequestMetadata {
             request_id: uuid::Uuid::new_v4().to_string(),
             timestamp: Utc::now(),
-            client_ip: headers.get("x-forwarded-for")
+            client_ip: headers
+                .get("x-forwarded-for")
                 .or_else(|| headers.get("x-real-ip"))
                 .cloned(),
             user_agent: headers.get("user-agent").cloned(),
@@ -300,9 +301,10 @@ impl GatewayRequestService {
         }
 
         if let Some(origin) = origin {
-            return self.allowed_origins.iter().any(|o| {
-                o == "*" || o == origin || origin.ends_with(&format!(".{}", o))
-            });
+            return self
+                .allowed_origins
+                .iter()
+                .any(|o| o == "*" || o == origin || origin.ends_with(&format!(".{}", o)));
         }
 
         false
@@ -328,7 +330,9 @@ mod tests {
 
         let body = br#"{"model": "gpt-4", "messages": [], "stream": true}"#;
 
-        let parsed = service.parse_request("POST", "/v1/chat/completions", headers, body.to_vec()).unwrap();
+        let parsed = service
+            .parse_request("POST", "/v1/chat/completions", headers, body.to_vec())
+            .unwrap();
         assert_eq!(parsed.model, "gpt-4");
         assert!(parsed.stream);
         assert_eq!(parsed.api_key, Some("test-key".to_string()));

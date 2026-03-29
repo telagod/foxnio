@@ -101,7 +101,9 @@ impl OpenAIToolCorrector {
 
         // Check required fields
         if let Some(required) = schema.get("required").and_then(|r| r.as_array()) {
-            let args_obj = corrected.as_object_mut().ok_or(CorrectionError::InvalidFormat)?;
+            let args_obj = corrected
+                .as_object_mut()
+                .ok_or(CorrectionError::InvalidFormat)?;
 
             for field in required {
                 if let Some(field_name) = field.as_str() {
@@ -168,11 +170,7 @@ impl OpenAIToolCorrector {
     }
 
     /// Rename deprecated parameters
-    pub fn rename_deprecated_parameter(
-        args: &mut Value,
-        old_name: &str,
-        new_name: &str,
-    ) -> bool {
+    pub fn rename_deprecated_parameter(args: &mut Value, old_name: &str, new_name: &str) -> bool {
         if let Some(obj) = args.as_object_mut() {
             if let Some(value) = obj.remove(old_name) {
                 obj.insert(new_name.to_string(), value);

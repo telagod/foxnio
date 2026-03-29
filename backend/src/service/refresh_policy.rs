@@ -91,12 +91,12 @@ mod tests {
     #[test]
     fn test_refresh_policy() {
         let policy = RefreshPolicy::new(RefreshConfig::default());
-        
+
         // Test expired token
         let expired = Utc::now() - chrono::Duration::seconds(10);
         let decision = policy.should_refresh(expired);
         assert_eq!(decision.reason, RefreshReason::TokenExpired);
-        
+
         // Test valid token
         let valid = Utc::now() + chrono::Duration::seconds(600);
         let decision = policy.should_refresh(valid);

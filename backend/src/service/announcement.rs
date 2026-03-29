@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use crate::entity::{announcements, announcement_reads};
+use crate::entity::{announcement_reads, announcements};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sea_orm::*;
@@ -101,10 +101,11 @@ impl AnnouncementService {
     }
 
     /// Get announcement by ID
-    pub async fn get_by_id(db: &DatabaseConnection, id: i64) -> Result<Option<AnnouncementResponse>> {
-        let result = announcements::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+    pub async fn get_by_id(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<Option<AnnouncementResponse>> {
+        let result = announcements::Entity::find_by_id(id).one(db).await?;
 
         Ok(result.map(|m| m.into()))
     }
@@ -137,14 +138,12 @@ impl AnnouncementService {
         id: i64,
         req: UpdateAnnouncementRequest,
     ) -> Result<Option<AnnouncementResponse>> {
-        let announcement = announcements::Entity::find_by_id(id)
-            .one(db)
-            .await?;
+        let announcement = announcements::Entity::find_by_id(id).one(db).await?;
 
         match announcement {
             Some(model) => {
                 let mut active_model: announcements::ActiveModel = model.into();
-                
+
                 if let Some(title) = req.title {
                     active_model.title = ActiveValue::Set(title);
                 }
@@ -180,9 +179,7 @@ impl AnnouncementService {
 
     /// Delete announcement
     pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<bool> {
-        let result = announcements::Entity::delete_by_id(id)
-            .exec(db)
-            .await?;
+        let result = announcements::Entity::delete_by_id(id).exec(db).await?;
 
         Ok(result.rows_affected > 0)
     }
@@ -216,12 +213,12 @@ impl AnnouncementService {
             .filter(
                 Condition::any()
                     .add(announcements::Column::StartsAt.is_null())
-                    .add(announcements::Column::StartsAt.lte(now))
+                    .add(announcements::Column::StartsAt.lte(now)),
             )
             .filter(
                 Condition::any()
                     .add(announcements::Column::EndsAt.is_null())
-                    .add(announcements::Column::EndsAt.gte(now))
+                    .add(announcements::Column::EndsAt.gte(now)),
             )
             .order_by_desc(announcements::Column::CreatedAt)
             .all(db)
@@ -235,7 +232,8 @@ impl AnnouncementService {
             .all(db)
             .await?;
 
-        let read_ids: std::collections::HashSet<i64> = reads.iter().map(|r| r.announcement_id).collect();
+        let read_ids: std::collections::HashSet<i64> =
+            reads.iter().map(|r| r.announcement_id).collect();
 
         let responses: Vec<AnnouncementResponse> = announcements
             .into_iter()

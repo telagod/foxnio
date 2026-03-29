@@ -27,20 +27,21 @@ pub struct UserSubscription {
 pub trait UserSubscriptionPort: Send + Sync {
     /// Get user's subscription
     async fn get_subscription(&self, user_id: i64) -> Option<UserSubscription>;
-    
+
     /// Subscribe user to plan
     async fn subscribe(&self, user_id: i64, plan_id: &str) -> Result<(), String>;
-    
+
     /// Cancel subscription
     async fn cancel(&self, user_id: i64) -> Result<(), String>;
-    
+
     /// List available plans
     async fn list_plans(&self) -> Vec<SubscriptionPlan>;
 }
 
 /// Default implementation
 pub struct DefaultUserSubscriptionPort {
-    subscriptions: std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<i64, UserSubscription>>>,
+    subscriptions:
+        std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<i64, UserSubscription>>>,
 }
 
 impl Default for DefaultUserSubscriptionPort {
@@ -52,7 +53,9 @@ impl Default for DefaultUserSubscriptionPort {
 impl DefaultUserSubscriptionPort {
     pub fn new() -> Self {
         Self {
-            subscriptions: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            subscriptions: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 }
@@ -67,13 +70,16 @@ impl UserSubscriptionPort for DefaultUserSubscriptionPort {
     async fn subscribe(&self, user_id: i64, plan_id: &str) -> Result<(), String> {
         let mut subs = self.subscriptions.write().await;
         let now = chrono::Utc::now().timestamp();
-        subs.insert(user_id, UserSubscription {
+        subs.insert(
             user_id,
-            plan_id: plan_id.to_string(),
-            start_time: now,
-            end_time: now + 30 * 24 * 3600, // 30 days
-            is_active: true,
-        });
+            UserSubscription {
+                user_id,
+                plan_id: plan_id.to_string(),
+                start_time: now,
+                end_time: now + 30 * 24 * 3600, // 30 days
+                is_active: true,
+            },
+        );
         Ok(())
     }
 

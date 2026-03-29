@@ -58,9 +58,7 @@ pub enum TransformError {
 
 impl OpenAICodexTransform {
     /// Transform chat completions to Codex format
-    pub fn transform_chat_to_codex(
-        chat_request: &Value,
-    ) -> Result<CodexRequest, TransformError> {
+    pub fn transform_chat_to_codex(chat_request: &Value) -> Result<CodexRequest, TransformError> {
         let messages = chat_request
             .get("messages")
             .and_then(|m| m.as_array())
@@ -69,14 +67,8 @@ impl OpenAICodexTransform {
         // Convert messages to prompt
         let mut prompt = String::new();
         for msg in messages {
-            let role = msg
-                .get("role")
-                .and_then(|r| r.as_str())
-                .unwrap_or("user");
-            let content = msg
-                .get("content")
-                .and_then(|c| c.as_str())
-                .unwrap_or("");
+            let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("user");
+            let content = msg.get("content").and_then(|c| c.as_str()).unwrap_or("");
 
             prompt.push_str(&format!("{}: {}\n", role.to_uppercase(), content));
         }
@@ -105,13 +97,13 @@ impl OpenAICodexTransform {
                 .and_then(|n| n.as_u64())
                 .map(|n| n as u32),
             stop: chat_request.get("stop").and_then(|s| {
-                s.as_str()
-                    .map(|s| vec![s.to_string()])
-                    .or_else(|| s.as_array().map(|arr| {
+                s.as_str().map(|s| vec![s.to_string()]).or_else(|| {
+                    s.as_array().map(|arr| {
                         arr.iter()
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
-                    }))
+                    })
+                })
             }),
             echo: chat_request.get("echo").and_then(|e| e.as_bool()),
         })
@@ -213,8 +205,7 @@ mod tests {
             ]
         });
 
-        let codex_request =
-            OpenAICodexTransform::transform_chat_to_codex(&chat_request).unwrap();
+        let codex_request = OpenAICodexTransform::transform_chat_to_codex(&chat_request).unwrap();
 
         assert!(codex_request.prompt.contains("USER:"));
     }

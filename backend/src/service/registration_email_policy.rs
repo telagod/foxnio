@@ -40,21 +40,22 @@ impl EmailPolicy {
 
     /// Check if email is allowed
     pub fn is_email_allowed(&self, email: &str) -> Result<(), String> {
-        let domain = email.split('@')
+        let domain = email
+            .split('@')
             .nth(1)
             .ok_or("Invalid email format")?
             .to_lowercase();
-        
+
         // Check blocked domains
         if self.blocked_domains.contains(&domain) {
             return Err(format!("Domain '{}' is blocked", domain));
         }
-        
+
         // Check allowed domains (if configured)
         if !self.allowed_domains.is_empty() && !self.allowed_domains.contains(&domain) {
             return Err(format!("Domain '{}' is not in allowed list", domain));
         }
-        
+
         Ok(())
     }
 
@@ -101,7 +102,7 @@ impl RegistrationEmailPolicyService {
         if !email.contains('@') || !email.contains('.') {
             return Err("Invalid email format".to_string());
         }
-        
+
         // Check policy
         self.policy.is_email_allowed(email)
     }

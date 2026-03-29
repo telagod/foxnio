@@ -36,49 +36,49 @@ impl NumberUnit {
 /// Parse integral number with optional unit
 pub fn parse_integral_number_unit(s: &str) -> Result<u64, String> {
     let s = s.trim().to_uppercase();
-    
+
     // Extract unit suffix
     let (num_str, unit) = if s.ends_with('P') {
-        (&s[..s.len()-1], NumberUnit::Peta)
+        (&s[..s.len() - 1], NumberUnit::Peta)
     } else if s.ends_with('T') {
-        (&s[..s.len()-1], NumberUnit::Tera)
+        (&s[..s.len() - 1], NumberUnit::Tera)
     } else if s.ends_with('G') {
-        (&s[..s.len()-1], NumberUnit::Giga)
+        (&s[..s.len() - 1], NumberUnit::Giga)
     } else if s.ends_with('M') {
-        (&s[..s.len()-1], NumberUnit::Mega)
+        (&s[..s.len() - 1], NumberUnit::Mega)
     } else if s.ends_with('K') {
-        (&s[..s.len()-1], NumberUnit::Kilo)
+        (&s[..s.len() - 1], NumberUnit::Kilo)
     } else {
         (s.as_str(), NumberUnit::None)
     };
-    
+
     let base_num = u64::from_str(num_str.trim())
         .map_err(|e| format!("Invalid number '{}': {}", num_str, e))?;
-    
+
     Ok(base_num * unit.multiplier())
 }
 
 /// Parse number with unit to f64
 pub fn parse_number_unit_f64(s: &str) -> Result<f64, String> {
     let s = s.trim().to_uppercase();
-    
+
     let (num_str, unit) = if s.ends_with('P') {
-        (&s[..s.len()-1], NumberUnit::Peta)
+        (&s[..s.len() - 1], NumberUnit::Peta)
     } else if s.ends_with('T') {
-        (&s[..s.len()-1], NumberUnit::Tera)
+        (&s[..s.len() - 1], NumberUnit::Tera)
     } else if s.ends_with('G') {
-        (&s[..s.len()-1], NumberUnit::Giga)
+        (&s[..s.len() - 1], NumberUnit::Giga)
     } else if s.ends_with('M') {
-        (&s[..s.len()-1], NumberUnit::Mega)
+        (&s[..s.len() - 1], NumberUnit::Mega)
     } else if s.ends_with('K') {
-        (&s[..s.len()-1], NumberUnit::Kilo)
+        (&s[..s.len() - 1], NumberUnit::Kilo)
     } else {
         (s.as_str(), NumberUnit::None)
     };
-    
+
     let base_num = f64::from_str(num_str.trim())
         .map_err(|e| format!("Invalid number '{}': {}", num_str, e))?;
-    
+
     Ok(base_num * unit.multiplier() as f64)
 }
 

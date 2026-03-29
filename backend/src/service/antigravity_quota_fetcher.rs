@@ -35,7 +35,11 @@ impl AntigravityQuotaFetcher {
     }
 
     /// Fetch quota for account
-    pub async fn fetch(&self, account_id: &str, api_key: &str) -> Result<QuotaResponse, FetchError> {
+    pub async fn fetch(
+        &self,
+        account_id: &str,
+        api_key: &str,
+    ) -> Result<QuotaResponse, FetchError> {
         let url = format!("{}/quota/{}", self.api_url, account_id);
 
         let response = self

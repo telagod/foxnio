@@ -1,13 +1,16 @@
 use crate::model::user::User;
 use crate::service::SettingService;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString, Error as HashError},
+    password_hash::{
+        rand_core::OsRng, Error as HashError, PasswordHash, PasswordHasher, PasswordVerifier,
+        SaltString,
+    },
     Algorithm, Argon2, Params,
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as};
+use sqlx::{query, query_as, PgPool};
 use std::sync::Arc;
 
 /// Authentication service for user login and token management
@@ -90,11 +93,12 @@ impl AuthService {
     /// Login user with email and password
     pub async fn login(&self, req: LoginRequest) -> Result<LoginResponse, AuthError> {
         // Find user by email
-        let user = query_as::<_, User>("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL")
-            .bind(&req.email)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(AuthError::InvalidCredentials)?;
+        let user =
+            query_as::<_, User>("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL")
+                .bind(&req.email)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or(AuthError::InvalidCredentials)?;
 
         // Verify password
         self.verify_password(&req.password, &user.password_hash)?;
@@ -196,9 +200,9 @@ impl AuthService {
         // Get user
         let user = query_as::<_, User>("SELECT * FROM users WHERE id = $1")
             .bind(&claims.sub)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(AuthError::UserNotFound)?;
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(AuthError::UserNotFound)?;
 
         // Generate new access token
         self.generate_access_token(&user)
@@ -227,13 +231,24 @@ mod tests {
     fn test_password_hashing() {
         let password = "test_password";
         let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, Params::default());
-        let hash = argon2.hash_password(password.as_bytes(), &salt).unwrap().to_string();
+        let argon2 = Argon2::new(
+            Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            Params::default(),
+        );
+        let hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .unwrap()
+            .to_string();
 
         // Verify the hash can be parsed and validated
         let parsed_hash = PasswordHash::new(&hash).unwrap();
-        assert!(Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok());
-        assert!(Argon2::default().verify_password("wrong_password".as_bytes(), &parsed_hash).is_err());
+        assert!(Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .is_ok());
+        assert!(Argon2::default()
+            .verify_password("wrong_password".as_bytes(), &parsed_hash)
+            .is_err());
     }
 
     #[test]
@@ -241,10 +256,20 @@ mod tests {
         let password = "same_password";
         let salt1 = SaltString::generate(&mut OsRng);
         let salt2 = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, Params::default());
-        
-        let hash1 = argon2.hash_password(password.as_bytes(), &salt1).unwrap().to_string();
-        let hash2 = argon2.hash_password(password.as_bytes(), &salt2).unwrap().to_string();
+        let argon2 = Argon2::new(
+            Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            Params::default(),
+        );
+
+        let hash1 = argon2
+            .hash_password(password.as_bytes(), &salt1)
+            .unwrap()
+            .to_string();
+        let hash2 = argon2
+            .hash_password(password.as_bytes(), &salt2)
+            .unwrap()
+            .to_string();
 
         // Same password should produce different hashes (due to salt)
         assert_ne!(hash1, hash2);

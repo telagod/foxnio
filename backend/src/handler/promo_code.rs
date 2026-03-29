@@ -14,8 +14,10 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::permission::Permission;
+use crate::service::promo_code::{
+    CreatePromoCodeRequest, PromoCodeService, UpdatePromoCodeRequest, VerifyPromoCodeRequest,
+};
 use crate::service::user::Claims;
-use crate::service::promo_code::{PromoCodeService, CreatePromoCodeRequest, UpdatePromoCodeRequest, VerifyPromoCodeRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ListPromoCodesQuery {
@@ -26,8 +28,12 @@ pub struct ListPromoCodesQuery {
     pub page_size: u64,
 }
 
-fn default_page() -> u64 { 0 }
-fn default_page_size() -> u64 { 20 }
+fn default_page() -> u64 {
+    0
+}
+fn default_page_size() -> u64 {
+    20
+}
 
 /// 列出所有优惠码
 pub async fn list_promo_codes(
@@ -123,9 +129,14 @@ pub async fn delete_promo_code(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if deleted {
-        Ok(Json(json!({ "success": true, "message": "Promo code deleted" })))
+        Ok(Json(
+            json!({ "success": true, "message": "Promo code deleted" }),
+        ))
     } else {
-        Err(ApiError(StatusCode::NOT_FOUND, "Promo code not found".into()))
+        Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "Promo code not found".into(),
+        ))
     }
 }
 
@@ -150,9 +161,11 @@ pub async fn use_promo_code(
     Json(body): Json<VerifyPromoCodeRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let db = &state.db;
-    
+
     // Get user_id from claims
-    let user_id: i64 = claims.sub.parse()
+    let user_id: i64 = claims
+        .sub
+        .parse()
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "Invalid user ID".into()))?;
 
     let bonus = PromoCodeService::use_code(db, &body.code, user_id)

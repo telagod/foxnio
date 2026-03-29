@@ -57,7 +57,7 @@ impl SchedulerCache {
     pub async fn set(&self, key: String, value: serde_json::Value, ttl_seconds: Option<u64>) {
         let now = Utc::now();
         let ttl = ttl_seconds.unwrap_or(self.config.default_ttl_seconds);
-        
+
         let entry = CacheEntry {
             key: key.clone(),
             value,
@@ -66,7 +66,7 @@ impl SchedulerCache {
         };
 
         let mut cache = self.cache.write().await;
-        
+
         // Evict if at capacity
         if cache.len() >= self.config.max_entries {
             self.evict_expired(&mut cache);
@@ -101,12 +101,14 @@ mod tests {
     #[tokio::test]
     async fn test_cache_operations() {
         let cache = SchedulerCache::new(CacheConfig::default());
-        
-        cache.set("key".to_string(), serde_json::json!("value"), None).await;
-        
+
+        cache
+            .set("key".to_string(), serde_json::json!("value"), None)
+            .await;
+
         let entry = cache.get("key").await;
         assert!(entry.is_some());
-        
+
         cache.remove("key").await;
         let entry = cache.get("key").await;
         assert!(entry.is_none());

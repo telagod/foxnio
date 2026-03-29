@@ -53,7 +53,7 @@ impl AccountGroupService {
     pub fn new(db: sea_orm::DatabaseConnection) -> Self {
         Self { db }
     }
-    
+
     /// 创建分组
     pub async fn create_group(
         &self,
@@ -75,43 +75,43 @@ impl AccountGroupService {
             updated_at: Utc::now(),
         })
     }
-    
+
     /// 获取分组
     pub async fn get_group(&self, _group_id: i64) -> Result<Option<AccountGroup>> {
         // TODO: 从数据库查询
         Ok(None)
     }
-    
+
     /// 按名称查找分组
     pub async fn get_group_by_name(&self, _name: &str) -> Result<Option<AccountGroup>> {
         // TODO: 从数据库查询
         Ok(None)
     }
-    
+
     /// 列出所有分组
     pub async fn list_groups(&self) -> Result<Vec<AccountGroup>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 列出子分组
     pub async fn list_child_groups(&self, _parent_id: i64) -> Result<Vec<AccountGroup>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 更新分组
     pub async fn update_group(&self, _group: &AccountGroup) -> Result<()> {
         // TODO: 更新数据库
         Ok(())
     }
-    
+
     /// 删除分组
     pub async fn delete_group(&self, _group_id: i64) -> Result<bool> {
         // TODO: 从数据库删除
         Ok(true)
     }
-    
+
     /// 添加账号到分组
     pub async fn add_account_to_group(
         &self,
@@ -123,30 +123,26 @@ impl AccountGroupService {
         tracing::info!("添加账号 {} 到分组 {}", account_id, group_id);
         Ok(())
     }
-    
+
     /// 从分组移除账号
-    pub async fn remove_account_from_group(
-        &self,
-        group_id: i64,
-        account_id: i64,
-    ) -> Result<bool> {
+    pub async fn remove_account_from_group(&self, group_id: i64, account_id: i64) -> Result<bool> {
         // TODO: 从数据库删除
         tracing::info!("从分组 {} 移除账号 {}", group_id, account_id);
         Ok(true)
     }
-    
+
     /// 获取分组的所有成员
     pub async fn get_group_members(&self, _group_id: i64) -> Result<Vec<GroupMember>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 获取账号所属的所有分组
     pub async fn get_account_groups(&self, _account_id: i64) -> Result<Vec<AccountGroup>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 批量添加账号到分组
     pub async fn add_accounts_to_group(
         &self,
@@ -156,12 +152,13 @@ impl AccountGroupService {
     ) -> Result<i64> {
         let mut count = 0i64;
         for account_id in account_ids {
-            self.add_account_to_group(group_id, *account_id, added_by).await?;
+            self.add_account_to_group(group_id, *account_id, added_by)
+                .await?;
             count += 1;
         }
         Ok(count)
     }
-    
+
     /// 创建分组规则
     pub async fn create_rule(
         &self,
@@ -180,38 +177,30 @@ impl AccountGroupService {
             enabled: true,
         })
     }
-    
+
     /// 获取分组的所有规则
     pub async fn get_group_rules(&self, _group_id: i64) -> Result<Vec<GroupRule>> {
         // TODO: 从数据库查询
         Ok(Vec::new())
     }
-    
+
     /// 应用分组规则
     pub async fn apply_rules(&self) -> Result<i64> {
         // TODO: 根据规则自动分配账号到分组
         Ok(0)
     }
-    
+
     /// 移动分组
-    pub async fn move_group(
-        &self,
-        group_id: i64,
-        new_parent_id: Option<i64>,
-    ) -> Result<()> {
+    pub async fn move_group(&self, group_id: i64, new_parent_id: Option<i64>) -> Result<()> {
         // TODO: 更新数据库
-        tracing::info!(
-            "移动分组 {} 到新父分组 {:?}",
-            group_id,
-            new_parent_id
-        );
+        tracing::info!("移动分组 {} 到新父分组 {:?}", group_id, new_parent_id);
         Ok(())
     }
-    
+
     /// 获取分组树
     pub async fn get_group_tree(&self) -> Result<Vec<AccountGroupNode>> {
         let groups = self.list_groups().await?;
-        
+
         // 构建树结构
         let nodes: Vec<AccountGroupNode> = groups
             .iter()
@@ -220,9 +209,9 @@ impl AccountGroupService {
                 children: Vec::new(),
             })
             .collect();
-        
+
         // TODO: 构建父子关系
-        
+
         Ok(nodes)
     }
 }
@@ -237,20 +226,18 @@ pub struct AccountGroupNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_account_group_service() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let service = AccountGroupService::new(db);
-        
-        let group = service.create_group(
-            "test-group",
-            Some("Test group"),
-            None,
-            1,
-        ).await.unwrap();
-        
+
+        let group = service
+            .create_group("test-group", Some("Test group"), None, 1)
+            .await
+            .unwrap();
+
         assert_eq!(group.name, "test-group");
     }
 }

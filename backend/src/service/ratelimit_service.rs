@@ -42,24 +42,26 @@ impl RateLimitService {
     pub async fn check(&self, key: &str, config: RateLimitConfig) -> Result<(), String> {
         let mut states = self.states.write().await;
         let now = Instant::now();
-        
-        let state = states.entry(key.to_string())
+
+        let state = states
+            .entry(key.to_string())
             .or_insert_with(|| RateLimitState {
                 count: 0,
                 window_start: now,
                 config: config.clone(),
             });
-        
+
         // Reset if window expired
-        if now.duration_since(state.window_start) > Duration::from_secs(state.config.window_seconds) {
+        if now.duration_since(state.window_start) > Duration::from_secs(state.config.window_seconds)
+        {
             state.count = 0;
             state.window_start = now;
         }
-        
+
         if state.count >= state.config.max_requests {
             return Err("Rate limit exceeded".to_string());
         }
-        
+
         state.count += 1;
         Ok(())
     }
@@ -82,7 +84,7 @@ mod tests {
             max_requests: 2,
             window_seconds: 60,
         };
-        
+
         assert!(service.check("test", config.clone()).await.is_ok());
         assert!(service.check("test", config.clone()).await.is_ok());
         assert!(service.check("test", config).await.is_err());

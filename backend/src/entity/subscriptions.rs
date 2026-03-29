@@ -45,7 +45,10 @@ impl Model {
 
     /// Get remaining quota
     pub fn remaining_quota(&self) -> f64 {
-        (self.quota_limit - self.quota_used).to_string().parse().unwrap_or(0.0)
+        (self.quota_limit - self.quota_used)
+            .to_string()
+            .parse()
+            .unwrap_or(0.0)
     }
 
     /// Check if subscription has quota

@@ -60,7 +60,7 @@ impl ProxyLatencyCache {
     /// Record a latency measurement
     pub async fn record_latency(&self, proxy_id: &str, latency_ms: u64) {
         let mut entries = self.entries.write().await;
-        
+
         use std::collections::hash_map::Entry;
         let entry = match entries.entry(proxy_id.to_string()) {
             Entry::Occupied(e) => e.into_mut(),
@@ -78,7 +78,7 @@ impl ProxyLatencyCache {
                 return;
             }
         };
-        
+
         // Update statistics for existing entry
         if entry.sample_count < self.max_samples {
             let total = entry.avg_latency_ms * entry.sample_count as f64;
@@ -93,28 +93,26 @@ impl ProxyLatencyCache {
             entry.max_latency_ms = latency_ms;
             entry.sample_count = 1;
         }
-        
+
         entry.last_updated = Instant::now();
     }
 
     /// Get latency for a proxy
     pub async fn get_latency(&self, proxy_id: &str) -> Option<ProxyLatencyEntry> {
         let entries = self.entries.read().await;
-        entries.get(proxy_id)
-            .filter(|e| !e.is_expired())
-            .cloned()
+        entries.get(proxy_id).filter(|e| !e.is_expired()).cloned()
     }
 
     /// Get average latency
     pub async fn get_avg_latency(&self, proxy_id: &str) -> Option<f64> {
-        self.get_latency(proxy_id).await
-            .map(|e| e.avg_latency_ms)
+        self.get_latency(proxy_id).await.map(|e| e.avg_latency_ms)
     }
 
     /// Get fastest proxy
     pub async fn get_fastest(&self) -> Option<String> {
         let entries = self.entries.read().await;
-        entries.values()
+        entries
+            .values()
             .filter(|e| !e.is_expired())
             .min_by(|a, b| a.avg_latency_ms.partial_cmp(&b.avg_latency_ms).unwrap())
             .map(|e| e.proxy_id.clone())
@@ -139,10 +137,10 @@ mod tests {
     #[tokio::test]
     async fn test_record_and_get() {
         let cache = ProxyLatencyCache::new(Duration::from_secs(60), 100);
-        
+
         cache.record_latency("proxy-1", 100).await;
         cache.record_latency("proxy-1", 200).await;
-        
+
         let entry = cache.get_latency("proxy-1").await.unwrap();
         assert_eq!(entry.sample_count, 2);
         assert_eq!(entry.min_latency_ms, 100);
@@ -152,10 +150,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_fastest() {
         let cache = ProxyLatencyCache::new(Duration::from_secs(60), 100);
-        
+
         cache.record_latency("proxy-1", 200).await;
         cache.record_latency("proxy-2", 100).await;
-        
+
         let fastest = cache.get_fastest().await.unwrap();
         assert_eq!(fastest, "proxy-2");
     }

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 
 /// Quota service for Sora API
 pub struct SoraQuotaService {
@@ -51,7 +51,9 @@ impl SoraQuotaService {
             period_end: Utc::now() + chrono::Duration::days(30),
         });
 
-        if quota.generations_used >= quota.generations_limit || quota.seconds_generated >= quota.seconds_limit {
+        if quota.generations_used >= quota.generations_limit
+            || quota.seconds_generated >= quota.seconds_limit
+        {
             return Err(QuotaError::QuotaExceeded);
         }
 
@@ -60,15 +62,17 @@ impl SoraQuotaService {
 
     /// Consume quota
     pub async fn consume(&self, user_id: i64, duration_seconds: u32) -> Result<(), QuotaError> {
-        query(r#"
+        query(
+            r#"
             UPDATE sora_quotas
             SET generations_used = generations_used + 1, seconds_generated = seconds_generated + $1
             WHERE user_id = $2
-            "#)
-            .bind(duration_seconds as i32)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(duration_seconds as i32)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

@@ -164,10 +164,7 @@ pub struct AntigravitySubscription {
 /// Antigravity 增强功能实现
 impl AntigravityOAuthProvider {
     /// 加载 CodeAssist 信息（获取 project_id 和 tier 信息）
-    pub async fn load_code_assist(
-        &mut self,
-        access_token: &str,
-    ) -> Result<LoadCodeAssistResponse> {
+    pub async fn load_code_assist(&mut self, access_token: &str) -> Result<LoadCodeAssistResponse> {
         let request = LoadCodeAssistRequest {
             metadata: LoadCodeAssistMetadata {
                 ide_type: "VSCode".to_string(),
@@ -177,21 +174,21 @@ impl AntigravityOAuthProvider {
         };
 
         let response = self
-            .call_api(access_token, "/v1internal:loadCodeAssist", Some(&serde_json::to_value(request)?))
+            .call_api(
+                access_token,
+                "/v1internal:loadCodeAssist",
+                Some(&serde_json::to_value(request)?),
+            )
             .await?;
 
-        let load_response: LoadCodeAssistResponse = serde_json::from_value(response)
-            .context("Failed to parse LoadCodeAssist response")?;
+        let load_response: LoadCodeAssistResponse =
+            serde_json::from_value(response).context("Failed to parse LoadCodeAssist response")?;
 
         Ok(load_response)
     }
 
     /// Onboard 用户（创建 project_id）
-    pub async fn onboard_user(
-        &mut self,
-        access_token: &str,
-        tier_id: &str,
-    ) -> Result<String> {
+    pub async fn onboard_user(&mut self, access_token: &str, tier_id: &str) -> Result<String> {
         let request = OnboardUserRequest {
             tier_id: tier_id.to_string(),
             metadata: OnboardUserMetadata {
@@ -202,11 +199,15 @@ impl AntigravityOAuthProvider {
         };
 
         let response = self
-            .call_api(access_token, "/v1internal:onboardUser", Some(&serde_json::to_value(request)?))
+            .call_api(
+                access_token,
+                "/v1internal:onboardUser",
+                Some(&serde_json::to_value(request)?),
+            )
             .await?;
 
-        let onboard_response: OnboardUserResponse = serde_json::from_value(response)
-            .context("Failed to parse OnboardUser response")?;
+        let onboard_response: OnboardUserResponse =
+            serde_json::from_value(response).context("Failed to parse OnboardUser response")?;
 
         Ok(onboard_response.cloud_ai_companion_project)
     }
@@ -321,7 +322,7 @@ impl AntigravityOAuthProvider {
         if let Some(credits) = subscription.credits {
             return Ok(QuotaInfo {
                 total: (credits * 100.0) as u64, // 假设单位转换
-                used: 0, // API 不提供已使用量
+                used: 0,                         // API 不提供已使用量
                 remaining: (credits * 100.0) as u64,
                 reset_at: None,
             });

@@ -47,19 +47,24 @@ impl TlsFingerprintProfileService {
     /// Load default profiles
     fn load_default_profiles(&mut self) {
         // Chrome profile
-        self.profiles.insert("chrome".to_string(), TlsFingerprintProfile {
-            id: "chrome".to_string(),
-            name: "Chrome 120".to_string(),
-            tls_version: "TLS 1.3".to_string(),
-            cipher_suites: vec![
-                "TLS_AES_128_GCM_SHA256".to_string(),
-                "TLS_AES_256_GCM_SHA384".to_string(),
-                "TLS_CHACHA20_POLY1305_SHA256".to_string(),
-            ],
-            extensions: vec![0, 5, 10, 11, 13, 43, 45, 51, 65281],
-            curves: vec!["X25519".to_string(), "prime256v1".to_string()],
-            user_agent: Some("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".to_string()),
-        });
+        self.profiles.insert(
+            "chrome".to_string(),
+            TlsFingerprintProfile {
+                id: "chrome".to_string(),
+                name: "Chrome 120".to_string(),
+                tls_version: "TLS 1.3".to_string(),
+                cipher_suites: vec![
+                    "TLS_AES_128_GCM_SHA256".to_string(),
+                    "TLS_AES_256_GCM_SHA384".to_string(),
+                    "TLS_CHACHA20_POLY1305_SHA256".to_string(),
+                ],
+                extensions: vec![0, 5, 10, 11, 13, 43, 45, 51, 65281],
+                curves: vec!["X25519".to_string(), "prime256v1".to_string()],
+                user_agent: Some(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".to_string(),
+                ),
+            },
+        );
 
         // Firefox profile
         self.profiles.insert("firefox".to_string(), TlsFingerprintProfile {
@@ -76,18 +81,23 @@ impl TlsFingerprintProfileService {
         });
 
         // Safari profile
-        self.profiles.insert("safari".to_string(), TlsFingerprintProfile {
-            id: "safari".to_string(),
-            name: "Safari 17".to_string(),
-            tls_version: "TLS 1.3".to_string(),
-            cipher_suites: vec![
-                "TLS_AES_128_GCM_SHA256".to_string(),
-                "TLS_AES_256_GCM_SHA384".to_string(),
-            ],
-            extensions: vec![0, 5, 10, 11, 13, 43, 45, 51, 65281],
-            curves: vec!["X25519".to_string(), "prime256v1".to_string()],
-            user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15".to_string()),
-        });
+        self.profiles.insert(
+            "safari".to_string(),
+            TlsFingerprintProfile {
+                id: "safari".to_string(),
+                name: "Safari 17".to_string(),
+                tls_version: "TLS 1.3".to_string(),
+                cipher_suites: vec![
+                    "TLS_AES_128_GCM_SHA256".to_string(),
+                    "TLS_AES_256_GCM_SHA384".to_string(),
+                ],
+                extensions: vec![0, 5, 10, 11, 13, 43, 45, 51, 65281],
+                curves: vec!["X25519".to_string(), "prime256v1".to_string()],
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15".to_string(),
+                ),
+            },
+        );
     }
 
     /// Get profile by ID
@@ -112,9 +122,9 @@ impl TlsFingerprintProfileService {
 
     /// Generate TLS client hello fingerprint
     pub fn generate_fingerprint(&self, profile_id: &str) -> Option<String> {
-        self.profiles.get(profile_id).map(|p| {
-            format!("{}:{}", p.tls_version, p.cipher_suites.join(","))
-        })
+        self.profiles
+            .get(profile_id)
+            .map(|p| format!("{}:{}", p.tls_version, p.cipher_suites.join(",")))
     }
 }
 

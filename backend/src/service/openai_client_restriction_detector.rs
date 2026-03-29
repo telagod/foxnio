@@ -191,14 +191,16 @@ impl OpenAIClientRestrictionDetector {
     /// Record violation
     async fn record_violation(&self, client_id: &str, violation_type: ViolationType) {
         let mut violations = self.violations.write().await;
-        let record = violations.entry(client_id.to_string()).or_insert(ViolationRecord {
-            client_id: client_id.to_string(),
-            violation_count: 0,
-            last_violation_at: Utc::now(),
-            is_banned: false,
-            ban_until: None,
-            violation_types: vec![],
-        });
+        let record = violations
+            .entry(client_id.to_string())
+            .or_insert(ViolationRecord {
+                client_id: client_id.to_string(),
+                violation_count: 0,
+                last_violation_at: Utc::now(),
+                is_banned: false,
+                ban_until: None,
+                violation_types: vec![],
+            });
 
         record.violation_count += 1;
         record.last_violation_at = Utc::now();
@@ -212,7 +214,10 @@ impl OpenAIClientRestrictionDetector {
             record.ban_until = Some(
                 Utc::now() + chrono::Duration::minutes(self.config.ban_duration_minutes as i64),
             );
-            warn!("Client {} auto-banned for {} minutes", client_id, self.config.ban_duration_minutes);
+            warn!(
+                "Client {} auto-banned for {} minutes",
+                client_id, self.config.ban_duration_minutes
+            );
         }
     }
 
@@ -222,17 +227,17 @@ impl OpenAIClientRestrictionDetector {
         client_id: &str,
         description: &str,
     ) -> Result<(), RestrictionError> {
-        warn!("Suspicious activity from client {}: {}", client_id, description);
+        warn!(
+            "Suspicious activity from client {}: {}",
+            client_id, description
+        );
         self.record_violation(client_id, ViolationType::SuspiciousPattern)
             .await;
         Ok(())
     }
 
     /// Get violation record for client
-    pub async fn get_violation_record(
-        &self,
-        client_id: &str,
-    ) -> Option<ViolationRecord> {
+    pub async fn get_violation_record(&self, client_id: &str) -> Option<ViolationRecord> {
         let violations = self.violations.read().await;
         violations.get(client_id).cloned()
     }
@@ -283,7 +288,7 @@ mod tests {
     #[tokio::test]
     async fn test_restriction_detector() {
         let detector = OpenAIClientRestrictionDetector::new(RestrictionConfig::default());
-        
+
         let ctx = RequestContext {
             client_id: "test_client".to_string(),
             model: "gpt-4".to_string(),
@@ -293,7 +298,7 @@ mod tests {
             user_agent: None,
             ip_address: None,
         };
-        
+
         let result = detector.check_request(&ctx).await.unwrap();
         assert!(result.is_allowed);
     }

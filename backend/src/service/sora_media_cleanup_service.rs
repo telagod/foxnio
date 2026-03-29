@@ -1,6 +1,6 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query};
+use sqlx::{query, PgPool};
 
 /// Media cleanup service for Sora generated videos
 pub struct SoraMediaCleanupService {
@@ -42,24 +42,25 @@ impl SoraMediaCleanupService {
     pub async fn cleanup_expired(&self) -> Result<u64, CleanupError> {
         let cutoff = Utc::now() - chrono::Duration::days(self.config.retention_days as i64);
 
-        let result = query(r#"
+        let result = query(
+            r#"
             DELETE FROM sora_generations
             WHERE created_at < $1 AND status IN ('completed', 'failed')
-            "#)
-            .bind(cutoff)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(cutoff)
+        .execute(&self.pool)
+        .await?;
 
         Ok(result.rows_affected())
     }
 
     /// Get storage stats
     pub async fn get_storage_stats(&self) -> Result<StorageStats, CleanupError> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sora_generations WHERE status = 'completed'"
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM sora_generations WHERE status = 'completed'")
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(StorageStats {
             total_files: count as u64,

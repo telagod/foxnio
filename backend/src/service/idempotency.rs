@@ -59,12 +59,12 @@ pub struct IdempotencyConfig {
 impl Default for IdempotencyConfig {
     fn default() -> Self {
         Self {
-            default_ttl_seconds: 24 * 3600,      // 24 小时
-            system_operation_ttl_seconds: 3600,  // 1 小时
-            processing_timeout_seconds: 30,      // 30 秒
-            failed_retry_backoff_seconds: 5,     // 5 秒
-            max_stored_response_len: 64 * 1024,  // 64 KB
-            observe_only: true,                   // 默认先观察再强制
+            default_ttl_seconds: 24 * 3600,     // 24 小时
+            system_operation_ttl_seconds: 3600, // 1 小时
+            processing_timeout_seconds: 30,     // 30 秒
+            failed_retry_backoff_seconds: 5,    // 5 秒
+            max_stored_response_len: 64 * 1024, // 64 KB
+            observe_only: true,                 // 默认先观察再强制
         }
     }
 }
@@ -186,10 +186,15 @@ impl IdempotencyCoordinator {
         let key_hash = Self::hash_key(&options.scope, &options.idempotency_key);
         let request_fingerprint = Self::fingerprint_request(options);
         let now = Utc::now();
-        let locked_until = now + chrono::Duration::seconds(self.config.processing_timeout_seconds as i64);
-        let expires_at = now + chrono::Duration::seconds(
-            options.ttl.map(|t| t.as_secs()).unwrap_or(self.config.default_ttl_seconds) as i64
-        );
+        let locked_until =
+            now + chrono::Duration::seconds(self.config.processing_timeout_seconds as i64);
+        let expires_at = now
+            + chrono::Duration::seconds(
+                options
+                    .ttl
+                    .map(|t| t.as_secs())
+                    .unwrap_or(self.config.default_ttl_seconds) as i64,
+            );
 
         let record = IdempotencyRecord {
             id: rand_id(),
@@ -220,7 +225,7 @@ impl IdempotencyCoordinator {
         if let Some(record) = self.records.get_mut(key_hash) {
             record.status = IdempotencyStatus::Succeeded.to_string();
             record.response_status = Some(response_status);
-            
+
             // 限制响应体大小
             let body = if response_body.len() > self.config.max_stored_response_len {
                 &response_body[..self.config.max_stored_response_len]
@@ -235,16 +240,13 @@ impl IdempotencyCoordinator {
     }
 
     /// 标记失败可重试
-    pub fn mark_failed_retryable(
-        &mut self,
-        key_hash: &str,
-        error_reason: &str,
-    ) -> Result<()> {
+    pub fn mark_failed_retryable(&mut self, key_hash: &str, error_reason: &str) -> Result<()> {
         if let Some(record) = self.records.get_mut(key_hash) {
             record.status = IdempotencyStatus::FailedRetryable.to_string();
             record.error_reason = Some(error_reason.to_string());
             record.locked_until = Some(
-                Utc::now() + chrono::Duration::seconds(self.config.failed_retry_backoff_seconds as i64)
+                Utc::now()
+                    + chrono::Duration::seconds(self.config.failed_retry_backoff_seconds as i64),
             );
             record.updated_at = Utc::now();
         }
@@ -259,7 +261,8 @@ impl IdempotencyCoordinator {
     /// 删除过期记录
     pub fn delete_expired(&mut self) -> usize {
         let now = Utc::now();
-        let expired_keys: Vec<_> = self.records
+        let expired_keys: Vec<_> = self
+            .records
             .iter()
             .filter(|(_, r)| r.expires_at < now)
             .map(|(k, _)| k.clone())
@@ -288,7 +291,11 @@ impl IdempotencyCoordinator {
         hasher.update(b":");
         hasher.update(options.route.as_bytes());
         hasher.update(b":");
-        hasher.update(serde_json::to_string(&options.payload).unwrap_or_default().as_bytes());
+        hasher.update(
+            serde_json::to_string(&options.payload)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         hex::encode(hasher.finalize())
     }
 
@@ -321,7 +328,10 @@ mod tests {
     fn test_idempotency_status_display() {
         assert_eq!(IdempotencyStatus::Processing.to_string(), "processing");
         assert_eq!(IdempotencyStatus::Succeeded.to_string(), "succeeded");
-        assert_eq!(IdempotencyStatus::FailedRetryable.to_string(), "failed_retryable");
+        assert_eq!(
+            IdempotencyStatus::FailedRetryable.to_string(),
+            "failed_retryable"
+        );
     }
 
     #[test]

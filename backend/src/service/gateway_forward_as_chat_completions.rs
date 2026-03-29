@@ -107,7 +107,10 @@ pub enum ToolChoice {
     None(String),
     Auto(String),
     Required(String),
-    Function { r#type: String, function: FunctionName },
+    Function {
+        r#type: String,
+        function: FunctionName,
+    },
 }
 
 /// 函数名
@@ -215,10 +218,12 @@ pub struct GatewayForwardChatCompletions;
 
 impl GatewayForwardChatCompletions {
     /// 将 Chat Completions 请求转换为 Responses 请求
-    pub fn to_responses(req: &ChatCompletionsRequest) -> Result<super::gateway_forward_as_responses::ResponsesRequest> {
+    pub fn to_responses(
+        req: &ChatCompletionsRequest,
+    ) -> Result<super::gateway_forward_as_responses::ResponsesRequest> {
         // 转换消息格式
         let mut responses_messages = Vec::new();
-        
+
         for msg in &req.messages {
             let role = match msg.role.as_str() {
                 "system" => "system",
@@ -227,57 +232,67 @@ impl GatewayForwardChatCompletions {
                 "tool" => "user", // 工具结果作为用户消息
                 _ => &msg.role,
             };
-            
+
             let content = match &msg.content {
                 Some(MessageContent::Text(text)) => {
                     if msg.role == "tool" {
-                        vec![super::gateway_forward_as_responses::ResponsesContent::ToolResult {
-                            tool_use_id: msg.tool_call_id.clone().unwrap_or_default(),
-                            content: text.clone(),
-                        }]
+                        vec![
+                            super::gateway_forward_as_responses::ResponsesContent::ToolResult {
+                                tool_use_id: msg.tool_call_id.clone().unwrap_or_default(),
+                                content: text.clone(),
+                            },
+                        ]
                     } else {
-                        vec![super::gateway_forward_as_responses::ResponsesContent::Text {
-                            text: text.clone(),
-                        }]
+                        vec![
+                            super::gateway_forward_as_responses::ResponsesContent::Text {
+                                text: text.clone(),
+                            },
+                        ]
                     }
                 }
-                Some(MessageContent::Parts(parts)) => {
-                    parts.iter().map(|p| {
-                        match p.part_type.as_str() {
-                            "text" => super::gateway_forward_as_responses::ResponsesContent::Text {
-                                text: p.text.clone().unwrap_or_default(),
-                            },
-                            "image_url" => super::gateway_forward_as_responses::ResponsesContent::Image {
+                Some(MessageContent::Parts(parts)) => parts
+                    .iter()
+                    .map(|p| match p.part_type.as_str() {
+                        "text" => super::gateway_forward_as_responses::ResponsesContent::Text {
+                            text: p.text.clone().unwrap_or_default(),
+                        },
+                        "image_url" => {
+                            super::gateway_forward_as_responses::ResponsesContent::Image {
                                 source: super::gateway_forward_as_responses::ImageSource {
                                     source_type: "url".to_string(),
                                     url: Some(p.image_url.clone().unwrap().url),
                                     media_type: None,
                                     data: None,
                                 },
-                            },
-                            _ => super::gateway_forward_as_responses::ResponsesContent::Text {
-                                text: p.text.clone().unwrap_or_default(),
-                            },
+                            }
                         }
-                    }).collect()
-                }
+                        _ => super::gateway_forward_as_responses::ResponsesContent::Text {
+                            text: p.text.clone().unwrap_or_default(),
+                        },
+                    })
+                    .collect(),
                 None => vec![],
             };
-            
+
             // 处理工具调用
             if let Some(tool_calls) = &msg.tool_calls {
                 for tc in tool_calls {
-                    responses_messages.push(super::gateway_forward_as_responses::ResponsesMessage {
-                        role: "assistant".to_string(),
-                        content: vec![super::gateway_forward_as_responses::ResponsesContent::ToolUse {
-                            id: tc.id.clone(),
-                            name: tc.function.name.clone(),
-                            input: serde_json::from_str(&tc.function.arguments).unwrap_or(JsonValue::Null),
-                        }],
-                    });
+                    responses_messages.push(
+                        super::gateway_forward_as_responses::ResponsesMessage {
+                            role: "assistant".to_string(),
+                            content: vec![
+                                super::gateway_forward_as_responses::ResponsesContent::ToolUse {
+                                    id: tc.id.clone(),
+                                    name: tc.function.name.clone(),
+                                    input: serde_json::from_str(&tc.function.arguments)
+                                        .unwrap_or(JsonValue::Null),
+                                },
+                            ],
+                        },
+                    );
                 }
             }
-            
+
             if !content.is_empty() {
                 responses_messages.push(super::gateway_forward_as_responses::ResponsesMessage {
                     role: role.to_string(),
@@ -285,16 +300,18 @@ impl GatewayForwardChatCompletions {
                 });
             }
         }
-        
+
         // 转换工具定义
         let tools = req.tools.as_ref().map(|t| {
-            t.iter().map(|tool| super::gateway_forward_as_responses::ResponsesTool {
-                name: tool.function.name.clone(),
-                description: tool.function.description.clone(),
-                input_schema: tool.function.parameters.clone(),
-            }).collect()
+            t.iter()
+                .map(|tool| super::gateway_forward_as_responses::ResponsesTool {
+                    name: tool.function.name.clone(),
+                    description: tool.function.description.clone(),
+                    input_schema: tool.function.parameters.clone(),
+                })
+                .collect()
         });
-        
+
         Ok(super::gateway_forward_as_responses::ResponsesRequest {
             model: req.model.clone(),
             input: responses_messages,
@@ -317,17 +334,22 @@ impl GatewayForwardChatCompletions {
         model: &str,
     ) -> Result<ChatCompletionsResponse> {
         let mut choices = Vec::new();
-        
+
         // 转换输出内容
         let mut message_content = String::new();
         let mut tool_calls = Vec::new();
-        
+
         for content in &resp.output {
             match content {
                 super::gateway_forward_as_responses::ResponsesContent::Text { text, .. } => {
                     message_content.push_str(text);
                 }
-                super::gateway_forward_as_responses::ResponsesContent::ToolUse { id, name, input, .. } => {
+                super::gateway_forward_as_responses::ResponsesContent::ToolUse {
+                    id,
+                    name,
+                    input,
+                    ..
+                } => {
                     tool_calls.push(ToolCall {
                         id: id.clone(),
                         call_type: "function".to_string(),
@@ -340,24 +362,31 @@ impl GatewayForwardChatCompletions {
                 _ => {}
             }
         }
-        
+
         let message = ChatMessage {
             role: "assistant".to_string(),
             content: Some(MessageContent::Text(message_content)),
             name: None,
-            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+            tool_calls: if tool_calls.is_empty() {
+                None
+            } else {
+                Some(tool_calls)
+            },
             tool_call_id: None,
         };
-        
+
         choices.push(ChatChoice {
             index: 0,
             message: Some(message),
             delta: None,
             finish_reason: Some(resp.status.clone()),
         });
-        
+
         Ok(ChatCompletionsResponse {
-            id: resp.id.clone().unwrap_or_else(|| format!("chatcmpl-{}", uuid::Uuid::new_v4())),
+            id: resp
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("chatcmpl-{}", uuid::Uuid::new_v4())),
             object: "chat.completion".to_string(),
             created: chrono::Utc::now().timestamp(),
             model: model.to_string(),
@@ -381,7 +410,7 @@ impl GatewayForwardChatCompletions {
         // 2. 转换为 Responses 格式
         // 3. 调用网关转发
         // 4. 转换响应
-        
+
         Err(anyhow!("Not implemented yet"))
     }
 }
@@ -399,7 +428,7 @@ mod tests {
             ],
             "temperature": 0.7
         }"#;
-        
+
         let req: ChatCompletionsRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.model, "gpt-4");
         assert_eq!(req.messages.len(), 1);
@@ -420,8 +449,11 @@ mod tests {
                 }
             ]
         }"#;
-        
+
         let req: ChatCompletionsRequest = serde_json::from_str(json).unwrap();
-        assert!(matches!(req.messages[0].content, Some(MessageContent::Parts(_))));
+        assert!(matches!(
+            req.messages[0].content,
+            Some(MessageContent::Parts(_))
+        ));
     }
 }

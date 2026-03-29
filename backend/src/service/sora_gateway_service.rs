@@ -74,14 +74,14 @@ impl SoraGatewayService {
             .timeout(std::time::Duration::from_secs(config.timeout_secs))
             .build()
             .unwrap();
-        
+
         Self {
             db,
             config,
             http_client,
         }
     }
-    
+
     /// 提交视频生成请求
     pub async fn submit_generation(
         &self,
@@ -90,27 +90,29 @@ impl SoraGatewayService {
         request: &SoraGenerationRequest,
     ) -> Result<SoraGenerationResponse> {
         let url = format!("{}/video/generations", self.config.base_url);
-        
+
         let body = serde_json::to_value(request)?;
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
-        
+
         let status = response.status();
         let response_body = response.json::<serde_json::Value>().await?;
-        
+
         if !status.is_success() {
-            let error = response_body.get("error")
+            let error = response_body
+                .get("error")
                 .and_then(|e| e.get("message"))
                 .and_then(|m| m.as_str())
                 .unwrap_or("Unknown error")
                 .to_string();
-            
+
             return Ok(SoraGenerationResponse {
                 id: String::new(),
                 status: "failed".to_string(),
@@ -121,17 +123,20 @@ impl SoraGatewayService {
                 error: Some(error),
             });
         }
-        
+
         Ok(SoraGenerationResponse {
-            id: response_body.get("id")
+            id: response_body
+                .get("id")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string(),
-            status: response_body.get("status")
+            status: response_body
+                .get("status")
                 .and_then(|v| v.as_str())
                 .unwrap_or("pending")
                 .to_string(),
-            model: response_body.get("model")
+            model: response_body
+                .get("model")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string(),
@@ -141,7 +146,7 @@ impl SoraGatewayService {
             error: None,
         })
     }
-    
+
     /// 查询生成状态
     pub async fn get_generation_status(
         &self,
@@ -150,44 +155,50 @@ impl SoraGatewayService {
     ) -> Result<SoraGenerationResponse> {
         let url = format!(
             "{}/video/generations/{}",
-            self.config.base_url,
-            generation_id
+            self.config.base_url, generation_id
         );
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .get(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await?;
-        
+
         let response_body = response.json::<serde_json::Value>().await?;
-        
+
         Ok(SoraGenerationResponse {
             id: generation_id.to_string(),
-            status: response_body.get("status")
+            status: response_body
+                .get("status")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown")
                 .to_string(),
-            model: response_body.get("model")
+            model: response_body
+                .get("model")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string(),
-            created_at: response_body.get("created")
+            created_at: response_body
+                .get("created")
                 .and_then(|v| v.as_i64())
                 .map(|ts| DateTime::from_timestamp(ts, 0).unwrap_or_default())
                 .unwrap_or_else(Utc::now),
-            video_url: response_body.get("video_url")
+            video_url: response_body
+                .get("video_url")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            thumbnail_url: response_body.get("thumbnail_url")
+            thumbnail_url: response_body
+                .get("thumbnail_url")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            error: response_body.get("error")
+            error: response_body
+                .get("error")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
         })
     }
-    
+
     /// 等待生成完成
     pub async fn wait_for_completion(
         &self,
@@ -198,10 +209,10 @@ impl SoraGatewayService {
         let start_time = std::time::Instant::now();
         let max_wait = std::time::Duration::from_secs(self.config.max_wait_secs);
         let poll_interval = std::time::Duration::from_secs(self.config.poll_interval_secs);
-        
+
         loop {
             let response = self.get_generation_status(api_key, generation_id).await?;
-            
+
             match response.status.as_str() {
                 "completed" | "succeeded" => {
                     return Ok(response);
@@ -222,31 +233,27 @@ impl SoraGatewayService {
                             error: Some("Generation timed out".to_string()),
                         });
                     }
-                    
+
                     tokio::time::sleep(poll_interval).await;
                 }
             }
         }
     }
-    
+
     /// 取消生成
-    pub async fn cancel_generation(
-        &self,
-        api_key: &str,
-        generation_id: &str,
-    ) -> Result<bool> {
+    pub async fn cancel_generation(&self, api_key: &str, generation_id: &str) -> Result<bool> {
         let url = format!(
             "{}/video/generations/{}/cancel",
-            self.config.base_url,
-            generation_id
+            self.config.base_url, generation_id
         );
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await?;
-        
+
         Ok(response.status().is_success())
     }
 }
@@ -254,14 +261,14 @@ impl SoraGatewayService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_sora_gateway_config() {
         let config = SoraGatewayConfig::default();
         assert_eq!(config.base_url, "https://api.openai.com/v1");
         assert_eq!(config.max_wait_secs, 600);
     }
-    
+
     #[test]
     fn test_sora_generation_request() {
         let request = SoraGenerationRequest {
@@ -271,7 +278,7 @@ mod tests {
             aspect_ratio: Some("16:9".to_string()),
             resolution: Some("1080p".to_string()),
         };
-        
+
         assert_eq!(request.prompt, "A cat playing piano");
         assert_eq!(request.model, Some("sora-1.0-turbo".to_string()));
     }

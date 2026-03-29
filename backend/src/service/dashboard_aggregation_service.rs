@@ -1,8 +1,8 @@
 //! Dashboard aggregation service
 
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 /// Aggregated metrics
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl DashboardAggregationService {
     pub async fn record(&self, metrics: AggregatedMetrics) {
         let mut data = self.metrics.write().await;
         data.push(metrics);
-        
+
         if data.len() > self.max_entries {
             data.remove(0);
         }
@@ -50,11 +50,11 @@ impl DashboardAggregationService {
 
     pub async fn get_average(&self, minutes: usize) -> Option<AggregatedMetrics> {
         let data = self.get_recent(minutes).await;
-        
+
         if data.is_empty() {
             return None;
         }
-        
+
         let count = data.len() as f64;
         Some(AggregatedMetrics {
             timestamp: Utc::now(),
@@ -73,15 +73,17 @@ mod tests {
     #[tokio::test]
     async fn test_aggregation() {
         let service = DashboardAggregationService::new(100);
-        
-        service.record(AggregatedMetrics {
-            timestamp: Utc::now(),
-            requests_per_minute: 100.0,
-            avg_response_time_ms: 50.0,
-            error_rate: 0.01,
-            tokens_per_second: 1000.0,
-        }).await;
-        
+
+        service
+            .record(AggregatedMetrics {
+                timestamp: Utc::now(),
+                requests_per_minute: 100.0,
+                avg_response_time_ms: 50.0,
+                error_rate: 0.01,
+                tokens_per_second: 1000.0,
+            })
+            .await;
+
         let recent = service.get_recent(1).await;
         assert_eq!(recent.len(), 1);
     }

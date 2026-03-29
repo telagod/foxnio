@@ -48,10 +48,7 @@ pub enum RefreshError {
 }
 
 impl GeminiTokenRefresher {
-    pub fn new(
-        provider: Arc<GeminiTokenProvider>,
-        config: RefreshConfig,
-    ) -> Self {
+    pub fn new(provider: Arc<GeminiTokenProvider>, config: RefreshConfig) -> Self {
         Self {
             provider,
             client: Client::new(),
@@ -73,7 +70,11 @@ impl GeminiTokenRefresher {
     }
 
     /// Force refresh token
-    pub async fn refresh(&self, account_id: i64, current_token: &GeminiToken) -> Result<GeminiToken, RefreshError> {
+    pub async fn refresh(
+        &self,
+        account_id: i64,
+        current_token: &GeminiToken,
+    ) -> Result<GeminiToken, RefreshError> {
         let refresh_token = current_token
             .refresh_token
             .as_ref()
@@ -106,7 +107,9 @@ impl GeminiTokenRefresher {
             token_type: response.token_type,
         };
 
-        self.provider.store_token(account_id, new_token.clone()).await?;
+        self.provider
+            .store_token(account_id, new_token.clone())
+            .await?;
 
         Ok(new_token)
     }

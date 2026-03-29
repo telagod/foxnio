@@ -43,20 +43,21 @@ impl DigestSessionStore {
 
     pub async fn store(&self, id: String, user_id: i64, data: Vec<u8>) {
         let mut sessions = self.sessions.write().await;
-        sessions.insert(id.clone(), DigestSession {
-            id,
-            user_id,
-            data,
-            created_at: Instant::now(),
-            ttl: self.default_ttl,
-        });
+        sessions.insert(
+            id.clone(),
+            DigestSession {
+                id,
+                user_id,
+                data,
+                created_at: Instant::now(),
+                ttl: self.default_ttl,
+            },
+        );
     }
 
     pub async fn retrieve(&self, id: &str) -> Option<DigestSession> {
         let sessions = self.sessions.read().await;
-        sessions.get(id)
-            .filter(|s| !s.is_expired())
-            .cloned()
+        sessions.get(id).filter(|s| !s.is_expired()).cloned()
     }
 
     pub async fn remove(&self, id: &str) {
@@ -77,10 +78,12 @@ mod tests {
     #[tokio::test]
     async fn test_session_store() {
         let store = DigestSessionStore::new(Duration::from_secs(60));
-        
-        store.store("session-1".to_string(), 123, b"data".to_vec()).await;
+
+        store
+            .store("session-1".to_string(), 123, b"data".to_vec())
+            .await;
         let session = store.retrieve("session-1").await.unwrap();
-        
+
         assert_eq!(session.user_id, 123);
         assert_eq!(session.data, b"data".to_vec());
     }

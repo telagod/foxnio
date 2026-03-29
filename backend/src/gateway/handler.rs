@@ -13,7 +13,10 @@ use reqwest::Client;
 use crate::entity::accounts;
 use crate::gateway::models::{resolve_model_alias, ModelProvider};
 use crate::gateway::SharedState;
-use crate::service::{LegacyAccountService as AccountService, LegacyBillingService as BillingService, ModelRouter, SchedulerService};
+use crate::service::{
+    LegacyAccountService as AccountService, LegacyBillingService as BillingService, ModelRouter,
+    SchedulerService,
+};
 
 /// 请求上下文
 pub struct RequestContext {

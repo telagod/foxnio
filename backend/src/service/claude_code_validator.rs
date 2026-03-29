@@ -118,9 +118,15 @@ mod tests {
     #[test]
     fn test_detect_language() {
         let python_code = "def hello():\n    pass";
-        assert_eq!(ClaudeCodeValidator::detect_language(python_code), Some("python".to_string()));
+        assert_eq!(
+            ClaudeCodeValidator::detect_language(python_code),
+            Some("python".to_string())
+        );
 
         let js_code = "function hello() { return 1; }";
-        assert_eq!(ClaudeCodeValidator::detect_language(js_code), Some("javascript".to_string()));
+        assert_eq!(
+            ClaudeCodeValidator::detect_language(js_code),
+            Some("javascript".to_string())
+        );
     }
 }

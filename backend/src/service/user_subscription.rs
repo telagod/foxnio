@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query_as, FromRow};
+use sqlx::{query_as, FromRow, PgPool};
 
 /// User subscription management
 pub struct UserSubscription {
@@ -33,14 +33,19 @@ impl UserSubscription {
     }
 
     /// Get active subscription for user
-    pub async fn get_active(&self, user_id: i64) -> Result<Option<Subscription>, SubscriptionError> {
-        let subscription = query_as::<_, Subscription>(r#"
+    pub async fn get_active(
+        &self,
+        user_id: i64,
+    ) -> Result<Option<Subscription>, SubscriptionError> {
+        let subscription = query_as::<_, Subscription>(
+            r#"
             SELECT * FROM subscriptions
             WHERE user_id = $1 AND status = 'active' AND current_period_end > NOW()
             ORDER BY created_at DESC
             LIMIT 1
-            "#)
-            .bind(user_id)
+            "#,
+        )
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -55,7 +60,9 @@ impl UserSubscription {
 
     /// Get subscription plan
     pub async fn get_plan(&self, user_id: i64) -> Result<String, SubscriptionError> {
-        let sub = self.get_active(user_id).await?
+        let sub = self
+            .get_active(user_id)
+            .await?
             .ok_or(SubscriptionError::NotFound)?;
         Ok(sub.plan)
     }

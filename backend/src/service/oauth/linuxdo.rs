@@ -3,7 +3,7 @@
 //! 实现 LinuxDo 社区 OAuth 2.0 授权流程
 
 use super::{
-    generate_state, generate_session_id, AuthUrlResult, OAuthConfig, OAuthProvider,
+    generate_session_id, generate_state, AuthUrlResult, OAuthConfig, OAuthProvider,
     OAuthProviderType, OAuthSession, OAuthSessionStore, OAuthToken,
 };
 use anyhow::{bail, Context, Result};
@@ -92,7 +92,9 @@ impl LinuxDoOAuthProvider {
                 .unwrap_or_else(|_| constants::DEFAULT_CLIENT_ID.to_string());
         }
 
-        if config.client_secret.is_none() || config.client_secret.as_ref().map_or(true, |s| s.is_empty()) {
+        if config.client_secret.is_none()
+            || config.client_secret.as_ref().map_or(true, |s| s.is_empty())
+        {
             config.client_secret = Some(
                 std::env::var("LINUXDO_CLIENT_SECRET")
                     .unwrap_or_else(|_| constants::DEFAULT_CLIENT_SECRET.to_string()),
@@ -107,10 +109,7 @@ impl LinuxDoOAuthProvider {
     }
 
     /// 生成授权 URL
-    pub async fn generate_auth_url(
-        &self,
-        redirect_uri: Option<&str>,
-    ) -> Result<AuthUrlResult> {
+    pub async fn generate_auth_url(&self, redirect_uri: Option<&str>) -> Result<AuthUrlResult> {
         let config = self.effective_config()?;
         let effective_redirect = redirect_uri
             .or(config.redirect_uri.as_deref())
@@ -166,11 +165,7 @@ impl LinuxDoOAuthProvider {
     }
 
     /// 用授权码换取 Token
-    pub async fn exchange_code(
-        &self,
-        code: &str,
-        session_id: &str,
-    ) -> Result<OAuthToken> {
+    pub async fn exchange_code(&self, code: &str, session_id: &str) -> Result<OAuthToken> {
         // 获取 session
         let session = self
             .session_store
@@ -282,10 +277,7 @@ impl LinuxDoOAuthProvider {
     }
 
     /// 将 Token 响应转换为 OAuthToken
-    fn token_response_to_oauth_token(
-        &self,
-        response: LinuxDoTokenResponse,
-    ) -> Result<OAuthToken> {
+    fn token_response_to_oauth_token(&self, response: LinuxDoTokenResponse) -> Result<OAuthToken> {
         let mut token = OAuthToken::new(
             response.access_token,
             response.expires_in.unwrap_or(7200),

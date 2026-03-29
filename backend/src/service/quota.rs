@@ -6,12 +6,12 @@
 
 use anyhow::{bail, Result};
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
 use sea_orm::DatabaseConnection;
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 /// 时间窗口类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -120,18 +120,26 @@ impl QuotaService {
     }
 
     /// 更新配额配置
-    pub async fn update_quota(&self, _api_key_id: Uuid, _req: UpdateQuotaRequest) -> Result<QuotaConfig> {
+    pub async fn update_quota(
+        &self,
+        _api_key_id: Uuid,
+        _req: UpdateQuotaRequest,
+    ) -> Result<QuotaConfig> {
         // TODO: 更新数据库
         bail!("Not implemented")
     }
 
     /// 检查配额
-    pub async fn check_quota(&self, api_key_id: Uuid, estimated_cost: f64) -> Result<QuotaCheckResult> {
+    pub async fn check_quota(
+        &self,
+        api_key_id: Uuid,
+        estimated_cost: f64,
+    ) -> Result<QuotaCheckResult> {
         let config = self.get_quota_config(api_key_id).await?;
-        
+
         if let Some(config) = config {
             let remaining = config.quota_limit - config.quota_used;
-            
+
             if remaining < estimated_cost {
                 return Ok(QuotaCheckResult {
                     allowed: false,
@@ -162,8 +170,8 @@ impl QuotaService {
 
     /// 消费配额
     pub async fn consume_quota(
-        &self, 
-        _api_key_id: Uuid, 
+        &self,
+        _api_key_id: Uuid,
         _amount: f64,
         _model: &str,
         _tokens: i64,
@@ -171,7 +179,7 @@ impl QuotaService {
         // 1. 更新数据库中的配额
         // 2. 更新缓存
         // 3. 记录使用历史
-        
+
         Ok(())
     }
 
@@ -194,11 +202,14 @@ impl QuotaService {
     ) -> Result<QuotaCheckResult> {
         // 获取窗口使用量
         let usage = self.get_window_usage(api_key_id, window.clone()).await?;
-        
+
         Ok(QuotaCheckResult {
             allowed: usage.usage < usage.limit,
             reason: if usage.usage >= usage.limit {
-                Some(format!("Rate limit exceeded for {} window", window.as_str()))
+                Some(format!(
+                    "Rate limit exceeded for {} window",
+                    window.as_str()
+                ))
             } else {
                 None
             },
@@ -212,7 +223,7 @@ impl QuotaService {
     async fn get_window_usage(&self, _api_key_id: Uuid, window: TimeWindow) -> Result<WindowUsage> {
         let now = Utc::now();
         let window_start = now - window.duration();
-        
+
         // TODO: 从数据库查询该时间窗口内的使用量
         Ok(WindowUsage {
             window_type: window,
@@ -240,19 +251,19 @@ impl QuotaService {
     /// 检查 IP 是否允许
     pub async fn check_ip_allowed(&self, api_key_id: Uuid, ip: &str) -> Result<bool> {
         let config = self.get_quota_config(api_key_id).await?;
-        
+
         if let Some(config) = config {
             // 检查黑名单
             if config.ip_blacklist.contains(&ip.to_string()) {
                 return Ok(false);
             }
-            
+
             // 检查白名单
             if !config.ip_whitelist.is_empty() {
                 return Ok(config.ip_whitelist.contains(&ip.to_string()));
             }
         }
-        
+
         Ok(true)
     }
 

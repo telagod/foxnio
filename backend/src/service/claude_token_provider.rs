@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query, query_as, FromRow};
+use sqlx::{query, query_as, FromRow, PgPool};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -71,20 +71,22 @@ impl ClaudeTokenProvider {
 
     /// Store token
     pub async fn store(&self, account_id: i64, token: ClaudeToken) -> Result<(), TokenError> {
-        query(r#"
+        query(
+            r#"
             INSERT INTO claude_tokens (account_id, access_token, refresh_token, expires_at)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (account_id) DO UPDATE SET
                 access_token = EXCLUDED.access_token,
                 refresh_token = EXCLUDED.refresh_token,
                 expires_at = EXCLUDED.expires_at
-            "#)
-            .bind(account_id)
-            .bind(&token.access_token)
-            .bind(&token.refresh_token)
-            .bind(token.expires_at)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(account_id)
+        .bind(&token.access_token)
+        .bind(&token.refresh_token)
+        .bind(token.expires_at)
+        .execute(&self.pool)
+        .await?;
 
         let mut cache = self.cache.write().await;
         cache.tokens.insert(account_id, token);

@@ -14,8 +14,8 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::permission::Permission;
+use crate::service::proxy::{CreateProxyRequest, ProxyService, UpdateProxyRequest};
 use crate::service::user::Claims;
-use crate::service::proxy::{ProxyService, CreateProxyRequest, UpdateProxyRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -26,10 +26,16 @@ pub struct ListQuery {
     pub page_size: u64,
 }
 
-fn default_page() -> u64 { 0 }
-fn default_page_size() -> u64 { 20 }
+fn default_page() -> u64 {
+    0
+}
+fn default_page_size() -> u64 {
+    20
+}
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 /// 列出所有代理
 pub async fn list_proxies(
@@ -42,9 +48,14 @@ pub async fn list_proxies(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     let db = &state.db;
-    let proxies = ProxyService::list(db, query.enabled_only.unwrap_or(false), query.page, query.page_size)
-        .await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let proxies = ProxyService::list(
+        db,
+        query.enabled_only.unwrap_or(false),
+        query.page,
+        query.page_size,
+    )
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
         "object": "list",

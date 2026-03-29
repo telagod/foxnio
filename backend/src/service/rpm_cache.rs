@@ -63,7 +63,8 @@ impl RpmCache {
         });
 
         // Reset window if expired
-        let window_end = entry.window_start + chrono::Duration::seconds(self.config.window_size_seconds as i64);
+        let window_end =
+            entry.window_start + chrono::Duration::seconds(self.config.window_size_seconds as i64);
         if now >= window_end {
             entry.count = 0;
             entry.window_start = now;
@@ -78,7 +79,8 @@ impl RpmCache {
             allowed,
             current: entry.count,
             limit: entry.limit,
-            reset_at: entry.window_start + chrono::Duration::seconds(self.config.window_size_seconds as i64),
+            reset_at: entry.window_start
+                + chrono::Duration::seconds(self.config.window_size_seconds as i64),
         }
     }
 
@@ -102,17 +104,17 @@ mod tests {
     #[tokio::test]
     async fn test_rpm_cache() {
         let cache = RpmCache::new(RpmConfig::default());
-        
+
         // Should allow first request
         let check = cache.check_and_increment("test", Some(10)).await;
         assert!(check.allowed);
         assert_eq!(check.current, 1);
-        
+
         // Should allow up to limit
         for _ in 0..9 {
             cache.check_and_increment("test", Some(10)).await;
         }
-        
+
         // Should deny after limit
         let check = cache.check_and_increment("test", Some(10)).await;
         assert!(!check.allowed);

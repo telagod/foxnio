@@ -172,7 +172,7 @@ impl ErrorPassthroughRuleService {
         match rule {
             Some(model) => {
                 let mut active_model: error_passthrough_rules::ActiveModel = model.into();
-                
+
                 if let Some(name) = req.name {
                     active_model.name = ActiveValue::Set(name);
                 }

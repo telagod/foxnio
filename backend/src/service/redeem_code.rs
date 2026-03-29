@@ -6,10 +6,10 @@
 
 use anyhow::{bail, Result};
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
-use sea_orm::DatabaseConnection;
-use uuid::Uuid;
 use rand::Rng;
+use sea_orm::DatabaseConnection;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// 卡密类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,7 +31,7 @@ impl std::fmt::Display for RedeemType {
 
 impl std::str::FromStr for RedeemType {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "balance" => Ok(RedeemType::Balance),
@@ -136,7 +136,7 @@ impl RedeemCodeService {
     fn generate_code(&self) -> String {
         let mut rng = rand::thread_rng();
         let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去除易混淆字符
-        
+
         (0..self.code_length)
             .map(|_| {
                 let idx = rng.gen_range(0..chars.len());
@@ -150,9 +150,9 @@ impl RedeemCodeService {
         let code_type = req.code_type.parse::<RedeemType>()?;
         let now = Utc::now();
         let expires_at = now + Duration::days(req.validity_days as i64);
-        
+
         let mut codes = Vec::new();
-        
+
         for _ in 0..req.count {
             let code = RedeemCode {
                 id: Uuid::new_v4(),
@@ -172,14 +172,16 @@ impl RedeemCodeService {
         }
 
         // TODO: 批量插入数据库
-        
+
         Ok(codes)
     }
 
     /// 兑换卡密
     pub async fn redeem(&self, req: RedeemCodeRequest) -> Result<RedeemResult> {
         // 查找卡密
-        let code = self.find_by_code(&req.code).await?
+        let code = self
+            .find_by_code(&req.code)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Invalid redeem code"))?;
 
         // 检查状态
@@ -208,15 +210,12 @@ impl RedeemCodeService {
 
         // 根据类型执行兑换
         let message = match code.code_type {
-            RedeemType::Balance => {
-                self.redeem_balance(&req.user_id, code.value).await?
-            }
+            RedeemType::Balance => self.redeem_balance(&req.user_id, code.value).await?,
             RedeemType::Subscription => {
-                self.redeem_subscription(&req.user_id, code.group_id, code.validity_days).await?
+                self.redeem_subscription(&req.user_id, code.group_id, code.validity_days)
+                    .await?
             }
-            RedeemType::Quota => {
-                self.redeem_quota(&req.user_id, code.value as i64).await?
-            }
+            RedeemType::Quota => self.redeem_quota(&req.user_id, code.value as i64).await?,
         };
 
         // 标记为已使用
@@ -250,7 +249,12 @@ impl RedeemCodeService {
     }
 
     /// 兑换订阅
-    async fn redeem_subscription(&self, _user_id: &Uuid, _group_id: Option<i64>, days: i32) -> Result<String> {
+    async fn redeem_subscription(
+        &self,
+        _user_id: &Uuid,
+        _group_id: Option<i64>,
+        days: i32,
+    ) -> Result<String> {
         // TODO: 创建订阅
         Ok(format!("Added {} days subscription", days))
     }
@@ -299,8 +303,14 @@ mod tests {
 
     #[test]
     fn test_redeem_type_parse() {
-        assert_eq!("balance".parse::<RedeemType>().unwrap(), RedeemType::Balance);
-        assert_eq!("subscription".parse::<RedeemType>().unwrap(), RedeemType::Subscription);
+        assert_eq!(
+            "balance".parse::<RedeemType>().unwrap(),
+            RedeemType::Balance
+        );
+        assert_eq!(
+            "subscription".parse::<RedeemType>().unwrap(),
+            RedeemType::Subscription
+        );
         assert_eq!("quota".parse::<RedeemType>().unwrap(), RedeemType::Quota);
     }
 }

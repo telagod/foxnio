@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query_as, FromRow};
+use sqlx::{query_as, FromRow, PgPool};
 
 /// Usage service for tracking API usage
 pub struct UsageService {
@@ -73,7 +73,8 @@ impl UsageService {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<UsageStats, UsageError> {
-        let stats = query_as::<_, UsageStats>(r#"
+        let stats = query_as::<_, UsageStats>(
+            r#"
             SELECT
                 COALESCE(SUM(request_count), 0) as total_requests,
                 COALESCE(SUM(input_tokens), 0) as total_input_tokens,
@@ -81,10 +82,11 @@ impl UsageService {
                 COUNT(DISTINCT model) as unique_models
             FROM usage_records
             WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
-            "#)
-            .bind(user_id)
-            .bind(start_time)
-            .bind(end_time)
+            "#,
+        )
+        .bind(user_id)
+        .bind(start_time)
+        .bind(end_time)
         .fetch_one(&self.pool)
         .await?;
 

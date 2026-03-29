@@ -53,9 +53,8 @@ impl ScheduledTestRunnerService {
 
     pub async fn run_test(&self, test_id: &str) -> Result<TestRunResult, String> {
         let tests = self.tests.read().await;
-        let _test = tests.get(test_id)
-            .ok_or("Test not found")?;
-        
+        let _test = tests.get(test_id).ok_or("Test not found")?;
+
         // Simulate test execution
         let result = TestRunResult {
             test_id: test_id.to_string(),
@@ -64,10 +63,10 @@ impl ScheduledTestRunnerService {
             duration_ms: 100,
             message: "Test passed".to_string(),
         };
-        
+
         let mut results = self.results.write().await;
         results.push(result.clone());
-        
+
         Ok(result)
     }
 
@@ -89,17 +88,19 @@ mod tests {
     #[tokio::test]
     async fn test_scheduled_runner() {
         let service = ScheduledTestRunnerService::new();
-        
-        service.schedule_test(ScheduledTest {
-            id: "test-1".to_string(),
-            name: "Health Check".to_string(),
-            cron_expression: "0 * * * *".to_string(),
-            test_type: "health".to_string(),
-            is_active: true,
-            last_run: None,
-            next_run: None,
-        }).await;
-        
+
+        service
+            .schedule_test(ScheduledTest {
+                id: "test-1".to_string(),
+                name: "Health Check".to_string(),
+                cron_expression: "0 * * * *".to_string(),
+                test_type: "health".to_string(),
+                is_active: true,
+                last_run: None,
+                next_run: None,
+            })
+            .await;
+
         let result = service.run_test("test-1").await.unwrap();
         assert!(result.passed);
     }

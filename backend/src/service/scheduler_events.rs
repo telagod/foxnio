@@ -189,7 +189,10 @@ mod tests {
 
     #[test]
     fn test_event_type_str() {
-        assert_eq!(SchedulerEventType::AccountChanged.as_str(), "account_changed");
+        assert_eq!(
+            SchedulerEventType::AccountChanged.as_str(),
+            "account_changed"
+        );
         assert_eq!(SchedulerEventType::FullRebuild.as_str(), "full_rebuild");
     }
 
