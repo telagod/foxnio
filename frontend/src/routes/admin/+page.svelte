@@ -23,8 +23,8 @@
   let loading = true;
   let error: string | null = null;
 
-  onMount(async () => {
-    await loadStats();
+  onMount(() => {
+    loadStats();
     // 每 30 秒刷新一次
     const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);
