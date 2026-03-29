@@ -646,7 +646,7 @@ mod tests {
     fn test_metrics_summary() {
         let summary = get_metrics_summary();
 
-        assert!(summary.requests.total >= 0);
+        // requests.total 是 u64 类型，始终 >= 0
         assert!(summary.cache.hit_rate >= 0.0);
     }
 }

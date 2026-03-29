@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_reset_request_validation() {
-        // 测试请求验证
-        assert!(true);
+        // 测试请求验证 - 密码重置请求结构验证
+        // TODO: 添加实际的验证测试
     }
 }

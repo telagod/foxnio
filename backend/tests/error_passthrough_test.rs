@@ -4,7 +4,6 @@
 mod tests {
     use chrono::Utc;
     use foxnio::entity::error_passthrough_rules::Model;
-    use sea_orm::ActiveValue;
     use serde_json::json;
 
     fn create_test_rule() -> Model {

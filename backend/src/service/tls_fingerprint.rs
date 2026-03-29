@@ -257,7 +257,7 @@ mod tests {
     fn test_create_request_validation() {
         let req = create_test_request();
         assert_eq!(req.name, "test-profile");
-        assert_eq!(req.enable_grease, true);
+        assert!(req.enable_grease);
         assert_eq!(req.cipher_suites.len(), 3);
         assert_eq!(req.curves.len(), 3);
         assert_eq!(req.alpn_protocols, vec!["http/1.1"]);
