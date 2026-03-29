@@ -2,6 +2,8 @@
 //!
 //! 用于测试网关代理功能，模拟上游 API 响应
 
+#![allow(dead_code)]
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},

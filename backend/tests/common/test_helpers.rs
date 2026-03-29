@@ -2,6 +2,8 @@
 //!
 //! 提供常用的测试工具和辅助函数
 
+#![allow(dead_code)]
+
 use serde_json::json;
 use uuid::Uuid;
 

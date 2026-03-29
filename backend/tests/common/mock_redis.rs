@@ -1,5 +1,7 @@
 //! 模拟 Redis 连接池用于测试
 
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

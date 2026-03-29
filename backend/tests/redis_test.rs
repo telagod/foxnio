@@ -14,7 +14,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -35,7 +35,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -67,7 +67,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -96,7 +96,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -126,7 +126,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -167,7 +167,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
@@ -203,7 +203,7 @@ mod tests {
 
         let client = redis::Client::open(redis_url.as_str()).expect("Failed to create client");
         let mut conn = client
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect");
 
