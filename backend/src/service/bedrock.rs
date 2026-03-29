@@ -345,7 +345,7 @@ impl BedrockClient {
                 if *p == format!("{}.", prefix) {
                     return model_id.to_string();
                 }
-                return format!("{}.{}", prefix, &model_id[p.len()..]);
+                return format!("{}.{}", prefix, model_id.strip_prefix(p).unwrap());
             }
         }
 
@@ -366,8 +366,6 @@ impl BedrockClient {
             "au"
         } else if region.starts_with("ap-") {
             "apac"
-        } else if region.starts_with("ca-") || region.starts_with("sa-") {
-            "us"
         } else {
             "us"
         }

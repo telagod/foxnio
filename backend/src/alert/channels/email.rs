@@ -253,7 +253,6 @@ mod tests {
         // Note: lettre::Message doesn't expose subject() getter
         // The subject is built with format: "[LEVEL] source - title"
         let _message = message.unwrap();
-        assert!(true); // Message built successfully
     }
 
     #[test]

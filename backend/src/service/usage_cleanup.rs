@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// 清理状态常量
@@ -169,6 +169,7 @@ impl UsageCleanup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
 
     #[tokio::test]
     #[ignore = "SQLite driver not compiled in, requires real database"]

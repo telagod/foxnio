@@ -789,8 +789,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_least_connection_selection() {
-        let mut config = SchedulerConfig::default();
-        config.default_strategy = ScheduleStrategy::LeastConnection;
+        let config = SchedulerConfig {
+            default_strategy: ScheduleStrategy::LeastConnection,
+            ..Default::default()
+        };
         let scheduler = Scheduler::new(config);
 
         let id1 = Uuid::new_v4();
@@ -818,8 +820,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_latency_optimized_selection() {
-        let mut config = SchedulerConfig::default();
-        config.default_strategy = ScheduleStrategy::LatencyOptimized;
+        let config = SchedulerConfig {
+            default_strategy: ScheduleStrategy::LatencyOptimized,
+            ..Default::default()
+        };
         let scheduler = Scheduler::new(config);
 
         let id1 = Uuid::new_v4();
