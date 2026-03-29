@@ -8,16 +8,26 @@
 **当前版本**: v0.2.0
 **目标版本**: v1.0.0
 
+## ⚠️ 重要说明
+
+**模型配置策略**: FoxNIO 采用完全动态的模型配置方案，不硬编码任何模型列表。所有模型信息存储在数据库中，支持：
+- 实时热加载
+- 运行时增删改查
+- 模型别名映射
+- 自动降级配置
+
+**服务商支持**: 当前支持 6 家主流 AI 服务商（OpenAI、Anthropic、Google、DeepSeek、Mistral、Cohere），未来可扩展。
+
 ## 已实现功能 ✅
 
 ### 核心 API 网关
 - ✅ OpenAI 兼容 API（/v1/chat/completions, /v1/models）
 - ✅ 多服务商支持（OpenAI、Anthropic、Google、DeepSeek、Mistral、Cohere）
+- ✅ 动态模型配置（数据库持久化、热加载、运行时管理）
 - ✅ 智能模型路由（别名解析、自动降级）
 - ✅ 故障转移机制（指数退避重试）
 - ✅ SSE 流式响应
 - ✅ HTTP/2 支持
-- ✅ 动态模型列表（数据库持久化、热加载）
 
 ### 账户与调度
 - ✅ 多账户管理
@@ -218,21 +228,39 @@ POST /api/v1/admin/users/batch-import      - 批量导入用户
 **预计工作量**: 4-5 天
 
 **功能描述**:
-- 自动从各提供商获取最新模型列表
-- 自动更新模型价格
+- 自动从各提供商获取最新模型列表（调用 `/v1/models` API）
+- 自动更新模型价格、能力等信息
 - 自动检测模型能力（vision、function calling 等）
-- 模型变更通知
+- 模型变更通知（新增、弃用、价格调整）
 
 **实现要点**:
 ```rust
 pub struct ModelSyncService {
-    // 从 OpenAI 同步模型
-    pub async fn sync_openai_models(&self) -> Result<Vec<Model>>;
+    // 从 OpenAI 同步模型（调用 GET /v1/models）
+    pub async fn sync_openai_models(&self) -> Result<Vec<ModelInfo>>;
     // 从 Anthropic 同步模型
-    pub async fn sync_anthropic_models(&self) -> Result<Vec<Model>>;
+    pub async fn sync_anthropic_models(&self) -> Result<Vec<ModelInfo>>;
+    // 从 Google 同步模型
+    pub async fn sync_google_models(&self) -> Result<Vec<ModelInfo>>;
     // 定时同步任务
     pub async fn start_sync_scheduler(&self, interval: Duration);
 }
+
+// 同步结果
+pub struct ModelSyncResult {
+    pub provider: String,
+    pub new_models: Vec<String>,
+    pub updated_models: Vec<String>,
+    pub deprecated_models: Vec<String>,
+    pub price_changes: Vec<PriceChange>,
+}
+```
+
+**API 端点**:
+```
+POST /api/v1/admin/models/sync              - 手动触发同步
+GET  /api/v1/admin/models/sync/status       - 查看同步状态
+GET  /api/v1/admin/models/sync/history      - 查看同步历史
 ```
 
 ---
@@ -327,14 +355,15 @@ POST /api/v1/compare - 多模型对比
 | 功能 | FoxNIO v0.2.0 | 行业标准 | 优先级 |
 |------|--------------|---------|-------|
 | OpenAI 兼容 API | ✅ | ✅ | - |
-| 多服务商支持 | ✅ | ✅ | - |
-| 动态模型列表 | ✅ | ✅ | - |
+| 多服务商支持 | ✅ (6家) | ✅ | - |
+| **动态模型配置** | ✅ | ✅ | - |
+| 模型热加载 | ✅ | ✅ | - |
+| 模型自动同步 | ❌ | ⚠️ | P1 |
 | Webhook 支持 | ❌ | ✅ | P0 |
 | OpenAPI 文档 | ❌ | ✅ | P0 |
 | API Key 权限细分 | ⚠️ 基础 | ✅ | P0 |
 | 模型性能监控 | ⚠️ 基础 | ✅ | P1 |
 | 批量操作 API | ❌ | ✅ | P1 |
-| 模型自动更新 | ❌ | ✅ | P1 |
 | 成本优化建议 | ❌ | ✅ | P1 |
 | 国际化 | ❌ | ✅ | P2 |
 | API 版本管理 | ❌ | ⚠️ | P2 |
