@@ -258,7 +258,7 @@ jobs:
       
       - name: Run security audit
         working-directory: backend
-        run: cargo audit
+        run: cargo audit --config audit.toml
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
