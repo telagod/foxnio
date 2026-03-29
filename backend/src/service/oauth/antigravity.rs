@@ -31,6 +31,12 @@ pub mod constants {
     /// Client Secret 环境变量名
     pub const CLIENT_SECRET_ENV: &str = "ANTIGRAVITY_OAUTH_CLIENT_SECRET";
 
+    /// 测试用 Client ID
+    pub const CLIENT_ID: &str = "test-client-id";
+
+    /// 测试用默认 Client Secret
+    pub const DEFAULT_CLIENT_SECRET: &str = "test-client-secret";
+
     /// 默认重定向 URI
     pub const DEFAULT_REDIRECT_URI: &str = "http://localhost:8085/callback";
 

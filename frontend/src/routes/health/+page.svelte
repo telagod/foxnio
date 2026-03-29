@@ -1,17 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  let health = {
+  interface HealthCheck {
+    status: string;
+  }
+
+  interface HealthData {
+    status: string;
+    checks: Record<string, HealthCheck>;
+    timestamp: string;
+  }
+
+  let health: HealthData = {
     status: 'unknown',
     checks: {},
     timestamp: ''
   };
 
   let loading = true;
-  let error = null;
+  let error: string | null = null;
 
-  onMount(async () => {
-    await checkHealth();
+  onMount(() => {
+    checkHealth();
     // 每 30 秒检查一次
     setInterval(checkHealth, 30000);
   });
@@ -22,7 +32,7 @@
       health = await response.json();
       loading = false;
     } catch (e) {
-      error = e.message;
+      error = e instanceof Error ? e.message : 'Unknown error';
       loading = false;
     }
   }

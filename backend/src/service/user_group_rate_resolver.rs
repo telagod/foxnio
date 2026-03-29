@@ -4,17 +4,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use super::user_group_rate::{UserGroupRate, UserGroupRateService};
+
 /// User group rate resolver
 pub struct UserGroupRateResolver {
     /// User to group mapping
     user_groups: Arc<RwLock<HashMap<i64, i64>>>,
     /// Group rate service reference
-    rate_service: Arc<super::user_group_rate::UserGroupRateService>,
+    rate_service: Arc<UserGroupRateService>,
 }
 
 impl UserGroupRateResolver {
     /// Create a new resolver
-    pub fn new(rate_service: Arc<super::user_group_rate::UserGroupRateService>) -> Self {
+    pub fn new(rate_service: Arc<UserGroupRateService>) -> Self {
         Self {
             user_groups: Arc::new(RwLock::new(HashMap::new())),
             rate_service,
@@ -34,7 +36,7 @@ impl UserGroupRateResolver {
     }
 
     /// Resolve rate for user
-    pub async fn resolve_rate(&self, user_id: i64) -> Option<super::user_group_rate::UserGroupRate> {
+    pub async fn resolve_rate(&self, user_id: i64) -> Option<UserGroupRate> {
         let group_id = self.get_user_group(user_id).await?;
         self.rate_service.get_rate(group_id).await
     }
@@ -52,7 +54,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolver() {
-        let rate_service = Arc::new(super::user_group_rate::UserGroupRateService::new());
+        let rate_service = Arc::new(UserGroupRateService::new());
         let resolver = UserGroupRateResolver::new(rate_service);
         
         resolver.set_user_group(123, 1).await;
