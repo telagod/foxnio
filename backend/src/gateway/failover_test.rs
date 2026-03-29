@@ -1,6 +1,7 @@
 //! 故障转移测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::gateway::failover::{FailoverConfig, FailoverError};
 

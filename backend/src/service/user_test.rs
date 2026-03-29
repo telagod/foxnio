@@ -1,6 +1,7 @@
 //! 用户服务测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
 
     use crate::service::user::Claims;

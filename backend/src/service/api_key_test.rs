@@ -1,6 +1,7 @@
 //! API Key 服务测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::service::api_key::mask_key;
     use uuid::Uuid;

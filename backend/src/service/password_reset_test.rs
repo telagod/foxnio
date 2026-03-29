@@ -1,6 +1,7 @@
 //! 密码重置服务测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::service::email::{EmailSender, MockEmailSender};
     use crate::service::password_reset::*;

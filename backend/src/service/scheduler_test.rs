@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 #[allow(clippy::all)]
+#[allow(clippy::all)]
 mod tests {
     use crate::service::scheduler::{AccountRuntimeState, SchedulingStrategy, StickySession};
     use chrono::Utc;

@@ -1,6 +1,7 @@
 //! 订阅系统测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::service::subscription::{
         PlanFeatures, SubscriptionPlan, SubscriptionStatus, UserQuota,

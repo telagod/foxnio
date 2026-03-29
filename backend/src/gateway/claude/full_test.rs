@@ -1,6 +1,7 @@
 //! Claude 指纹完整集成测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::gateway::claude::{
         build_claude_headers_ordered, denormalize_model_id, get_beta_header, header_wire_casing,

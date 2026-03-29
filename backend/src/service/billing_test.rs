@@ -1,6 +1,7 @@
 //! 计费服务测试
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use crate::service::billing::{BillingService, UserStats};
 
