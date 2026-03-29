@@ -155,25 +155,18 @@ curl -X POST http://localhost:3000/api/v1/admin/models/import-defaults \
 
 ## 默认模型
 
-系统预置以下默认模型：
+系统提供基础默认模型配置，可通过 API 导入：
 
-### OpenAI
-- gpt-4-turbo
-- gpt-4o
-- gpt-4o-mini
-- gpt-3.5-turbo
+**注意**: 默认模型列表仅供参考，实际模型配置应以数据库为准。建议：
+- 使用 `POST /api/v1/admin/models/import-defaults` 导入基础配置
+- 根据实际需求自定义模型配置
+- 定期通过自动同步功能更新模型列表（计划中）
 
-### Anthropic
-- claude-3-opus
-- claude-3.5-sonnet
-- claude-3-haiku
-
-### DeepSeek
-- deepseek-v3
-- deepseek-coder
-
-### Google
-- gemini-1.5-pro
+**推荐做法**:
+1. 启动后首次运行导入默认模型
+2. 根据实际账户和需求调整模型配置
+3. 设置合理的降级模型链
+4. 定期检查并更新价格信息
 
 ## 权限控制
 
