@@ -183,11 +183,10 @@ mod tests {
         let mut map: SettingMap = HashMap::new();
         
         let setting = Setting {
+            id: 1,
             key: "test_key".to_string(),
             value: Some("test_value".to_string()),
-            category: SettingCategory::System,
-            description: None,
-            is_public: false,
+            created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
         

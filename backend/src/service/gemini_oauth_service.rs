@@ -244,6 +244,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_authorization_url() {
         let config = GeminiOAuthConfig {
             client_id: "test-client-id".to_string(),

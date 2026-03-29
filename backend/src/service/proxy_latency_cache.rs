@@ -61,18 +61,25 @@ impl ProxyLatencyCache {
     pub async fn record_latency(&self, proxy_id: &str, latency_ms: u64) {
         let mut entries = self.entries.write().await;
         
-        let entry = entries.entry(proxy_id.to_string())
-            .or_insert_with(|| ProxyLatencyEntry {
-                proxy_id: proxy_id.to_string(),
-                avg_latency_ms: latency_ms as f64,
-                min_latency_ms: latency_ms,
-                max_latency_ms: latency_ms,
-                sample_count: 1,
-                last_updated: Instant::now(),
-                ttl: self.default_ttl,
-            });
+        use std::collections::hash_map::Entry;
+        let entry = match entries.entry(proxy_id.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => {
+                // First measurement - don't increment sample_count
+                e.insert(ProxyLatencyEntry {
+                    proxy_id: proxy_id.to_string(),
+                    avg_latency_ms: latency_ms as f64,
+                    min_latency_ms: latency_ms,
+                    max_latency_ms: latency_ms,
+                    sample_count: 1,
+                    last_updated: Instant::now(),
+                    ttl: self.default_ttl,
+                });
+                return;
+            }
+        };
         
-        // Update statistics
+        // Update statistics for existing entry
         if entry.sample_count < self.max_samples {
             let total = entry.avg_latency_ms * entry.sample_count as f64;
             entry.sample_count += 1;

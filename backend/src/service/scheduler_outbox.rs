@@ -144,6 +144,10 @@ impl SchedulerOutboxService {
     pub async fn mark_processing(&self, id: i64) -> Result<()> {
         let mut entries = self.entries.write().await;
         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+            // Don't change status if already failed or sent
+            if entry.status == OutboxStatus::Failed || entry.status == OutboxStatus::Sent {
+                return Ok(());
+            }
             entry.status = OutboxStatus::Processing;
             entry.updated_at = Utc::now();
         }
@@ -168,6 +172,11 @@ impl SchedulerOutboxService {
     pub async fn mark_failed(&self, id: i64, error: &str) -> Result<()> {
         let mut entries = self.entries.write().await;
         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+            // If already failed, don't change anything
+            if entry.status == OutboxStatus::Failed {
+                return Ok(());
+            }
+            
             entry.retry_count += 1;
             entry.last_error = Some(error.to_string());
             entry.updated_at = Utc::now();

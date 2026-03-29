@@ -412,6 +412,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "SQLite driver not compiled in, requires real database"]
     async fn test_aggregation_service_creation() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let config = OpsAggregationConfig::default();

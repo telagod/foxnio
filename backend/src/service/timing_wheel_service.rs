@@ -136,13 +136,17 @@ impl TimingWheelService {
 
     /// 执行 tick
     pub async fn tick(&self) -> Vec<TimerTask> {
+        let slot_index = {
+            let current_tick = *self.current_tick.read().await;
+            (current_tick % self.config.wheel_size as u64) as usize
+        };
+        
+        // Increment tick after calculating slot index
         let current_tick = {
             let mut tick = self.current_tick.write().await;
             *tick += 1;
             *tick
         };
-
-        let slot_index = (current_tick % self.config.wheel_size as u64) as usize;
         
         let mut tasks_to_execute = Vec::new();
         let mut tasks_to_reschedule = Vec::new();
