@@ -633,14 +633,28 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         )
         .with_state(ws_handler);
 
-    // Gemini 专用路由
+    // Gemini Native API 路由（v1beta）
     let gemini_routes = Router::new()
-        .route("/v1beta/models/:model:generateContent", post(handle_gemini))
+        // 模型列表和详情
+        .route("/v1beta/models", get(super::gemini::list_models))
+        .route("/v1beta/models/{model}", get(super::gemini::get_model))
+        // 内容生成（支持动态 action: generateContent, streamGenerateContent 等）
+        .route("/v1beta/models/{model_action}", post(super::gemini::generate_content))
+        // 流式生成（显式路由，支持 alt=sse 查询参数）
         .route(
-            "/v1beta/models/:model:streamGenerateContent",
-            post(handle_gemini_stream),
+            "/v1beta/models/{model}:streamGenerateContent",
+            post(super::gemini::stream_generate_content),
         )
-        .layer(axum::middleware::from_fn(middleware::jwt_auth));
+        // Token 计数
+        .route(
+            "/v1beta/models/{model}:countTokens",
+            post(super::gemini::count_tokens),
+        )
+        // 内容嵌入
+        .route(
+            "/v1beta/models/{model}:embedContent",
+            post(super::gemini::embed_content),
+        );
 
     Router::new()
         .merge(public_routes)
@@ -735,30 +749,6 @@ async fn handle_completions(
     Err(handler::ApiError(
         StatusCode::NOT_IMPLEMENTED,
         "Completions not yet implemented".into(),
-    ))
-}
-
-async fn handle_gemini(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-    _body: axum::body::Bytes,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    // TODO: 实现 Gemini 端点
-    Err(handler::ApiError(
-        StatusCode::NOT_IMPLEMENTED,
-        "Gemini not yet implemented".into(),
-    ))
-}
-
-async fn handle_gemini_stream(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-    _body: axum::body::Bytes,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    // TODO: 实现 Gemini 流式端点
-    Err(handler::ApiError(
-        StatusCode::NOT_IMPLEMENTED,
-        "Gemini streaming not yet implemented".into(),
     ))
 }
 
