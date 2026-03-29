@@ -173,6 +173,7 @@ impl UserGroupService {
 use anyhow::bail;
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use super::*;
 
