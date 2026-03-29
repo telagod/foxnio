@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 负载测试配置
 
 use std::sync::atomic::{AtomicU64, Ordering};

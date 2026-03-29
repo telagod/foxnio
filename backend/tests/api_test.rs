@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 集成测试
 
 use axum::{

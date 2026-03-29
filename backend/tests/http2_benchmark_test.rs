@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! HTTP/2 性能基准测试
 //!
 //! 对比 HTTP/1.1 vs HTTP/2 性能

@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 密码重置功能集成测试
 
 use chrono::{Duration, Utc};

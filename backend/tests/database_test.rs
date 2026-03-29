@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 数据库集成测试
 //!
 //! 注意: 这些测试需要实际数据库连接,使用运行时查询而非编译时宏

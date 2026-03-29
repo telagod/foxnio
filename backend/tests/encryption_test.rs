@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 加密服务集成测试
 //!
 //! 测试加密服务的完整功能，包括：

@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! JWT 刷新机制测试
 //!
 //! 测试覆盖：

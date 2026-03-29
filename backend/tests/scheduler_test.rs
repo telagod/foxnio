@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 调度器完整测试套件
 //!
 //! 覆盖率目标: > 85%

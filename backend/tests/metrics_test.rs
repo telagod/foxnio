@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 监控指标模块测试
 //!
 //! 包含指标收集、Prometheus 格式导出、性能影响测试

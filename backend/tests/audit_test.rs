@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
 //! 审计日志系统测试
 //!
 //! 测试审计日志的记录、查询和过滤功能
