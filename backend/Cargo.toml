@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["FoxNIO Team"]
 description = "AI API Gateway - Subscription quota distribution management"
 license = "MIT"
-rust-version = "1.75"
+rust-version = "1.91"
 
 [dependencies]
 # Web framework
