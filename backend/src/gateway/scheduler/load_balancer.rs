@@ -1064,7 +1064,7 @@ mod tests {
 
         // 绑定粘性会话
         scheduler
-            .bind_sticky_session("session-123".to_string(), account_id)
+            .bind_sticky_session("session-123".to_string(), uuid_to_i64(account_id))
             .await;
 
         let ctx = ScheduleContext {

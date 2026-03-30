@@ -602,7 +602,7 @@ mod tests {
         }
 
         fn calculate_backoff(&self, attempt: i32) -> Duration {
-            Duration::from_secs(2_i64.pow(attempt as u32))
+            Duration::from_secs(2_u64.pow(attempt as u32))
         }
     }
 

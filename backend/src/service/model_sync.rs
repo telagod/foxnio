@@ -1326,7 +1326,6 @@ impl Default for SyncState {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
