@@ -4,10 +4,17 @@
 pub mod headers;
 pub mod client;
 pub mod request;
+pub mod error;
+pub mod sse;
 pub mod tls;
 
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use reqwest::StatusCode;
+
+// 重导出常用类型
+pub use error::{AnthropicError, ErrorDetail};
+pub use sse::{SseEvent, parse_sse_line, parse_sse_stream};
 
 /// Claude Code Shell 配置
 #[derive(Debug, Clone)]
@@ -58,6 +65,14 @@ impl ClaudeShell {
             .send()
             .await?;
 
+        // 检查状态码
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await?;
+            let error = error::parse_error(&body)?;
+            return Err(anyhow::anyhow!("API error ({}): {}", status, error.error.message));
+        }
+
         let message = response.json::<request::MessageResponse>().await?;
         Ok(message)
     }
@@ -77,7 +92,47 @@ impl ClaudeShell {
             .send()
             .await?;
 
+        // 检查状态码
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await?;
+            let error = error::parse_error(&body)?;
+            return Err(anyhow::anyhow!("API error ({}): {}", status, error.error.message));
+        }
+
         Ok(response)
+    }
+    
+    /// 测试 API 连接
+    pub async fn test_connection(&self) -> Result<bool> {
+        let request = request::MessageRequest {
+            model: "claude-3-5-sonnet-20241022".to_string(),
+            messages: vec![request::Message {
+                role: "user".to_string(),
+                content: request::MessageContent::Text("ping".to_string()),
+            }],
+            max_tokens: 10,
+            stream: None,
+            system: None,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            stop_sequences: None,
+            tools: None,
+            metadata: None,
+        };
+        
+        match self.send_message(request).await {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                // 如果是认证错误，返回 false
+                if e.to_string().contains("401") {
+                    Ok(false)
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 }
 
