@@ -30,8 +30,7 @@ pub struct ModelSyncService {
     api_keys: Arc<RwLock<HashMap<String, String>>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SyncState {
     pub last_sync: Option<DateTime<Utc>>,
     pub last_success: Option<DateTime<Utc>>,
