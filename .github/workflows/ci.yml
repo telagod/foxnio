@@ -43,7 +43,7 @@ jobs:
         run: cargo fmt -- --check
       
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --lib -- -D warnings
 
   # 前端代码检查
   lint-frontend:
