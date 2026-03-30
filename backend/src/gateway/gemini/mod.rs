@@ -22,14 +22,12 @@ pub use types::*;
 use axum::{
     body::Body,
     extract::{Extension, Path, Query},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use bytes::Bytes;
-use futures::StreamExt;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::gateway::SharedState;
 

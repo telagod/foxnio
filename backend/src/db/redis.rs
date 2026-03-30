@@ -305,10 +305,9 @@ impl RedisPool {
                     self.stats
                         .record_request(start.elapsed().as_millis() as u64);
                     return Ok(Some(entry.value.clone()));
-                } else {
-                    // 过期，删除
-                    cache.pop(key);
                 }
+                // 过期，删除
+                cache.pop(key);
             }
         }
 

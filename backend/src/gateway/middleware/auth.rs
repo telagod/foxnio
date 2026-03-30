@@ -3,7 +3,6 @@
 #![allow(dead_code)]
 use axum::{
     body::Body,
-    extract::State,
     http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},

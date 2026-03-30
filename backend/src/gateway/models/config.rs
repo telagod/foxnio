@@ -136,7 +136,7 @@ lazy_static! {
             api_name: "gpt-4-turbo-preview".to_string(),
             display_name: "GPT-4 Turbo".to_string(),
             max_tokens: 4096,
-            context_window: 128000,
+            context_window: 128_000,
             input_price_per_m: 10.0,
             output_price_per_m: 30.0,
             capabilities: ModelCapabilities {
@@ -182,7 +182,7 @@ lazy_static! {
             api_name: "gpt-4o".to_string(),
             display_name: "GPT-4o".to_string(),
             max_tokens: 4096,
-            context_window: 128000,
+            context_window: 128_000,
             input_price_per_m: 5.0,
             output_price_per_m: 15.0,
             capabilities: ModelCapabilities {
@@ -205,7 +205,7 @@ lazy_static! {
             api_name: "gpt-4o-mini".to_string(),
             display_name: "GPT-4o Mini".to_string(),
             max_tokens: 4096,
-            context_window: 128000,
+            context_window: 128_000,
             input_price_per_m: 0.15,
             output_price_per_m: 0.6,
             capabilities: ModelCapabilities {
@@ -252,7 +252,7 @@ lazy_static! {
             api_name: "claude-3-opus-20240229".to_string(),
             display_name: "Claude 3 Opus".to_string(),
             max_tokens: 4096,
-            context_window: 200000,
+            context_window: 200_000,
             input_price_per_m: 15.0,
             output_price_per_m: 75.0,
             capabilities: ModelCapabilities {
@@ -275,7 +275,7 @@ lazy_static! {
             api_name: "claude-3-5-sonnet-20241022".to_string(),
             display_name: "Claude 3.5 Sonnet".to_string(),
             max_tokens: 8192,
-            context_window: 200000,
+            context_window: 200_000,
             input_price_per_m: 3.0,
             output_price_per_m: 15.0,
             capabilities: ModelCapabilities {
@@ -298,7 +298,7 @@ lazy_static! {
             api_name: "claude-3-5-sonnet-20241022".to_string(),
             display_name: "Claude 3.5 Sonnet v2".to_string(),
             max_tokens: 8192,
-            context_window: 200000,
+            context_window: 200_000,
             input_price_per_m: 3.0,
             output_price_per_m: 15.0,
             capabilities: ModelCapabilities {
@@ -321,7 +321,7 @@ lazy_static! {
             api_name: "claude-3-haiku-20240307".to_string(),
             display_name: "Claude 3 Haiku".to_string(),
             max_tokens: 4096,
-            context_window: 200000,
+            context_window: 200_000,
             input_price_per_m: 0.25,
             output_price_per_m: 1.25,
             capabilities: ModelCapabilities {
@@ -391,7 +391,7 @@ lazy_static! {
             api_name: "gemini-1.5-pro".to_string(),
             display_name: "Gemini 1.5 Pro".to_string(),
             max_tokens: 8192,
-            context_window: 1000000,
+            context_window: 1_000_000,
             input_price_per_m: 3.5,
             output_price_per_m: 10.5,
             capabilities: ModelCapabilities {
@@ -532,7 +532,7 @@ lazy_static! {
             api_name: "command-r-plus".to_string(),
             display_name: "Command R+".to_string(),
             max_tokens: 4096,
-            context_window: 128000,
+            context_window: 128_000,
             input_price_per_m: 3.0,
             output_price_per_m: 15.0,
             capabilities: ModelCapabilities {
@@ -555,7 +555,7 @@ lazy_static! {
             api_name: "command-r".to_string(),
             display_name: "Command R".to_string(),
             max_tokens: 4096,
-            context_window: 128000,
+            context_window: 128_000,
             input_price_per_m: 0.5,
             output_price_per_m: 1.5,
             capabilities: ModelCapabilities {

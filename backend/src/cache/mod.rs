@@ -393,7 +393,7 @@ mod tests {
         let stats = cache.stats();
         assert_eq!(stats.hit_count, 2);
         assert_eq!(stats.miss_count, 1);
-        assert!((stats.hit_rate - 0.6666666666666666).abs() < 0.0001);
+        assert!((stats.hit_rate - 0.666_666_666_666_666_6).abs() < 0.0001);
     }
 
     #[test]

@@ -7,7 +7,7 @@
 #![allow(dead_code)]
 
 use axum::{
-    body::Body, extract::State, http::Request, middleware::Next, response::Response, Extension,
+    body::Body, http::Request, middleware::Next, response::Response, Extension,
 };
 use std::time::Instant;
 use uuid::Uuid;

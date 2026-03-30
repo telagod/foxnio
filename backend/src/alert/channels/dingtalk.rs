@@ -267,7 +267,7 @@ mod tests {
         let config = create_test_config();
         let channel = DingTalkChannel::new(config);
 
-        let timestamp = 1700000000000i64;
+        let timestamp = 1_700_000_000_000_i64;
         let sign = channel.generate_sign(timestamp);
 
         assert!(sign.is_some());

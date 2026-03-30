@@ -88,8 +88,8 @@ impl EmailChannel {
                 .collect::<Vec<_>>()
                 .join("\n");
             format!(
-                r#"<h3>标签</h3>
-                <ul>{}</ul>"#,
+                r"<h3>标签</h3>
+                <ul>{}</ul>",
                 labels
             )
         };
