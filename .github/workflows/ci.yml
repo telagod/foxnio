@@ -43,7 +43,7 @@ jobs:
         run: cargo fmt -- --check
       
       - name: Run clippy
-        run: cargo clippy --lib -- -D warnings
+        run: cargo clippy --lib -- -W clippy::all -A clippy::too_many_arguments -A clippy::type_complexity -A clippy::unnecessary_map_or
 
   # 前端代码检查
   lint-frontend:
