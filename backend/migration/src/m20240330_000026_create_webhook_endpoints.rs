@@ -94,7 +94,7 @@ impl MigrationTrait for Migration {
         // Add check constraint for HTTPS URL
         manager
             .get_connection()
-            .execute_unbound(
+            .execute_unprepared(
                 r#"
                 ALTER TABLE webhook_endpoints 
                 ADD CONSTRAINT valid_webhook_url 
@@ -106,7 +106,7 @@ impl MigrationTrait for Migration {
         // Add check constraint for non-empty events array
         manager
             .get_connection()
-            .execute_unbound(
+            .execute_unprepared(
                 r#"
                 ALTER TABLE webhook_endpoints 
                 ADD CONSTRAINT valid_webhook_events 
