@@ -17,7 +17,8 @@ pub use ::prometheus::{
     opts, register_counter, register_counter_vec, register_gauge, register_gauge_vec,
     register_histogram, register_histogram_vec, register_int_counter, register_int_counter_vec,
     register_int_gauge, register_int_gauge_vec, Counter, CounterVec, Encoder, Gauge, GaugeVec,
-    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, TextEncoder,
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
+    TextEncoder,
 };
 
 // Re-export business metrics

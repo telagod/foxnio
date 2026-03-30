@@ -201,7 +201,7 @@ pub struct TestApp {
 impl TestApp {
     pub fn new() -> Self {
         let db = MockDatabase::new();
-        
+
         // 创建管理员用户
         let admin_user = MockUser {
             id: Uuid::new_v4(),
@@ -228,7 +228,7 @@ impl TestApp {
         {
             let mut users = db.users.lock().unwrap();
             let mut emails = db.emails.lock().unwrap();
-            
+
             users.insert(admin_user.id, admin_user.clone());
             users.insert(normal_user.id, normal_user.clone());
             emails.insert(admin_user.email.clone(), admin_user.id);
@@ -293,10 +293,10 @@ pub fn create_test_api_keys(app: &TestApp, user_id: Uuid, count: usize) -> Vec<M
     for i in 0..count {
         let key = format!("sk-test-{}", Uuid::new_v4().to_string().replace('-', ""));
         let prefix = key[..10].to_string();
-        
+
         // 简单哈希
         let key_hash = format!("hash_{}", key);
-        
+
         let api_key = MockApiKey {
             id: Uuid::new_v4(),
             user_id,
@@ -525,11 +525,11 @@ pub async fn batch_import_users_csv(db: &MockDatabase, csv_content: &str) -> Bat
     let mut parse_errors = Vec::new();
 
     let lines: Vec<&str> = csv_content.lines().collect();
-    
+
     // 跳过标题行
     for (line_num, line) in lines.iter().enumerate().skip(1) {
         let fields: Vec<&str> = line.split(',').collect();
-        
+
         if fields.len() < 2 {
             parse_errors.push((line_num, "Missing required fields"));
             continue;
@@ -555,7 +555,11 @@ pub async fn batch_import_users_csv(db: &MockDatabase, csv_content: &str) -> Bat
             continue;
         }
 
-        requests.push(CreateUserRequest { email, password, role });
+        requests.push(CreateUserRequest {
+            email,
+            password,
+            role,
+        });
     }
 
     batch_create_users(db, requests).await
@@ -692,7 +696,7 @@ async fn test_batch_create_api_keys_success() {
     for (i, item) in result.results.iter().enumerate() {
         assert!(item.error.is_none());
         assert!(item.data.is_some());
-        
+
         let key_info = item.data.as_ref().unwrap();
         assert_eq!(key_info.user_id, app.admin_user.id);
         assert_eq!(key_info.name, format!("API Key {}", i + 1));
@@ -759,11 +763,19 @@ async fn test_batch_create_with_invalid_requests() {
     assert_eq!(result.failed, 2);
 
     // 验证部分成功
-    let errors: Vec<_> = result.results.iter().filter(|r| r.error.is_some()).collect();
+    let errors: Vec<_> = result
+        .results
+        .iter()
+        .filter(|r| r.error.is_some())
+        .collect();
     assert_eq!(errors.len(), 2);
 
     // 验证错误信息
-    assert!(result.results[1].error.as_ref().unwrap().contains("not found"));
+    assert!(result.results[1]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("not found"));
     assert!(result.results[3].error.as_ref().unwrap().contains("empty"));
 }
 
@@ -1149,8 +1161,16 @@ async fn test_batch_create_users_duplicate_email() {
     assert_eq!(result.failed, 2);
 
     // 验证错误信息
-    assert!(result.results[1].error.as_ref().unwrap().contains("already exists"));
-    assert!(result.results[2].error.as_ref().unwrap().contains("already exists"));
+    assert!(result.results[1]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("already exists"));
+    assert!(result.results[2]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("already exists"));
 }
 
 /// 测试 14: 大批量操作
@@ -1192,7 +1212,7 @@ async fn test_concurrent_batch_operations() {
         .map(|batch_id| {
             let db = db.clone();
             let user_id = user_id;
-            
+
             tokio::spawn(async move {
                 let requests: Vec<CreateApiKeyRequest> = (0..10)
                     .map(|i| CreateApiKeyRequest {
@@ -1229,7 +1249,7 @@ async fn test_batch_update_partial_failure() {
 
     // 创建测试账号
     let accounts = create_test_accounts(&app, 3);
-    
+
     // 先记录初始状态
     let initial_statuses: Vec<String> = accounts.iter().map(|a| a.status.clone()).collect();
 
@@ -1254,10 +1274,19 @@ async fn test_batch_update_partial_failure() {
 
     // 验证成功的账号被更新
     let db_accounts = app.db.accounts.lock().unwrap();
-    assert_eq!(db_accounts.get(&accounts[0].id).unwrap().status, "new_status");
-    assert_eq!(db_accounts.get(&accounts[1].id).unwrap().status, "new_status");
+    assert_eq!(
+        db_accounts.get(&accounts[0].id).unwrap().status,
+        "new_status"
+    );
+    assert_eq!(
+        db_accounts.get(&accounts[1].id).unwrap().status,
+        "new_status"
+    );
     // 第三个账号没有被更新请求，保持原状态
-    assert_eq!(db_accounts.get(&accounts[2].id).unwrap().status, initial_statuses[2]);
+    assert_eq!(
+        db_accounts.get(&accounts[2].id).unwrap().status,
+        initial_statuses[2]
+    );
 }
 
 /// 测试 17: 空 CSV 导入

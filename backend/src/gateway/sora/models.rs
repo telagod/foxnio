@@ -331,13 +331,9 @@ pub fn build_sora_model_families() -> Vec<SoraModelFamily> {
             _ => continue,
         };
 
-        let entry = families.entry(fam_id).or_insert_with(|| {
-            (
-                config.model_type,
-                HashSet::new(),
-                HashSet::new(),
-            )
-        });
+        let entry = families
+            .entry(fam_id)
+            .or_insert_with(|| (config.model_type, HashSet::new(), HashSet::new()));
 
         if let Some(o) = orientation {
             entry.1.insert(o);

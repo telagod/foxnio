@@ -128,10 +128,16 @@ impl MockWebhookStore {
         }
     }
 
-    fn create(&mut self, user_id: Uuid, url: String, events: Vec<String>, secret: String) -> MockWebhook {
+    fn create(
+        &mut self,
+        user_id: Uuid,
+        url: String,
+        events: Vec<String>,
+        secret: String,
+    ) -> MockWebhook {
         let id = self.next_id;
         self.next_id += 1;
-        
+
         let webhook = MockWebhook {
             id,
             user_id,
@@ -141,7 +147,7 @@ impl MockWebhookStore {
             enabled: true,
             created_at: Utc::now(),
         };
-        
+
         self.webhooks.insert(id, webhook.clone());
         self.deliveries.insert(id, vec![]);
         webhook
@@ -152,10 +158,21 @@ impl MockWebhookStore {
     }
 
     fn list(&self, user_id: Uuid) -> Vec<&MockWebhook> {
-        self.webhooks.values().filter(|w| w.user_id == user_id).collect()
+        self.webhooks
+            .values()
+            .filter(|w| w.user_id == user_id)
+            .collect()
     }
 
-    fn update(&mut self, id: i64, user_id: Uuid, url: Option<String>, events: Option<Vec<String>>, secret: Option<String>, enabled: Option<bool>) -> Option<MockWebhook> {
+    fn update(
+        &mut self,
+        id: i64,
+        user_id: Uuid,
+        url: Option<String>,
+        events: Option<Vec<String>>,
+        secret: Option<String>,
+        enabled: Option<bool>,
+    ) -> Option<MockWebhook> {
         if let Some(webhook) = self.webhooks.get_mut(&id) {
             if webhook.user_id != user_id {
                 return None;
@@ -188,7 +205,13 @@ impl MockWebhookStore {
         false
     }
 
-    fn add_delivery(&mut self, endpoint_id: i64, event_type: &str, status: &str, attempts: i32) -> i64 {
+    fn add_delivery(
+        &mut self,
+        endpoint_id: i64,
+        event_type: &str,
+        status: &str,
+        attempts: i32,
+    ) -> i64 {
         let delivery = MockDelivery {
             id: self.next_id,
             endpoint_id,
@@ -197,10 +220,14 @@ impl MockWebhookStore {
             response_code: if status == "success" { Some(200) } else { None },
             attempts,
             created_at: Utc::now(),
-            delivered_at: if status == "success" { Some(Utc::now()) } else { None },
+            delivered_at: if status == "success" {
+                Some(Utc::now())
+            } else {
+                None
+            },
         };
         self.next_id += 1;
-        
+
         if let Some(deliveries) = self.deliveries.get_mut(&endpoint_id) {
             deliveries.push(delivery.clone());
         }
@@ -236,7 +263,7 @@ fn is_valid_event_type(event: &str) -> bool {
 /// 生成测试 JWT Token
 fn generate_test_token(user_id: &Uuid, email: &str, role: &str) -> String {
     use jsonwebtoken::{encode, EncodingKey, Header};
-    
+
     let claims = TestClaims {
         sub: user_id.to_string(),
         email: email.to_string(),
@@ -244,7 +271,7 @@ fn generate_test_token(user_id: &Uuid, email: &str, role: &str) -> String {
         exp: (Utc::now() + Duration::hours(24)).timestamp(),
         iat: Utc::now().timestamp(),
     };
-    
+
     encode(
         &Header::default(),
         &claims,
@@ -322,12 +349,20 @@ fn test_webhook_crud_flow() {
     // 1. 创建 webhook（HTTPS URL 验证）
     let https_url = "https://example.com/webhook";
     let events = vec!["account.created".to_string(), "api_key.created".to_string()];
-    
+
     // 验证 URL 是 HTTPS
-    assert!(https_url.starts_with("https://"), "Webhook URL must use HTTPS");
-    
-    let webhook = store.create(user_id, https_url.to_string(), events.clone(), "test-secret".to_string());
-    
+    assert!(
+        https_url.starts_with("https://"),
+        "Webhook URL must use HTTPS"
+    );
+
+    let webhook = store.create(
+        user_id,
+        https_url.to_string(),
+        events.clone(),
+        "test-secret".to_string(),
+    );
+
     assert!(webhook.id > 0, "Webhook ID should be positive");
     assert_eq!(webhook.url, https_url);
     assert_eq!(webhook.events, events);
@@ -345,11 +380,17 @@ fn test_webhook_crud_flow() {
 
     // 4. 更新 webhook
     let new_url = "https://example.com/new-webhook";
-    let new_events = vec!["quota.exhausted".to_string(), "payment.received".to_string()];
-    
+    let new_events = vec![
+        "quota.exhausted".to_string(),
+        "payment.received".to_string(),
+    ];
+
     // 验证新 URL 也是 HTTPS
-    assert!(new_url.starts_with("https://"), "New webhook URL must use HTTPS");
-    
+    assert!(
+        new_url.starts_with("https://"),
+        "New webhook URL must use HTTPS"
+    );
+
     let updated = store.update(
         webhook.id,
         user_id,
@@ -358,7 +399,7 @@ fn test_webhook_crud_flow() {
         Some("new-secret".to_string()),
         Some(false),
     );
-    
+
     assert!(updated.is_some(), "Update should succeed");
     let updated = updated.unwrap();
     assert_eq!(updated.url, new_url);
@@ -373,9 +414,20 @@ fn test_webhook_crud_flow() {
     });
     let timestamp = Utc::now().timestamp();
     let signature = generate_signature(&updated.secret, timestamp, &test_payload.to_string());
-    
-    assert!(verify_signature_format(&format!("sha256={}", signature)), "Signature format should be valid");
-    assert!(verify_signature(&updated.secret, timestamp, &test_payload.to_string(), &format!("sha256={}", signature)), "Signature should verify");
+
+    assert!(
+        verify_signature_format(&format!("sha256={}", signature)),
+        "Signature format should be valid"
+    );
+    assert!(
+        verify_signature(
+            &updated.secret,
+            timestamp,
+            &test_payload.to_string(),
+            &format!("sha256={}", signature)
+        ),
+        "Signature should verify"
+    );
 
     // 6. 删除 webhook
     let deleted = store.delete(webhook.id, user_id);
@@ -383,11 +435,17 @@ fn test_webhook_crud_flow() {
 
     // 验证删除后无法获取
     let not_found = store.get(webhook.id, user_id);
-    assert!(not_found.is_none(), "Webhook should not exist after deletion");
+    assert!(
+        not_found.is_none(),
+        "Webhook should not exist after deletion"
+    );
 
     // 验证删除后列表为空
     let empty_list = store.list(user_id);
-    assert!(empty_list.is_empty(), "Webhook list should be empty after deletion");
+    assert!(
+        empty_list.is_empty(),
+        "Webhook list should be empty after deletion"
+    );
 }
 
 // ============================================================================
@@ -402,19 +460,34 @@ fn test_webhook_signature_generation() {
 
     // 1. HMAC-SHA256 签名生成
     let signature = generate_signature(secret, timestamp, payload);
-    
+
     // 签名应该是 64 个十六进制字符
     assert_eq!(signature.len(), 64, "Signature should be 64 hex characters");
-    assert!(signature.chars().all(|c| c.is_ascii_hexdigit()), "Signature should be valid hex");
+    assert!(
+        signature.chars().all(|c| c.is_ascii_hexdigit()),
+        "Signature should be valid hex"
+    );
 
     // 2. 签名格式验证（t=timestamp,v1=signature）
     let formatted_signature = format!("sha256={}", signature);
-    assert!(verify_signature_format(&formatted_signature), "Formatted signature should be valid");
+    assert!(
+        verify_signature_format(&formatted_signature),
+        "Formatted signature should be valid"
+    );
 
     // 测试无效格式
-    assert!(!verify_signature_format("invalid"), "Invalid format should fail");
-    assert!(!verify_signature_format("sha256=short"), "Short signature should fail");
-    assert!(!verify_signature_format("md5=abc123"), "Wrong algorithm should fail");
+    assert!(
+        !verify_signature_format("invalid"),
+        "Invalid format should fail"
+    );
+    assert!(
+        !verify_signature_format("sha256=short"),
+        "Short signature should fail"
+    );
+    assert!(
+        !verify_signature_format("md5=abc123"),
+        "Wrong algorithm should fail"
+    );
 
     // 3. 签名验证逻辑
     // 相同输入应产生相同签名
@@ -424,21 +497,39 @@ fn test_webhook_signature_generation() {
 
     // 不同密钥应产生不同签名
     let sig3 = generate_signature("different-secret", timestamp, payload);
-    assert_ne!(sig1, sig3, "Different secrets should produce different signatures");
+    assert_ne!(
+        sig1, sig3,
+        "Different secrets should produce different signatures"
+    );
 
     // 不同时间戳应产生不同签名
     let sig4 = generate_signature(secret, timestamp + 1, payload);
-    assert_ne!(sig1, sig4, "Different timestamps should produce different signatures");
+    assert_ne!(
+        sig1, sig4,
+        "Different timestamps should produce different signatures"
+    );
 
     // 不同 payload 应产生不同签名
     let sig5 = generate_signature(secret, timestamp, "different payload");
-    assert_ne!(sig1, sig5, "Different payloads should produce different signatures");
+    assert_ne!(
+        sig1, sig5,
+        "Different payloads should produce different signatures"
+    );
 
     // 验证签名函数
     let full_sig = format!("sha256={}", signature);
-    assert!(verify_signature(secret, timestamp, payload, &full_sig), "Should verify correct signature");
-    assert!(!verify_signature(secret, timestamp, payload, "sha256=wrong"), "Should reject wrong signature");
-    assert!(!verify_signature("wrong-secret", timestamp, payload, &full_sig), "Should reject wrong secret");
+    assert!(
+        verify_signature(secret, timestamp, payload, &full_sig),
+        "Should verify correct signature"
+    );
+    assert!(
+        !verify_signature(secret, timestamp, payload, "sha256=wrong"),
+        "Should reject wrong signature"
+    );
+    assert!(
+        !verify_signature("wrong-secret", timestamp, payload, &full_sig),
+        "Should reject wrong secret"
+    );
 }
 
 #[test]
@@ -463,11 +554,11 @@ fn test_signature_with_unicode_payload() {
     let payload = r#"{"message":"你好世界 🌍"}"#;
 
     let sig = generate_signature(secret, 123456, payload);
-    
+
     // 签名应该是有效的十六进制
     assert_eq!(sig.len(), 64);
     assert!(sig.chars().all(|c| c.is_ascii_hexdigit()));
-    
+
     // 验证可以正确验证
     let full_sig = format!("sha256={}", sig);
     assert!(verify_signature(secret, 123456, payload, &full_sig));
@@ -488,7 +579,11 @@ fn test_webhook_url_validation() {
     ];
 
     for url in https_urls {
-        assert!(url.starts_with("https://"), "HTTPS URL should be allowed: {}", url);
+        assert!(
+            url.starts_with("https://"),
+            "HTTPS URL should be allowed: {}",
+            url
+        );
     }
 
     // HTTP URL 拒绝
@@ -499,7 +594,11 @@ fn test_webhook_url_validation() {
     ];
 
     for url in http_urls {
-        assert!(!url.starts_with("https://"), "HTTP URL should be rejected: {}", url);
+        assert!(
+            !url.starts_with("https://"),
+            "HTTP URL should be rejected: {}",
+            url
+        );
     }
 
     // 无效 URL 格式拒绝
@@ -510,11 +609,15 @@ fn test_webhook_url_validation() {
         "file:///etc/passwd",
         "javascript:alert(1)",
         "//example.com/webhook", // 协议相对 URL
-        "https://", // 缺少主机
+        "https://",              // 缺少主机
     ];
 
     for url in invalid_urls {
-        assert!(!url.starts_with("https://") || url.len() <= 8, "Invalid URL should be rejected: {}", url);
+        assert!(
+            !url.starts_with("https://") || url.len() <= 8,
+            "Invalid URL should be rejected: {}",
+            url
+        );
     }
 }
 
@@ -560,7 +663,11 @@ fn test_url_private_ip_rejection() {
     };
 
     for url in blocked_urls {
-        assert!(url_lower_checks(url), "Private IP URL should be blocked: {}", url);
+        assert!(
+            url_lower_checks(url),
+            "Private IP URL should be blocked: {}",
+            url
+        );
     }
 
     // 公网 URL 应该允许
@@ -571,7 +678,11 @@ fn test_url_private_ip_rejection() {
     ];
 
     for url in allowed_urls {
-        assert!(!url_lower_checks(url), "Public URL should be allowed: {}", url);
+        assert!(
+            !url_lower_checks(url),
+            "Public URL should be allowed: {}",
+            url
+        );
         assert!(url.starts_with("https://"), "URL must be HTTPS: {}", url);
     }
 }
@@ -599,12 +710,19 @@ fn test_webhook_event_types() {
     ];
 
     for event in &valid_events {
-        assert!(is_valid_event_type(event), "Valid event type should be accepted: {}", event);
+        assert!(
+            is_valid_event_type(event),
+            "Valid event type should be accepted: {}",
+            event
+        );
     }
 
     // 空事件列表拒绝
     let empty_events: Vec<String> = vec![];
-    assert!(empty_events.is_empty(), "Empty event list should be rejected");
+    assert!(
+        empty_events.is_empty(),
+        "Empty event list should be rejected"
+    );
 
     // 无效事件类型拒绝
     let invalid_events = vec![
@@ -613,12 +731,16 @@ fn test_webhook_event_types() {
         "account.create", // 错误的后缀
         "user.created",   // 不存在的事件
         "random.event",
-        "ACCOUNT.CREATED", // 大小写
+        "ACCOUNT.CREATED",  // 大小写
         "account..created", // 多个点
     ];
 
     for event in &invalid_events {
-        assert!(!is_valid_event_type(event), "Invalid event type should be rejected: {}", event);
+        assert!(
+            !is_valid_event_type(event),
+            "Invalid event type should be rejected: {}",
+            event
+        );
     }
 }
 
@@ -635,7 +757,10 @@ fn test_event_type_format() {
     for (category, action) in valid_formats {
         let event = format!("{}.{}", category, action);
         assert!(event.contains('.'), "Event should contain dot separator");
-        assert!(event.starts_with(category), "Event should start with category");
+        assert!(
+            event.starts_with(category),
+            "Event should start with category"
+        );
         assert!(event.ends_with(action), "Event should end with action");
     }
 }
@@ -683,7 +808,10 @@ fn test_webhook_delivery_tracking() {
 
     // 3. 重试次数追踪
     assert_eq!(success_delivery.attempts, 1, "Success after 1 attempt");
-    assert_eq!(failed_delivery.attempts, 5, "Failed after 5 attempts (max retries)");
+    assert_eq!(
+        failed_delivery.attempts, 5,
+        "Failed after 5 attempts (max retries)"
+    );
     assert_eq!(retrying_delivery.attempts, 2, "Retrying, 2 attempts so far");
 }
 
@@ -698,12 +826,20 @@ fn test_delivery_status_transitions() {
 
     // 验证有效状态
     for status in &valid_statuses {
-        assert!(valid_statuses.contains(status), "Status should be valid: {}", status);
+        assert!(
+            valid_statuses.contains(status),
+            "Status should be valid: {}",
+            status
+        );
     }
 
     // 验证无效状态
     for status in &invalid_statuses {
-        assert!(!valid_statuses.contains(status), "Status should be invalid: {}", status);
+        assert!(
+            !valid_statuses.contains(status),
+            "Status should be invalid: {}",
+            status
+        );
     }
 }
 
@@ -711,15 +847,24 @@ fn test_delivery_status_transitions() {
 fn test_delivery_retry_logic() {
     // 测试重试逻辑
     let max_attempts = 6; // 首次 + 5次重试
-    
+
     for attempt in 0..max_attempts {
         let can_retry = attempt < max_attempts - 1;
-        assert_eq!(attempt < max_attempts - 1, can_retry, "Retry logic at attempt {}", attempt);
+        assert_eq!(
+            attempt < max_attempts - 1,
+            can_retry,
+            "Retry logic at attempt {}",
+            attempt
+        );
     }
 
     // 测试指数退避
     let backoff_times: Vec<u64> = (0..5).map(|i| 2u64.pow(i)).collect();
-    assert_eq!(backoff_times, vec![1, 2, 4, 8, 16], "Backoff should be exponential");
+    assert_eq!(
+        backoff_times,
+        vec![1, 2, 4, 8, 16],
+        "Backoff should be exponential"
+    );
 }
 
 // ============================================================================
@@ -762,7 +907,11 @@ fn test_webhook_authentication() {
             &jsonwebtoken::DecodingKey::from_secret(b"test-secret-key"),
             &jsonwebtoken::Validation::default(),
         );
-        assert!(result.is_err(), "Invalid token should be rejected: {}", token);
+        assert!(
+            result.is_err(),
+            "Invalid token should be rejected: {}",
+            token
+        );
     }
 
     // 过期 token 拒绝
@@ -777,7 +926,8 @@ fn test_webhook_authentication() {
         &jsonwebtoken::Header::default(),
         &expired_claims,
         &jsonwebtoken::EncodingKey::from_secret(b"test-secret-key"),
-    ).unwrap();
+    )
+    .unwrap();
 
     let expired_result = jsonwebtoken::decode::<TestClaims>(
         &expired_token,
@@ -795,7 +945,8 @@ fn test_token_role_validation() {
         &user_token,
         &jsonwebtoken::DecodingKey::from_secret(b"test-secret-key"),
         &jsonwebtoken::Validation::default(),
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(user_decoded.claims.role, "user");
 
     // 管理员 token
@@ -804,7 +955,8 @@ fn test_token_role_validation() {
         &admin_token,
         &jsonwebtoken::DecodingKey::from_secret(b"test-secret-key"),
         &jsonwebtoken::Validation::default(),
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(admin_decoded.claims.role, "admin");
 }
 
@@ -831,15 +983,24 @@ fn test_webhook_authorization() {
     assert_eq!(user_webhooks.len(), 1, "User should see their own webhooks");
 
     let other_user_webhooks = store.list(other_user_id);
-    assert!(other_user_webhooks.is_empty(), "Other user should not see user's webhooks");
+    assert!(
+        other_user_webhooks.is_empty(),
+        "Other user should not see user's webhooks"
+    );
 
     // 用户可以获取自己的 webhook
     let user_access = store.get(webhook.id, user_id);
-    assert!(user_access.is_some(), "User should access their own webhook");
+    assert!(
+        user_access.is_some(),
+        "User should access their own webhook"
+    );
 
     // 其他用户不能获取此 webhook
     let other_access = store.get(webhook.id, other_user_id);
-    assert!(other_access.is_none(), "Other user should not access user's webhook");
+    assert!(
+        other_access.is_none(),
+        "Other user should not access user's webhook"
+    );
 
     // 其他用户不能更新此 webhook
     let update_result = store.update(
@@ -850,15 +1011,24 @@ fn test_webhook_authorization() {
         None,
         None,
     );
-    assert!(update_result.is_none(), "Other user should not update user's webhook");
+    assert!(
+        update_result.is_none(),
+        "Other user should not update user's webhook"
+    );
 
     // 其他用户不能删除此 webhook
     let delete_result = store.delete(webhook.id, other_user_id);
-    assert!(!delete_result, "Other user should not delete user's webhook");
+    assert!(
+        !delete_result,
+        "Other user should not delete user's webhook"
+    );
 
     // 验证 webhook 仍然存在
     let still_exists = store.get(webhook.id, user_id);
-    assert!(still_exists.is_some(), "Webhook should still exist after unauthorized delete attempt");
+    assert!(
+        still_exists.is_some(),
+        "Webhook should still exist after unauthorized delete attempt"
+    );
 
     // 用户可以删除自己的 webhook
     let owner_delete = store.delete(webhook.id, user_id);
@@ -868,20 +1038,50 @@ fn test_webhook_authorization() {
 #[test]
 fn test_multi_user_isolation() {
     let mut store = MockWebhookStore::new();
-    
+
     let user1 = Uuid::new_v4();
     let user2 = Uuid::new_v4();
     let user3 = Uuid::new_v4();
 
     // 每个用户创建多个 webhooks
-    let u1_w1 = store.create(user1, "https://u1-1.example.com/webhook".to_string(), vec!["account.created".to_string()], "s1".to_string());
-    let u1_w2 = store.create(user1, "https://u1-2.example.com/webhook".to_string(), vec!["api_key.created".to_string()], "s2".to_string());
-    
-    let u2_w1 = store.create(user2, "https://u2-1.example.com/webhook".to_string(), vec!["quota.exhausted".to_string()], "s3".to_string());
-    
-    let u3_w1 = store.create(user3, "https://u3-1.example.com/webhook".to_string(), vec!["payment.received".to_string()], "s4".to_string());
-    let u3_w2 = store.create(user3, "https://u3-2.example.com/webhook".to_string(), vec!["model.added".to_string()], "s5".to_string());
-    let u3_w3 = store.create(user3, "https://u3-3.example.com/webhook".to_string(), vec!["price.changed".to_string()], "s6".to_string());
+    let u1_w1 = store.create(
+        user1,
+        "https://u1-1.example.com/webhook".to_string(),
+        vec!["account.created".to_string()],
+        "s1".to_string(),
+    );
+    let u1_w2 = store.create(
+        user1,
+        "https://u1-2.example.com/webhook".to_string(),
+        vec!["api_key.created".to_string()],
+        "s2".to_string(),
+    );
+
+    let u2_w1 = store.create(
+        user2,
+        "https://u2-1.example.com/webhook".to_string(),
+        vec!["quota.exhausted".to_string()],
+        "s3".to_string(),
+    );
+
+    let u3_w1 = store.create(
+        user3,
+        "https://u3-1.example.com/webhook".to_string(),
+        vec!["payment.received".to_string()],
+        "s4".to_string(),
+    );
+    let u3_w2 = store.create(
+        user3,
+        "https://u3-2.example.com/webhook".to_string(),
+        vec!["model.added".to_string()],
+        "s5".to_string(),
+    );
+    let u3_w3 = store.create(
+        user3,
+        "https://u3-3.example.com/webhook".to_string(),
+        vec!["price.changed".to_string()],
+        "s6".to_string(),
+    );
 
     // 验证隔离
     assert_eq!(store.list(user1).len(), 2);
@@ -890,10 +1090,10 @@ fn test_multi_user_isolation() {
 
     // 用户1不能访问用户2的 webhook
     assert!(store.get(u2_w1.id, user1).is_none());
-    
+
     // 用户3不能删除用户1的 webhook
     assert!(!store.delete(u1_w1.id, user3));
-    
+
     // 验证数据完整性
     assert!(store.get(u1_w1.id, user1).is_some());
 }
@@ -905,16 +1105,14 @@ fn test_multi_user_isolation() {
 #[test]
 fn test_webhook_limits() {
     // 测试各种边界条件
-    
+
     // URL 长度限制
     let long_url = format!("https://example.com/{}", "a".repeat(2000));
     assert!(long_url.starts_with("https://"));
     // 实际应用中应该有 URL 长度限制
 
     // 事件数量限制
-    let many_events: Vec<String> = (0..100)
-        .map(|i| format!("event.{}", i))
-        .collect();
+    let many_events: Vec<String> = (0..100).map(|i| format!("event.{}", i)).collect();
     assert_eq!(many_events.len(), 100);
     // 实际应用中应该有事件数量限制
 
@@ -1006,13 +1204,21 @@ fn test_cleanup_test_data() {
 async fn test_webhook_http_endpoints() {
     // 创建模拟的路由
     let app = Router::new()
-        .route("/api/v1/webhooks", get(list_webhooks_handler).post(create_webhook_handler))
+        .route(
+            "/api/v1/webhooks",
+            get(list_webhooks_handler).post(create_webhook_handler),
+        )
         .route(
             "/api/v1/webhooks/:id",
-            get(get_webhook_handler).put(update_webhook_handler).delete(delete_webhook_handler),
+            get(get_webhook_handler)
+                .put(update_webhook_handler)
+                .delete(delete_webhook_handler),
         )
         .route("/api/v1/webhooks/:id/test", post(test_webhook_handler))
-        .route("/api/v1/webhooks/:id/deliveries", get(list_deliveries_handler));
+        .route(
+            "/api/v1/webhooks/:id/deliveries",
+            get(list_deliveries_handler),
+        );
 
     // 测试健康检查（简单的路由测试）
     let response = app
@@ -1034,7 +1240,9 @@ async fn list_webhooks_handler() -> Json<Vec<WebhookResponse>> {
     Json(vec![])
 }
 
-async fn create_webhook_handler(Json(_req): Json<CreateWebhookRequest>) -> (StatusCode, Json<WebhookResponse>) {
+async fn create_webhook_handler(
+    Json(_req): Json<CreateWebhookRequest>,
+) -> (StatusCode, Json<WebhookResponse>) {
     (
         StatusCode::CREATED,
         Json(WebhookResponse {
@@ -1060,7 +1268,9 @@ async fn get_webhook_handler() -> (StatusCode, Json<WebhookResponse>) {
     )
 }
 
-async fn update_webhook_handler(Json(_req): Json<UpdateWebhookRequest>) -> (StatusCode, Json<WebhookResponse>) {
+async fn update_webhook_handler(
+    Json(_req): Json<UpdateWebhookRequest>,
+) -> (StatusCode, Json<WebhookResponse>) {
     (
         StatusCode::OK,
         Json(WebhookResponse {
@@ -1130,7 +1340,12 @@ fn test_complete_webhook_lifecycle() {
     let formatted_sig = format!("sha256={}", signature);
 
     // 6. 验证签名
-    assert!(verify_signature(&webhook.secret, timestamp, &event_payload.to_string(), &formatted_sig));
+    assert!(verify_signature(
+        &webhook.secret,
+        timestamp,
+        &event_payload.to_string(),
+        &formatted_sig
+    ));
 
     // 7. 记录投递
     let delivery_id = store.add_delivery(webhook.id, "account.created", "success", 1);

@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use axum::{
-    extract::{Path, Extension},
+    extract::{Extension, Path},
     http::StatusCode,
     Json,
 };
@@ -117,7 +117,11 @@ pub async fn create_webhook(
     let events: Vec<String> = endpoint
         .events
         .as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(Json(WebhookResponse {
@@ -164,7 +168,11 @@ pub async fn list_webhooks(
             let events: Vec<String> = e
                 .events
                 .as_array()
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default();
             WebhookResponse {
                 id: e.id,
@@ -217,7 +225,11 @@ pub async fn get_webhook(
     let events: Vec<String> = endpoint
         .events
         .as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(Json(WebhookResponse {
@@ -290,7 +302,11 @@ pub async fn update_webhook(
     let events: Vec<String> = endpoint
         .events
         .as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(Json(WebhookResponse {

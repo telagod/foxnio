@@ -1,20 +1,20 @@
 // Claude Code Shell - 轻量级网络层
 // 只提取 TLS 指纹 + HTTP 头模板，用于转发 API 请求
 
-pub mod headers;
 pub mod client;
-pub mod request;
 pub mod error;
+pub mod headers;
+pub mod request;
 pub mod sse;
 pub mod tls;
 
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use reqwest::StatusCode;
+use serde::{Deserialize, Serialize};
 
 // 重导出常用类型
 pub use error::{AnthropicError, ErrorDetail};
-pub use sse::{SseEvent, parse_sse_line, parse_sse_stream};
+pub use sse::{parse_sse_line, parse_sse_stream, SseEvent};
 
 /// Claude Code Shell 配置
 #[derive(Debug, Clone)]
@@ -54,11 +54,15 @@ impl ClaudeShell {
     }
 
     /// 发送消息请求
-    pub async fn send_message(&self, request: request::MessageRequest) -> Result<request::MessageResponse> {
+    pub async fn send_message(
+        &self,
+        request: request::MessageRequest,
+    ) -> Result<request::MessageResponse> {
         let url = format!("{}/v1/messages", self.config.base_url);
         let headers = headers::build_headers(&self.config.api_key, &self.config.api_version);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&url)
             .headers(headers)
             .json(&request)
@@ -70,7 +74,11 @@ impl ClaudeShell {
         if !status.is_success() {
             let body = response.text().await?;
             let error = error::parse_error(&body)?;
-            return Err(anyhow::anyhow!("API error ({}): {}", status, error.error.message));
+            return Err(anyhow::anyhow!(
+                "API error ({}): {}",
+                status,
+                error.error.message
+            ));
         }
 
         let message = response.json::<request::MessageResponse>().await?;
@@ -78,14 +86,18 @@ impl ClaudeShell {
     }
 
     /// 发送流式消息请求
-    pub async fn send_message_stream(&self, request: request::MessageRequest) -> Result<reqwest::Response> {
+    pub async fn send_message_stream(
+        &self,
+        request: request::MessageRequest,
+    ) -> Result<reqwest::Response> {
         let url = format!("{}/v1/messages", self.config.base_url);
         let headers = headers::build_headers(&self.config.api_key, &self.config.api_version);
-        
+
         let mut stream_request = request;
         stream_request.stream = Some(true);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .headers(headers)
             .json(&stream_request)
@@ -97,12 +109,16 @@ impl ClaudeShell {
         if !status.is_success() {
             let body = response.text().await?;
             let error = error::parse_error(&body)?;
-            return Err(anyhow::anyhow!("API error ({}): {}", status, error.error.message));
+            return Err(anyhow::anyhow!(
+                "API error ({}): {}",
+                status,
+                error.error.message
+            ));
         }
 
         Ok(response)
     }
-    
+
     /// 测试 API 连接
     pub async fn test_connection(&self) -> Result<bool> {
         let request = request::MessageRequest {
@@ -121,7 +137,7 @@ impl ClaudeShell {
             tools: None,
             metadata: None,
         };
-        
+
         match self.send_message(request).await {
             Ok(_) => Ok(true),
             Err(e) => {

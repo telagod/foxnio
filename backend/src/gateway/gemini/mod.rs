@@ -181,11 +181,7 @@ pub async fn generate_content(
     let api_key = match params.api_key {
         Some(key) => key,
         None => {
-            let error = client::build_error_response(
-                401,
-                "API key is required",
-                "UNAUTHENTICATED",
-            );
+            let error = client::build_error_response(401, "API key is required", "UNAUTHENTICATED");
             return (StatusCode::UNAUTHORIZED, Json(error)).into_response();
         }
     };
@@ -196,7 +192,10 @@ pub async fn generate_content(
 
     if is_stream {
         // 流式响应
-        match client.stream_generate_content(&model_name, &request, &api_key).await {
+        match client
+            .stream_generate_content(&model_name, &request, &api_key)
+            .await
+        {
             Ok(stream) => {
                 let body = Body::from_stream(stream);
                 Response::builder()
@@ -208,18 +207,27 @@ pub async fn generate_content(
                     .unwrap()
             }
             Err(e) => {
-                let error =
-                    client::build_error_response(502, &format!("Upstream error: {}", e), "UNAVAILABLE");
+                let error = client::build_error_response(
+                    502,
+                    &format!("Upstream error: {}", e),
+                    "UNAVAILABLE",
+                );
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
             }
         }
     } else {
         // 非流式响应
-        match client.generate_content(&model_name, &request, &api_key).await {
+        match client
+            .generate_content(&model_name, &request, &api_key)
+            .await
+        {
             Ok(response) => Json(response).into_response(),
             Err(e) => {
-                let error =
-                    client::build_error_response(502, &format!("Upstream error: {}", e), "UNAVAILABLE");
+                let error = client::build_error_response(
+                    502,
+                    &format!("Upstream error: {}", e),
+                    "UNAVAILABLE",
+                );
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
             }
         }
@@ -260,11 +268,7 @@ pub async fn count_tokens(
     let api_key = match params.api_key {
         Some(key) => key,
         None => {
-            let error = client::build_error_response(
-                401,
-                "API key is required",
-                "UNAUTHENTICATED",
-            );
+            let error = client::build_error_response(401, "API key is required", "UNAUTHENTICATED");
             return (StatusCode::UNAUTHORIZED, Json(error)).into_response();
         }
     };
@@ -304,11 +308,7 @@ pub async fn embed_content(
     let api_key = match params.api_key {
         Some(key) => key,
         None => {
-            let error = client::build_error_response(
-                401,
-                "API key is required",
-                "UNAUTHENTICATED",
-            );
+            let error = client::build_error_response(401, "API key is required", "UNAUTHENTICATED");
             return (StatusCode::UNAUTHORIZED, Json(error)).into_response();
         }
     };

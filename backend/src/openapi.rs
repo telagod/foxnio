@@ -211,11 +211,12 @@ pub struct ApiDoc;
 
 /// 创建 Swagger UI 路由
 pub fn create_swagger_ui() -> SwaggerUi {
-    SwaggerUi::new("/swagger-ui")
-        .url("/api-docs/openapi.json", ApiDoc::openapi())
+    SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi())
 }
 
 /// 获取 OpenAPI JSON
 pub fn get_openapi_json() -> String {
-    ApiDoc::openapi().to_json().expect("Failed to serialize OpenAPI spec")
+    ApiDoc::openapi()
+        .to_json()
+        .expect("Failed to serialize OpenAPI spec")
 }

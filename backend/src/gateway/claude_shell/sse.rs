@@ -1,7 +1,7 @@
 // SSE (Server-Sent Events) 流式解析
 
-use serde::{Deserialize, Serialize};
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 /// SSE 事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,23 +9,23 @@ pub struct SseEvent {
     /// 事件类型
     #[serde(rename = "type")]
     pub event_type: String,
-    
+
     /// 索引（用于内容块）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub index: Option<u32>,
-    
+
     /// 增量内容
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta: Option<Delta>,
-    
+
     /// 消息内容（用于 message_start）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<MessageStart>,
-    
+
     /// 使用情况（用于 message_delta）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
-    
+
     /// 内容块（用于 content_block_start）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_block: Option<ContentBlock>,
@@ -37,11 +37,11 @@ pub struct Delta {
     /// 停止原因
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
-    
+
     /// 文本内容
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-    
+
     /// 类型
     #[serde(skip_serializing_if = "Option::is_none", rename = "type")]
     pub delta_type: Option<String>,
@@ -52,28 +52,28 @@ pub struct Delta {
 pub struct MessageStart {
     /// 消息 ID
     pub id: String,
-    
+
     /// 类型
     #[serde(rename = "type")]
     pub message_type: String,
-    
+
     /// 角色
     pub role: String,
-    
+
     /// 模型
     pub model: String,
-    
+
     /// 内容
     pub content: Vec<serde_json::Value>,
-    
+
     /// 停止原因
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
-    
+
     /// 停止序列
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequence: Option<String>,
-    
+
     /// 使用情况
     pub usage: Usage,
 }
@@ -83,7 +83,7 @@ pub struct MessageStart {
 pub struct Usage {
     /// 输入 token 数
     pub input_tokens: u32,
-    
+
     /// 输出 token 数
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u32>,
@@ -95,7 +95,7 @@ pub struct ContentBlock {
     /// 类型
     #[serde(rename = "type")]
     pub block_type: String,
-    
+
     /// 文本
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -107,14 +107,14 @@ pub fn parse_sse_line(line: &str) -> Option<SseEvent> {
     if !line.starts_with("data: ") {
         return None;
     }
-    
+
     let json_str = line.strip_prefix("data: ")?;
-    
+
     // 跳过空行和结束标记
     if json_str.is_empty() || json_str == "[DONE]" {
         return None;
     }
-    
+
     // 解析 JSON
     serde_json::from_str(json_str).ok()
 }
@@ -146,10 +146,10 @@ mod tests {
     #[test]
     fn test_parse_sse_line() {
         let line = r#"data: {"type": "message_start", "message": {"id": "msg_xxx", "type": "message", "role": "assistant", "model": "claude-3-5-sonnet-20241022", "content": [], "usage": {"input_tokens": 10}}}"#;
-        
+
         let event = parse_sse_line(line);
         assert!(event.is_some());
-        
+
         let event = event.unwrap();
         assert_eq!(event.event_type, "message_start");
     }

@@ -15,19 +15,19 @@ pub enum WebhookEventType {
     AccountCreated,
     AccountFailed,
     AccountExpired,
-    
+
     // API Key 事件
     ApiKeyCreated,
     ApiKeyRevoked,
-    
+
     // 配额事件
     QuotaExhausted,
     QuotaWarning,
-    
+
     // 计费事件
     PaymentReceived,
     InvoiceGenerated,
-    
+
     // 系统事件
     ModelAdded,
     ModelDeprecated,
@@ -173,7 +173,7 @@ impl Model {
         if !self.url.starts_with("https://") {
             return false;
         }
-        
+
         // 不能是私有 IP 地址（简单检查）
         let url_lower = self.url.to_lowercase();
         let blocked = [
@@ -200,7 +200,7 @@ impl Model {
             "https://[::1]",
             "https://[0:",
         ];
-        
+
         !blocked.iter().any(|b| url_lower.starts_with(b))
     }
 
@@ -209,7 +209,11 @@ impl Model {
         if self.secret.len() <= 8 {
             return "*".repeat(self.secret.len());
         }
-        format!("{}...{}", &self.secret[..4], &self.secret[self.secret.len() - 4..])
+        format!(
+            "{}...{}",
+            &self.secret[..4],
+            &self.secret[self.secret.len() - 4..]
+        )
     }
 }
 
@@ -223,10 +227,7 @@ mod tests {
             WebhookEventType::parse("account.created"),
             Some(WebhookEventType::AccountCreated)
         );
-        assert_eq!(
-            WebhookEventType::parse("invalid.event"),
-            None
-        );
+        assert_eq!(WebhookEventType::parse("invalid.event"), None);
     }
 
     #[test]

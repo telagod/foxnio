@@ -13,9 +13,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::info;
@@ -67,18 +65,18 @@ pub struct UsagePattern {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum PatternType {
-    HighVolumeChat,        // 高频聊天
-    LongContextUsage,      // 长上下文使用
-    CodeGeneration,        // 代码生成
-    BatchRequests,         // 批量请求
-    PeakHourUsage,         // 高峰时段使用
-    RepetitiveQueries,     // 重复查询
+    HighVolumeChat,    // 高频聊天
+    LongContextUsage,  // 长上下文使用
+    CodeGeneration,    // 代码生成
+    BatchRequests,     // 批量请求
+    PeakHourUsage,     // 高峰时段使用
+    RepetitiveQueries, // 重复查询
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Impact {
-    pub cost_impact: f64,        // 成本影响 (USD)
-    pub efficiency_impact: f64,  // 效率影响 (-1.0 to 1.0)
+    pub cost_impact: f64,       // 成本影响 (USD)
+    pub efficiency_impact: f64, // 效率影响 (-1.0 to 1.0)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -93,10 +91,10 @@ pub struct Anomaly {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum AnomalyType {
-    UnexpectedHighCost,     // 意外高成本
-    UnusualTrafficPattern,  // 异常流量模式
-    FailedRequestSpike,     // 失败请求激增
-    SlowResponsePattern,    // 慢响应模式
+    UnexpectedHighCost,    // 意外高成本
+    UnusualTrafficPattern, // 异常流量模式
+    FailedRequestSpike,    // 失败请求激增
+    SlowResponsePattern,   // 慢响应模式
     QuotaOverrun,          // 配额超支
 }
 
@@ -125,19 +123,19 @@ pub struct OptimizationRecommendation {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum RecommendationCategory {
-    ModelSelection,     // 模型选择优化
-    Caching,            // 缓存策略
-    RequestOptimization,// 请求优化
-    CostAllocation,     // 成本分摊
-    QuotaManagement,    // 配额管理
-    ProviderSwitch,     // 服务商切换
+    ModelSelection,      // 模型选择优化
+    Caching,             // 缓存策略
+    RequestOptimization, // 请求优化
+    CostAllocation,      // 成本分摊
+    QuotaManagement,     // 配额管理
+    ProviderSwitch,      // 服务商切换
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum EffortLevel {
-    Low,       // 简单修改，立即生效
-    Medium,    // 需要一定工作量
-    High,      // 需要重构或重新设计
+    Low,    // 简单修改，立即生效
+    Medium, // 需要一定工作量
+    High,   // 需要重构或重新设计
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -202,7 +200,7 @@ struct UsageRecord {
     cost: f64,
     response_time_ms: f64,
     success: bool,
-    prompt_hash: Option<String>,  // 用于检测重复查询
+    prompt_hash: Option<String>, // 用于检测重复查询
 }
 
 /// 模型配置缓存
@@ -225,11 +223,7 @@ impl CostOptimizerService {
     /// 分析用户使用情况
     ///
     /// 从数据库查询使用历史，按模型分组统计，识别模式和异常
-    pub async fn analyze_usage(
-        &self,
-        user_id: i64,
-        period: TimePeriod,
-    ) -> Result<UsageAnalysis> {
+    pub async fn analyze_usage(&self, user_id: i64, period: TimePeriod) -> Result<UsageAnalysis> {
         info!(
             "分析用户 {} 使用情况，时间范围: {:?} - {:?}",
             user_id, period.start, period.end
@@ -298,12 +292,12 @@ impl CostOptimizerService {
                     .as_ref()
                     .and_then(|m| {
                         let obj = m.as_object()?;
-                        let response_time = obj
-                            .get("response_time_ms")?
-                            .as_f64()
-                            .unwrap_or(0.0);
+                        let response_time = obj.get("response_time_ms")?.as_f64().unwrap_or(0.0);
                         let success = obj.get("success")?.as_bool().unwrap_or(true);
-                        let prompt_hash = obj.get("prompt_hash").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let prompt_hash = obj
+                            .get("prompt_hash")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
                         Some((response_time, success, prompt_hash))
                     })
                     .unwrap_or((0.0, true, None));
@@ -311,7 +305,10 @@ impl CostOptimizerService {
                 UsageRecord {
                     timestamp: r.created_at.with_timezone(&Utc),
                     model: r.model.clone(),
-                    provider: r.request_type.clone().unwrap_or_else(|| "unknown".to_string()),
+                    provider: r
+                        .request_type
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                     tokens_in,
                     tokens_out,
                     cost,
@@ -437,7 +434,11 @@ impl CostOptimizerService {
     /// 检测高频聊天模式
     ///
     /// 条件：平均每个请求 tokens < 500，且请求数 > 100
-    fn detect_high_volume_chat(&self, data: &[UsageRecord], total_requests: i64) -> Option<UsagePattern> {
+    fn detect_high_volume_chat(
+        &self,
+        data: &[UsageRecord],
+        total_requests: i64,
+    ) -> Option<UsagePattern> {
         if total_requests < 100 {
             return None;
         }
@@ -469,7 +470,12 @@ impl CostOptimizerService {
     /// 检测长上下文使用模式
     ///
     /// 条件：平均每个请求 tokens > 8000
-    fn detect_long_context_usage(&self, data: &[UsageRecord], total_tokens: i64, total_requests: i64) -> Option<UsagePattern> {
+    fn detect_long_context_usage(
+        &self,
+        data: &[UsageRecord],
+        total_tokens: i64,
+        total_requests: i64,
+    ) -> Option<UsagePattern> {
         if total_requests == 0 {
             return None;
         }
@@ -502,7 +508,12 @@ impl CostOptimizerService {
     /// 条件：使用代码模型（如 claude、gpt-4、deepseek-coder）的请求占比 > 50%
     fn detect_code_generation(&self, data: &[UsageRecord]) -> Option<UsagePattern> {
         let code_models = [
-            "claude", "gpt-4", "deepseek-coder", "codellama", "codeqwen", "starcoder"
+            "claude",
+            "gpt-4",
+            "deepseek-coder",
+            "codellama",
+            "codeqwen",
+            "starcoder",
         ];
 
         let mut code_request_count = 0i64;
@@ -510,9 +521,9 @@ impl CostOptimizerService {
         let total_requests = data.len() as i64;
 
         for record in data {
-            let is_code_model = code_models.iter().any(|m| {
-                record.model.to_lowercase().contains(m)
-            });
+            let is_code_model = code_models
+                .iter()
+                .any(|m| record.model.to_lowercase().contains(m));
 
             if is_code_model {
                 code_request_count += 1;
@@ -551,7 +562,7 @@ impl CostOptimizerService {
         // 计算请求时间间隔
         let mut intervals: Vec<i64> = Vec::new();
         for i in 1..data.len() {
-            let interval = (data[i].timestamp - data[i-1].timestamp).num_seconds();
+            let interval = (data[i].timestamp - data[i - 1].timestamp).num_seconds();
             intervals.push(interval);
         }
 
@@ -561,9 +572,11 @@ impl CostOptimizerService {
         }
 
         let mean = intervals.iter().sum::<i64>() as f64 / intervals.len() as f64;
-        let variance: f64 = intervals.iter()
+        let variance: f64 = intervals
+            .iter()
             .map(|i| (*i as f64 - mean).powi(2))
-            .sum::<f64>() / intervals.len() as f64;
+            .sum::<f64>()
+            / intervals.len() as f64;
         let std_dev = variance.sqrt();
 
         // 如果标准差小于平均值的 20%，认为有规律
@@ -604,7 +617,8 @@ impl CostOptimizerService {
 
         // 找出高峰时段
         let total_requests = data.len() as i64;
-        let max_hour = hour_counts.iter()
+        let max_hour = hour_counts
+            .iter()
             .max_by_key(|(_, count)| *count)
             .map(|(h, _)| *h)?;
         let max_count = hour_counts.get(&max_hour).copied().unwrap_or(0);
@@ -612,7 +626,8 @@ impl CostOptimizerService {
         let peak_ratio = max_count as f64 / total_requests as f64;
 
         if peak_ratio > 0.4 {
-            let peak_cost: f64 = data.iter()
+            let peak_cost: f64 = data
+                .iter()
                 .filter(|r| r.timestamp.naive_utc().hour() == max_hour)
                 .map(|r| r.cost)
                 .sum();
@@ -637,7 +652,11 @@ impl CostOptimizerService {
     /// 检测重复查询模式
     ///
     /// 条件：相似提示词（相同的 prompt_hash）重复出现
-    fn detect_repetitive_queries(&self, data: &[UsageRecord], total_cost: f64) -> Option<UsagePattern> {
+    fn detect_repetitive_queries(
+        &self,
+        data: &[UsageRecord],
+        total_cost: f64,
+    ) -> Option<UsagePattern> {
         // 统计每个 prompt_hash 的出现次数
         let mut hash_counts: HashMap<String, i64> = HashMap::new();
         let mut repetitive_cost = 0.0f64;
@@ -654,7 +673,11 @@ impl CostOptimizerService {
 
         // 计算重复查询的比例
         let total_with_hash: i64 = hash_counts.values().sum();
-        let repetitive_count: i64 = hash_counts.values().filter(|&&c| c > 1).map(|&c| c - 1).sum();
+        let repetitive_count: i64 = hash_counts
+            .values()
+            .filter(|&&c| c > 1)
+            .map(|&c| c - 1)
+            .sum();
 
         if total_with_hash > 0 {
             let repetitive_ratio = repetitive_count as f64 / total_with_hash as f64;
@@ -686,7 +709,11 @@ impl CostOptimizerService {
     /// - FailedRequestSpike: 失败率 > 10%
     /// - SlowResponsePattern: 平均响应 > 5s
     /// - QuotaOverrun: 超出配额
-    fn detect_anomalies(&self, data: &[UsageRecord], model_breakdown: &[ModelUsage]) -> Result<Vec<Anomaly>> {
+    fn detect_anomalies(
+        &self,
+        data: &[UsageRecord],
+        model_breakdown: &[ModelUsage],
+    ) -> Result<Vec<Anomaly>> {
         let mut anomalies = Vec::new();
         let now = Utc::now();
 
@@ -697,8 +724,10 @@ impl CostOptimizerService {
         // 1. 检测失败请求激增
         for model_usage in model_breakdown {
             if model_usage.success_rate < 0.9 {
-                let failed_count = (model_usage.request_count as f64 * (1.0 - model_usage.success_rate)) as i64;
-                let estimated_extra_cost = model_usage.total_cost * (1.0 - model_usage.success_rate);
+                let failed_count =
+                    (model_usage.request_count as f64 * (1.0 - model_usage.success_rate)) as i64;
+                let estimated_extra_cost =
+                    model_usage.total_cost * (1.0 - model_usage.success_rate);
 
                 anomalies.push(Anomaly {
                     anomaly_type: AnomalyType::FailedRequestSpike,
@@ -814,7 +843,8 @@ impl CostOptimizerService {
     /// 条件：凌晨时段（0-6点）请求量超过全天的 30%
     fn detect_traffic_anomaly(&self, data: &[UsageRecord]) -> Option<Anomaly> {
         let total_requests = data.len() as i64;
-        let night_requests = data.iter()
+        let night_requests = data
+            .iter()
             .filter(|r| r.timestamp.naive_utc().hour() < 6)
             .count() as i64;
 
@@ -840,14 +870,19 @@ impl CostOptimizerService {
     /// 检测配额超支
     ///
     /// 条件：简化处理 - 如果总成本超过预设阈值（$100）
-    fn detect_quota_overrun(&self, data: &[UsageRecord], model_breakdown: &[ModelUsage]) -> Option<Anomaly> {
+    fn detect_quota_overrun(
+        &self,
+        data: &[UsageRecord],
+        model_breakdown: &[ModelUsage],
+    ) -> Option<Anomaly> {
         let total_cost: f64 = data.iter().map(|r| r.cost).sum();
 
         // 这里使用固定阈值，实际应该查询用户的配额设置
         let quota_threshold = 100.0;
 
         if total_cost > quota_threshold {
-            let affected_models: Vec<String> = model_breakdown.iter()
+            let affected_models: Vec<String> = model_breakdown
+                .iter()
                 .map(|m| m.model_name.clone())
                 .collect();
 
@@ -861,8 +896,7 @@ impl CostOptimizerService {
                 },
                 description: format!(
                     "总成本 ${:.2} 超出预设配额 ${:.2}",
-                    total_cost,
-                    quota_threshold
+                    total_cost, quota_threshold
                 ),
                 affected_models,
                 estimated_extra_cost: total_cost - quota_threshold,
@@ -928,7 +962,10 @@ impl CostOptimizerService {
 
         for model_usage in &analysis.model_breakdown {
             // 查找更便宜的替代模型
-            if let Some(alternative) = self.find_cheaper_alternative(&model_usage.model_name, &model_configs).await? {
+            if let Some(alternative) = self
+                .find_cheaper_alternative(&model_usage.model_name, &model_configs)
+                .await?
+            {
                 let potential_savings = model_usage.total_cost * 0.5; // 假设切换后节省 50%
 
                 recommendations.push(OptimizationRecommendation {
@@ -979,17 +1016,19 @@ impl CostOptimizerService {
         model_configs: &[ModelConfigCache],
     ) -> Result<Option<String>> {
         // 找到当前模型的配置
-        let current_model = model_configs
-            .iter()
-            .find(|m| m.name.to_lowercase() == model_name.to_lowercase()
-                || model_name.to_lowercase().contains(&m.name.to_lowercase()));
+        let current_model = model_configs.iter().find(|m| {
+            m.name.to_lowercase() == model_name.to_lowercase()
+                || model_name.to_lowercase().contains(&m.name.to_lowercase())
+        });
 
         if current_model.is_none() {
             // 如果找不到精确匹配，尝试模糊匹配
             let similar_models: Vec<&ModelConfigCache> = model_configs
                 .iter()
-                .filter(|m| model_name.to_lowercase().contains(&m.name.to_lowercase())
-                    || m.name.to_lowercase().contains(&model_name.to_lowercase()))
+                .filter(|m| {
+                    model_name.to_lowercase().contains(&m.name.to_lowercase())
+                        || m.name.to_lowercase().contains(&model_name.to_lowercase())
+                })
                 .collect();
 
             if similar_models.is_empty() {
@@ -1023,7 +1062,8 @@ impl CostOptimizerService {
                 }
 
                 // 能力交集不为空（至少有一种相同的能力）
-                let common_caps: Vec<_> = m.capabilities
+                let common_caps: Vec<_> = m
+                    .capabilities
                     .iter()
                     .filter(|c| current.capabilities.contains(c))
                     .collect();
@@ -1105,7 +1145,9 @@ impl CostOptimizerService {
                             implementation_time: std::time::Duration::from_hours(2),
                         },
                     ],
-                    affected_models: analysis.model_breakdown.iter()
+                    affected_models: analysis
+                        .model_breakdown
+                        .iter()
                         .map(|m| m.model_name.clone())
                         .collect(),
                     created_at: Utc::now(),
@@ -1173,13 +1215,11 @@ impl CostOptimizerService {
                     potential_savings: pattern.impact.cost_impact,
                     effort: EffortLevel::Medium,
                     priority: Priority::Medium,
-                    action_items: vec![
-                        ActionItem {
-                            action: "实现请求批处理".into(),
-                            estimated_impact: pattern.impact.cost_impact,
-                            implementation_time: std::time::Duration::from_hours(4),
-                        },
-                    ],
+                    action_items: vec![ActionItem {
+                        action: "实现请求批处理".into(),
+                        estimated_impact: pattern.impact.cost_impact,
+                        implementation_time: std::time::Duration::from_hours(4),
+                    }],
                     affected_models: vec![],
                     created_at: Utc::now(),
                 });
@@ -1238,13 +1278,11 @@ impl CostOptimizerService {
                 potential_savings: analysis.total_cost * 0.1,
                 effort: EffortLevel::Low,
                 priority: Priority::Medium,
-                action_items: vec![
-                    ActionItem {
-                        action: "设置月度预算限制".into(),
-                        estimated_impact: analysis.total_cost * 0.1,
-                        implementation_time: std::time::Duration::from_hours(1),
-                    },
-                ],
+                action_items: vec![ActionItem {
+                    action: "设置月度预算限制".into(),
+                    estimated_impact: analysis.total_cost * 0.1,
+                    implementation_time: std::time::Duration::from_hours(1),
+                }],
                 affected_models: vec![],
                 created_at: Utc::now(),
             });
@@ -1331,7 +1369,9 @@ impl CostOptimizerService {
         };
 
         // 计算总请求数
-        let total_requests: i64 = analysis.model_breakdown.iter()
+        let total_requests: i64 = analysis
+            .model_breakdown
+            .iter()
             .map(|m| m.request_count)
             .sum();
 
@@ -1355,7 +1395,9 @@ impl CostOptimizerService {
 
         // 生成成本分解
         let breakdown: Vec<CostBreakdownItem> = if analysis.total_cost > 0.0 {
-            analysis.model_breakdown.iter()
+            analysis
+                .model_breakdown
+                .iter()
                 .map(|m| CostBreakdownItem {
                     category: m.model_name.clone(),
                     amount: m.total_cost,
@@ -1379,11 +1421,7 @@ impl CostOptimizerService {
     /// 计算使用趋势
     ///
     /// 按天分组统计成本、tokens 和请求数
-    async fn calculate_trends(
-        &self,
-        user_id: i64,
-        period: &TimePeriod,
-    ) -> Result<Vec<CostTrend>> {
+    async fn calculate_trends(&self, user_id: i64, period: &TimePeriod) -> Result<Vec<CostTrend>> {
         // 从数据库查询使用记录
         let data = self.fetch_usage_data(user_id, period).await?;
 
@@ -1473,8 +1511,14 @@ mod tests {
 
     #[test]
     fn test_anomaly_type_equality() {
-        assert_eq!(AnomalyType::UnexpectedHighCost, AnomalyType::UnexpectedHighCost);
-        assert_ne!(AnomalyType::UnexpectedHighCost, AnomalyType::FailedRequestSpike);
+        assert_eq!(
+            AnomalyType::UnexpectedHighCost,
+            AnomalyType::UnexpectedHighCost
+        );
+        assert_ne!(
+            AnomalyType::UnexpectedHighCost,
+            AnomalyType::FailedRequestSpike
+        );
     }
 
     #[test]

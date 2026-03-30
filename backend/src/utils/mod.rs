@@ -1,4 +1,3 @@
-pub mod uuid_conv;
 pub mod crypto;
 pub mod encryption;
 pub mod encryption_global;
@@ -7,10 +6,11 @@ pub mod logger;
 pub mod metrics;
 pub mod test;
 pub mod time;
+pub mod uuid_conv;
 pub mod validator;
 
 // 重导出常用类型
-pub use uuid_conv::{uuid_to_i64, i64_to_uuid};
+pub use uuid_conv::{i64_to_uuid, uuid_to_i64};
 
 // 请求 ID 生成
 pub fn request_id() -> String {
@@ -18,5 +18,5 @@ pub fn request_id() -> String {
 }
 
 // 重导出加密相关
-pub use encryption::{EncryptionService, EncryptedString};
+pub use encryption::{EncryptedString, EncryptionService};
 pub use encryption_global::get_encryption_service;

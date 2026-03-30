@@ -493,7 +493,10 @@ mod tests {
     fn test_default_models() {
         let response = GeminiModelsListResponse::default_models();
         assert!(!response.models.is_empty());
-        assert!(response.models.iter().any(|m| m.name.contains("gemini-2.0-flash")));
+        assert!(response
+            .models
+            .iter()
+            .any(|m| m.name.contains("gemini-2.0-flash")));
     }
 
     #[test]

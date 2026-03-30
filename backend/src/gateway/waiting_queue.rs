@@ -40,10 +40,10 @@ impl Default for WaitingQueueConfig {
         Self {
             max_concurrent: 100,
             max_queue_size: 1000,
-            default_timeout_ms: 30_000,   // 30 秒
+            default_timeout_ms: 30_000, // 30 秒
             enable_priority: false,
             check_interval_ms: 100,
-            max_wait_time_secs: 300,      // 5 分钟
+            max_wait_time_secs: 300, // 5 分钟
         }
     }
 }
@@ -192,12 +192,16 @@ impl QueueMetrics {
             if wait_time_ms <= current_max {
                 break;
             }
-            if self.max_wait_time_ms.compare_exchange(
-                current_max,
-                wait_time_ms,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            ).is_ok() {
+            if self
+                .max_wait_time_ms
+                .compare_exchange(
+                    current_max,
+                    wait_time_ms,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -257,15 +261,9 @@ pub struct QueueMetricsSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueueError {
     /// 队列已满
-    QueueFull {
-        queue_size: usize,
-        max_size: usize,
-    },
+    QueueFull { queue_size: usize, max_size: usize },
     /// 等待超时
-    Timeout {
-        waited_ms: u64,
-        timeout_ms: u64,
-    },
+    Timeout { waited_ms: u64, timeout_ms: u64 },
     /// 队列已关闭
     Closed,
 }
@@ -273,11 +271,21 @@ pub enum QueueError {
 impl std::fmt::Display for QueueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::QueueFull { queue_size, max_size } => {
+            Self::QueueFull {
+                queue_size,
+                max_size,
+            } => {
                 write!(f, "Queue is full: {} / {}", queue_size, max_size)
             }
-            Self::Timeout { waited_ms, timeout_ms } => {
-                write!(f, "Request timeout: waited {}ms, limit {}ms", waited_ms, timeout_ms)
+            Self::Timeout {
+                waited_ms,
+                timeout_ms,
+            } => {
+                write!(
+                    f,
+                    "Request timeout: waited {}ms, limit {}ms",
+                    waited_ms, timeout_ms
+                )
             }
             Self::Closed => write!(f, "Queue is closed"),
         }
@@ -363,12 +371,11 @@ impl WaitingQueue {
             if current >= self.config.max_concurrent {
                 return None;
             }
-            if self.active_count.compare_exchange(
-                current,
-                current + 1,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            ).is_ok() {
+            if self
+                .active_count
+                .compare_exchange(current, current + 1, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
                 break;
             }
         }
@@ -423,7 +430,7 @@ impl WaitingQueue {
         // 加入队列
         {
             let mut queue = self.queue.lock().await;
-            
+
             // 如果启用优先级，按优先级插入
             if self.config.enable_priority {
                 let pos = queue
@@ -442,7 +449,8 @@ impl WaitingQueue {
         let wait_result = tokio::time::timeout_at(
             tokio::time::Instant::from_std(deadline),
             notifier.notified(),
-        ).await;
+        )
+        .await;
 
         // 检查结果
         match wait_result {
@@ -451,13 +459,13 @@ impl WaitingQueue {
                 if request.is_allocated() {
                     // 从队列中移除（如果还在的话）
                     self.remove_from_queue(&request.id).await;
-                    
+
                     let wait_time = request.wait_time_ms();
                     self.metrics.record_dequeue(wait_time);
 
                     // 创建槽位
                     let slot = AllocationSlot::new(request.id, user_id);
-                    
+
                     // 记录活跃槽位
                     {
                         let mut slots = self.slots.write().await;
@@ -488,7 +496,7 @@ impl WaitingQueue {
     pub async fn release(&self, _slot: AllocationSlot) {
         // 减少活跃计数
         let prev_count = self.active_count.fetch_sub(1, Ordering::SeqCst);
-        
+
         // 从活跃槽位移除
         {
             let mut slots = self.slots.write().await;
@@ -516,12 +524,11 @@ impl WaitingQueue {
             // 尝试分配
             let current = self.active_count.load(Ordering::SeqCst);
             if current < self.config.max_concurrent {
-                if self.active_count.compare_exchange(
-                    current,
-                    current + 1,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                ).is_ok() {
+                if self
+                    .active_count
+                    .compare_exchange(current, current + 1, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+                {
                     let request = queue.pop_front().unwrap();
                     request.mark_allocated();
                     return;
@@ -560,10 +567,7 @@ impl WaitingQueue {
         let queue = self.queue.lock().await;
         let slots = self.slots.read().await;
 
-        let max_priority = queue
-            .front()
-            .map(|r| r.priority)
-            .unwrap_or(0);
+        let max_priority = queue.front().map(|r| r.priority).unwrap_or(0);
 
         QueueStats {
             queue_length: queue.len(),
@@ -719,7 +723,9 @@ impl ModelWaitingQueue {
         timeout_ms: Option<u64>,
     ) -> Result<AllocationSlot, QueueError> {
         let queue = self.get_queue(model).await;
-        queue.acquire(user_id, model.to_string(), priority, timeout_ms).await
+        queue
+            .acquire(user_id, model.to_string(), priority, timeout_ms)
+            .await
     }
 
     /// 释放执行槽位
