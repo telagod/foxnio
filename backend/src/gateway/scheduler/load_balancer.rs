@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use crate::utils::uuid_conv::uuid_to_i64;
 use super::metrics::AccountMetrics;
 use super::{AccountInfo, AccountStatus, ScheduleContext, ScheduleResult};
 
@@ -246,7 +247,7 @@ impl AccountRuntimeStats {
     pub fn new() -> Self {
         Self {
             error_rate_ewma: AtomicU64::new(0),
-            ttft_ewma: AtomicU64::new(f64::to_bits(f64::NAN())),
+            ttft_ewma: AtomicU64::new(f64::to_bits(f64::NAN)),
         }
     }
 
@@ -522,11 +523,11 @@ impl LoadAwareScheduler {
             if let Some(result) = self.check_previous_response(prev_id, accounts, ctx).await {
                 decision.layer = ScheduleLayer::PreviousResponse;
                 decision.sticky_previous_hit = true;
-                decision.selected_account_id = Some(result.account.id as i64);
+                decision.selected_account_id = Some(uuid_to_i64(result.account.id));
                 
                 // 同时绑定会话
                 if let Some(ref session_id) = ctx.session_id {
-                    self.bind_sticky_session(session_id.clone(), result.account.id as i64)
+                    self.bind_sticky_session(session_id.clone(), uuid_to_i64(result.account.id))
                         .await;
                 }
                 
@@ -539,7 +540,7 @@ impl LoadAwareScheduler {
             if let Some(result) = self.check_session_sticky(session_id, accounts, ctx).await {
                 decision.layer = ScheduleLayer::SessionSticky;
                 decision.sticky_session_hit = true;
-                decision.selected_account_id = Some(result.account.id as i64);
+                decision.selected_account_id = Some(uuid_to_i64(result.account.id));
                 return Some(result);
             }
         }
@@ -553,11 +554,11 @@ impl LoadAwareScheduler {
         decision.load_skew = load_skew;
         
         if let Some(ref result) = result {
-            decision.selected_account_id = Some(result.account.id as i64);
+            decision.selected_account_id = Some(uuid_to_i64(result.account.id));
             
             // 绑定会话
             if let Some(ref session_id) = ctx.session_id {
-                self.bind_sticky_session(session_id.clone(), result.account.id as i64)
+                self.bind_sticky_session(session_id.clone(), uuid_to_i64(result.account.id))
                     .await;
             }
         }
@@ -576,7 +577,7 @@ impl LoadAwareScheduler {
         
         if let Some(entry) = responses.get(previous_response_id) {
             // 检查账号是否仍然可用
-            if let Some(account) = accounts.iter().find(|a| a.id as i64 == entry.account_id) {
+            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == entry.account_id) {
                 if account.status.is_available() {
                     let metrics = self
                         .account_metrics
@@ -614,7 +615,7 @@ impl LoadAwareScheduler {
             }
 
             // 检查账号是否仍然可用
-            if let Some(account) = accounts.iter().find(|a| a.id as i64 == entry.account_id) {
+            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == entry.account_id) {
                 if account.status.is_available() {
                     // 刷新访问时间
                     drop(sessions);
@@ -671,9 +672,9 @@ impl LoadAwareScheduler {
 
         for account in &available {
             let load_info = loads
-                .get(&(account.id as i64))
+                .get(&(uuid_to_i64(account.id)))
                 .cloned()
-                .unwrap_or_else(|| AccountLoadInfo::new(account.id as i64, account.concurrent_limit));
+                .unwrap_or_else(|| AccountLoadInfo::new(uuid_to_i64(account.id), account.concurrent_limit));
 
             // 更新优先级范围
             if account.priority < min_priority {
@@ -689,7 +690,7 @@ impl LoadAwareScheduler {
             }
 
             // 获取运行时统计
-            let (error_rate, ttft, has_ttft) = self.runtime_stats.snapshot(account.id as i64).await;
+            let (error_rate, ttft, has_ttft) = self.runtime_stats.snapshot(uuid_to_i64(account.id)).await;
             
             if has_ttft && ttft > 0.0 {
                 if !has_ttft_sample {
@@ -707,7 +708,7 @@ impl LoadAwareScheduler {
             load_rate_sum_squares += load_info.load_rate * load_info.load_rate;
 
             candidates.push(CandidateScore {
-                account_id: account.id as i64,
+                account_id: uuid_to_i64(account.id),
                 account_name: account.name.clone(),
                 account_priority: account.priority,
                 account_concurrent_limit: account.concurrent_limit,
@@ -766,7 +767,7 @@ impl LoadAwareScheduler {
         // 尝试选择第一个可用账号
         for candidate in selection_order {
             // 找到对应的账号
-            if let Some(account) = accounts.iter().find(|a| a.id as i64 == candidate.account_id) {
+            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == candidate.account_id) {
                 let metrics = self
                     .account_metrics
                     .get_or_create_account_metrics(account.id)
@@ -1040,7 +1041,7 @@ mod tests {
 
         // 绑定粘性会话
         scheduler
-            .bind_sticky_session("session-123".to_string(), account_id as i64)
+            .bind_sticky_session("session-123".to_string(), account_id)
             .await;
 
         let ctx = ScheduleContext {

@@ -107,7 +107,6 @@ pub async fn batch_update_accounts(
                 ids: req.ids,
                 updates,
             },
-            false,
         )
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -127,7 +126,7 @@ pub async fn batch_update_accounts(
 pub async fn batch_import_users(
     State(state): State<SharedState>,
     Extension(claims): Extension<Claims>,
-    Multipart(mut form): Multipart,
+    mut form: Multipart,
 ) -> Result<Json<Value>, ApiError> {
     // 权限检查
     check_permission(&claims, Permission::UserWrite)
@@ -206,7 +205,7 @@ pub async fn batch_delete_api_keys(
 
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
-        .batch_delete_api_keys(ids)
+        .batch_delete_api_keys(ids, false)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -248,7 +247,7 @@ pub async fn batch_create_users(
 
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
-        .batch_create_users(requests)
+        .batch_create_users(requests, false)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

@@ -23,14 +23,14 @@ use super::{
 use crate::gateway::middleware::permission::check_permission;
 use crate::handler;
 use crate::health::HealthChecker;
-use crate::openapi::ApiDoc;
+use utoipa::OpenApi;
 use crate::service::permission::Permission;
 use crate::service::{
     LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService,
 };
 use crate::state::AppState;
 
-pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router {
+pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<Arc<AppState>> {
     let shared_state = Arc::new(state);
 
     // 公开路由
@@ -686,7 +686,8 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .merge(webhook_routes)
         .merge(batch_routes)
         // Swagger UI - OpenAPI 文档
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        // TODO: Fix Swagger UI integration
+        // .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Responses API - 直接添加路由
         .route(
             "/v1/responses",

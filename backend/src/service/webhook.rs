@@ -343,7 +343,7 @@ impl WebhookService {
                         );
 
                         if attempt < max_attempts - 1 {
-                            self.update_delivery_retry(delivery.id, attempt as i32, status_code, &response_body)
+                            self.update_delivery_retry(delivery.id, attempt as i32, Some(status_code), &response_body)
                                 .await?;
 
                             // 记录重试
@@ -352,7 +352,7 @@ impl WebhookService {
                             sleep(self.calculate_backoff(attempt as i32)).await;
                         } else {
                             // 最后一次尝试也失败了
-                            self.update_delivery_failed(delivery.id, attempt as i32, status_code, &response_body)
+                            self.update_delivery_failed(delivery.id, attempt as i32, Some(status_code), &response_body)
                                 .await?;
 
                             // 记录失败的投递
@@ -429,7 +429,7 @@ impl WebhookService {
     ///
     /// 退避时间: 1s, 2s, 4s, 8s, 16s, ...
     fn calculate_backoff(&self, attempt: i32) -> Duration {
-        Duration::from_secs(2_i64.pow(attempt as u32))
+        Duration::from_secs(2_u64.pow(attempt as u32))
     }
 
     /// 创建投递记录

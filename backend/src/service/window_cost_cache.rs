@@ -219,14 +219,12 @@ impl WindowCostCache {
                 "total_tokens_out",
             )
             .column_as(
-                sea_orm::sea_query::Func::count(
-                    sea_orm::sea_query::Expr::col(quota_usage_history::Column::Id),
-                ),
+                sea_orm::sea_query::Expr::col(quota_usage_history::Column::Id).count(),
                 "total_requests",
             )
             .filter(
                 Condition::all()
-                    .add(quota_usage_history::Column::AccountId.is_in(account_ids))
+                    .add(quota_usage_history::Column::AccountId.is_in(account_ids.to_vec()))
                     .add(quota_usage_history::Column::CreatedAt.gt(window_start)),
             )
             .group_by(quota_usage_history::Column::AccountId)

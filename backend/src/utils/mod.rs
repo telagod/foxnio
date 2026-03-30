@@ -1,5 +1,4 @@
-//! 工具函数模块
-
+pub mod uuid_conv;
 pub mod crypto;
 pub mod encryption;
 pub mod encryption_global;
@@ -8,8 +7,16 @@ pub mod logger;
 pub mod metrics;
 pub mod test;
 pub mod time;
+pub mod validator;
 
-pub use encryption::{EncryptedString, EncryptionError, EncryptionService};
+// 重导出常用类型
+pub use uuid_conv::{uuid_to_i64, i64_to_uuid};
+
+// 请求 ID 生成
+pub fn request_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+// 重导出加密相关
+pub use encryption::{EncryptionService, EncryptedString};
 pub use encryption_global::get_encryption_service;
-pub use encryption_global::init_encryption_service;
-pub use id::*;

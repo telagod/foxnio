@@ -17,7 +17,7 @@ pub use ::prometheus::{
     opts, register_counter, register_counter_vec, register_gauge, register_gauge_vec,
     register_histogram, register_histogram_vec, register_int_counter, register_int_counter_vec,
     register_int_gauge, register_int_gauge_vec, Counter, CounterVec, Encoder, Gauge, GaugeVec,
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, TextEncoder,
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, TextEncoder,
 };
 
 // Re-export business metrics
@@ -359,10 +359,13 @@ lazy_static::lazy_static! {
     // ============================================================================
 
     /// 模型同步耗时
-    pub static ref MODEL_SYNC_DURATION: Histogram = register_histogram!(opts!(
-        "foxnio_model_sync_duration_seconds",
-        "Model sync duration"
-    )).unwrap();
+    pub static ref MODEL_SYNC_DURATION: Histogram = {
+        let opts = HistogramOpts::new(
+            "foxnio_model_sync_duration_seconds",
+            "Model sync duration"
+        );
+        register_histogram!(opts).unwrap()
+    };
 
     /// 已同步的模型数量
     pub static ref MODELS_SYNCED: IntGauge = register_int_gauge!(opts!(

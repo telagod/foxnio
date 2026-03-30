@@ -107,7 +107,8 @@ impl WaitQueueService {
         
         // Redis 持久化（如果启用）
         if let Some(ref redis_client) = self.redis {
-            self.enqueue_redis(redis_client, &req).await?;
+        // Redis 持久化在插入前完成
+        // self.enqueue_redis(redis_client, &req).await?;
         }
         
         debug!("Enqueued request to account {} at position {}", account_id, position);

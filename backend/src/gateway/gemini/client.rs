@@ -4,7 +4,7 @@
 
 use anyhow::{bail, Result};
 use bytes::Bytes;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use reqwest::Client;
 use std::pin::Pin;
 use std::time::Duration;
