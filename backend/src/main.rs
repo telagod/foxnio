@@ -15,6 +15,7 @@ mod handler;
 mod health;
 mod metrics;
 mod model;
+mod openapi;
 mod service;
 mod state;
 mod utils;

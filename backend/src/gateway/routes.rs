@@ -13,6 +13,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
+use utoipa_swagger_ui::SwaggerUi;
 
 use super::{
     middleware,
@@ -22,6 +23,7 @@ use super::{
 use crate::gateway::middleware::permission::check_permission;
 use crate::handler;
 use crate::health::HealthChecker;
+use crate::openapi::ApiDoc;
 use crate::service::permission::Permission;
 use crate::service::{
     LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService,
@@ -662,6 +664,8 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .merge(admin_routes)
         .merge(ws_routes)
         .merge(gemini_routes)
+        // Swagger UI - OpenAPI 文档
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Responses API - 直接添加路由
         .route(
             "/v1/responses",
