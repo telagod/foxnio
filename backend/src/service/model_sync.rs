@@ -1314,7 +1314,6 @@ impl ModelSyncService {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
