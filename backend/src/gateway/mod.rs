@@ -32,3 +32,4 @@ pub use gemini::{GeminiClient, GeminiClientConfig, GeminiHandler};
 
 // 重导出统一的 AppState
 pub use crate::state::SharedState;
+pub mod claude_shell;
