@@ -7,14 +7,14 @@
 //! - GET /health/detailed - 详细状态
 
 #![allow(dead_code)]
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::Extension, http::StatusCode, Json};
 use serde_json::json;
 use std::sync::Arc;
 
 use crate::health::{AggregateHealthStatus, HealthChecker};
 
 /// 简单健康状态
-pub async fn health_simple(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+pub async fn health_simple(Extension(checker): Extension<Arc<HealthChecker>>) -> Json<serde_json::Value> {
     let status = checker.check_critical().await;
 
     let (status_str, _code) = if status.healthy {
@@ -43,7 +43,7 @@ pub async fn health_live() -> Json<serde_json::Value> {
 
 /// 就绪探针 - 检查关键服务是否就绪
 pub async fn health_ready(
-    State(checker): State<Arc<HealthChecker>>,
+    Extension(checker): Extension<Arc<HealthChecker>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let status = checker.check_critical().await;
 
@@ -75,7 +75,7 @@ pub async fn health_ready(
 
 /// 详细健康状态 - 返回所有检查的完整信息
 pub async fn health_detailed(
-    State(checker): State<Arc<HealthChecker>>,
+    Extension(checker): Extension<Arc<HealthChecker>>,
 ) -> Json<AggregateHealthStatus> {
     let status = checker.check_all().await;
     Json(status)
@@ -83,7 +83,7 @@ pub async fn health_detailed(
 
 /// 系统资源状态
 pub async fn health_resources(
-    State(checker): State<Arc<HealthChecker>>,
+    Extension(checker): Extension<Arc<HealthChecker>>,
 ) -> Json<serde_json::Value> {
     // 获取系统资源检查结果
     if let Some(result) = checker.check_one("system_resources").await {
@@ -105,7 +105,7 @@ pub async fn health_resources(
 }
 
 /// 数据库连接池状态
-pub async fn health_database(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+pub async fn health_database(Extension(checker): Extension<Arc<HealthChecker>>) -> Json<serde_json::Value> {
     // 使用 HealthChecker 进行简单的健康检查
     let status = checker.check_all().await;
 
@@ -117,7 +117,7 @@ pub async fn health_database(State(checker): State<Arc<HealthChecker>>) -> Json<
 }
 
 /// Redis 状态
-pub async fn health_redis(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+pub async fn health_redis(Extension(checker): Extension<Arc<HealthChecker>>) -> Json<serde_json::Value> {
     // 使用 HealthChecker 进行简单的健康检查
     let status = checker.check_all().await;
 
@@ -140,7 +140,7 @@ pub async fn app_info() -> Json<serde_json::Value> {
 }
 
 /// 应用指标
-pub async fn metrics(State(checker): State<Arc<HealthChecker>>) -> Json<serde_json::Value> {
+pub async fn metrics(Extension(checker): Extension<Arc<HealthChecker>>) -> Json<serde_json::Value> {
     let status = checker.check_all().await;
 
     Json(json!({

@@ -21,7 +21,7 @@ pub use types::*;
 
 use axum::{
     body::Body,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -82,7 +82,7 @@ pub struct GeminiQueryParams {
 
 /// GET /v1beta/models - 列出所有模型
 pub async fn list_models(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Query(params): Query<GeminiQueryParams>,
 ) -> impl IntoResponse {
     // 如果没有 API key，返回默认模型列表
@@ -107,7 +107,7 @@ pub async fn list_models(
 
 /// GET /v1beta/models/:model - 获取单个模型信息
 pub async fn get_model(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
 ) -> impl IntoResponse {
@@ -143,7 +143,7 @@ pub async fn get_model(
 
 /// POST /v1beta/models/:model:generateContent - 生成内容（非流式）
 pub async fn generate_content(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Path(model_action): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
@@ -236,7 +236,7 @@ pub async fn generate_content(
 
 /// POST /v1beta/models/:model:streamGenerateContent - 流式生成内容
 pub async fn stream_generate_content(
-    state: State<SharedState>,
+    state: Extension<SharedState>,
     Path(model_action): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
@@ -246,7 +246,7 @@ pub async fn stream_generate_content(
 
 /// POST /v1beta/models/:model:countTokens - 计算 Token 数量
 pub async fn count_tokens(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
@@ -286,7 +286,7 @@ pub async fn count_tokens(
 
 /// POST /v1beta/models/:model:embedContent - 内容嵌入
 pub async fn embed_content(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,

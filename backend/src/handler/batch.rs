@@ -31,7 +31,7 @@ pub struct BatchUpdateRequest {
 ///
 /// 批量创建 API Keys
 pub async fn batch_create_api_keys(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Json(requests): Json<Vec<CreateApiKeyRequest>>,
 ) -> Result<Json<Value>, ApiError> {
@@ -73,7 +73,7 @@ pub async fn batch_create_api_keys(
 ///
 /// 批量更新账号
 pub async fn batch_update_accounts(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Json(req): Json<BatchUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
@@ -122,7 +122,7 @@ pub async fn batch_update_accounts(
 ///
 /// 批量导入用户（CSV 文件）
 pub async fn batch_import_users(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     mut form: Multipart,
 ) -> Result<Json<Value>, ApiError> {
@@ -178,7 +178,7 @@ pub async fn batch_import_users(
 ///
 /// 批量删除 API Keys
 pub async fn batch_delete_api_keys(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Json(ids): Json<Vec<Uuid>>,
 ) -> Result<Json<Value>, ApiError> {
@@ -220,7 +220,7 @@ pub async fn batch_delete_api_keys(
 ///
 /// 批量创建用户
 pub async fn batch_create_users(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Json(requests): Json<Vec<CreateUserRequest>>,
 ) -> Result<Json<Value>, ApiError> {

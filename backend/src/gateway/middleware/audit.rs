@@ -52,7 +52,7 @@ impl Default for AuditConfig {
 
 /// 审计中间件
 pub async fn audit_middleware(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(audit_config): Extension<AuditConfig>,
     mut req: Request<Body>,
     next: Next,
@@ -262,7 +262,7 @@ fn extract_resource_id(path: &str) -> Option<String> {
 
 /// 敏感操作审计中间件（用于特定的敏感端点）
 pub async fn sensitive_audit(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(user_id): Extension<Uuid>,
     req: Request<Body>,
     next: Next,
@@ -301,7 +301,7 @@ pub async fn sensitive_audit(
 
 /// 登录审计中间件
 pub async fn login_audit(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(user_id): Extension<Uuid>,
     req: Request<Body>,
     next: Next,

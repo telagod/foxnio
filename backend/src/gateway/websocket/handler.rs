@@ -7,7 +7,7 @@ use super::{WSConfig, WSError, WSMessage, WSProtocol};
 use axum::{
     extract::{
         ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade},
-        Query, State,
+        Extension, Query,
     },
     response::Response,
     Json,
@@ -504,7 +504,7 @@ pub fn create_handler(config: WSConfig) -> WebSocketHandler {
 
 /// Axum 路由处理器 - V1 Realtime API
 pub async fn ws_realtime_v1(
-    State(handler): State<Arc<WebSocketHandler>>,
+    Extension(handler): Extension<Arc<WebSocketHandler>>,
     Query(params): Query<WSQueryParams>,
     ws: WebSocketUpgrade,
 ) -> Response {
@@ -515,7 +515,7 @@ pub async fn ws_realtime_v1(
 
 /// Axum 路由处理器 - V2 Responses API
 pub async fn ws_responses_v2(
-    State(handler): State<Arc<WebSocketHandler>>,
+    Extension(handler): Extension<Arc<WebSocketHandler>>,
     Query(params): Query<WSQueryParams>,
     ws: WebSocketUpgrade,
 ) -> Response {
@@ -526,7 +526,7 @@ pub async fn ws_responses_v2(
 
 /// 获取连接池统计信息
 pub async fn ws_pool_stats(
-    State(handler): State<Arc<WebSocketHandler>>,
+    Extension(handler): Extension<Arc<WebSocketHandler>>,
 ) -> Json<serde_json::Value> {
     let stats = handler.pool.stats();
     Json(serde_json::to_value(stats).unwrap_or(serde_json::json!({})))

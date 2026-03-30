@@ -17,7 +17,7 @@ use crate::service::LegacyApiKeyService as ApiKeyService;
 
 /// API Key 认证中间件
 pub async fn api_key_auth(
-    State(state): State<SharedState>,
+    Extension(state): Extension<SharedState>,
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -131,7 +131,7 @@ pub fn cors_layer() -> tower_http::cors::CorsLayer {
 
 /// 速率限制中间件（基于 Redis）
 pub async fn rate_limit(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Extension(_user_id): Extension<uuid::Uuid>,
     req: Request<Body>,
     next: Next,
@@ -146,7 +146,7 @@ pub async fn rate_limit(
 
 /// 并发限制中间件
 pub async fn concurrency_limit(
-    State(_state): State<SharedState>,
+    Extension(_state): Extension<SharedState>,
     Extension(_user_id): Extension<uuid::Uuid>,
     req: Request<Body>,
     next: Next,

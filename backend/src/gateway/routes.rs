@@ -30,7 +30,7 @@ use crate::service::{
 use crate::state::AppState;
 use utoipa::OpenApi;
 
-pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<Arc<AppState>> {
+pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<()> {
     let shared_state = Arc::new(state);
 
     // 公开路由
@@ -87,9 +87,7 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .route(
             "/api/v1/auth/password/reset",
             post(handler::auth::password::reset_password),
-        )
-        // 添加 HealthChecker 状态
-        .with_state(health_checker.clone());
+        );
 
     // 需要认证的路由
     let auth_routes = Router::new()
@@ -635,8 +633,7 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .route(
             "/api/v1/ws/pool/stats",
             get(websocket::handler::ws_pool_stats),
-        )
-        .with_state(ws_handler);
+        );
 
     // Webhook 路由 - 需要用户认证
     let webhook_routes = Router::new()
@@ -737,7 +734,6 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::request_log))
         .layer(axum::middleware::from_fn(middleware::request_id))
-        .layer(Extension(shared_state))
 }
 
 // ============ 网关端点 ============
