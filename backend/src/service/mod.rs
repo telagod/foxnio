@@ -2,6 +2,7 @@
 
 pub mod account;
 pub mod account_service;
+pub mod batch;
 pub mod announcement;
 pub mod api_key;
 pub mod api_key_auth_cache;

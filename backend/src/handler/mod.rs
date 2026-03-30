@@ -8,6 +8,7 @@ pub mod announcement;
 pub mod audit;
 pub mod auth;
 pub mod backup;
+pub mod batch;
 pub mod dashboard;
 pub mod error_passthrough_rule;
 pub mod groups;
@@ -25,6 +26,7 @@ pub mod user_announcement;
 pub mod user_attribute;
 pub mod user_groups;
 pub mod verify;
+pub mod webhook;
 
 use axum::Json;
 use serde_json::json;
