@@ -31,6 +31,7 @@ pub struct ModelSyncService {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct SyncState {
     pub last_sync: Option<DateTime<Utc>>,
     pub last_success: Option<DateTime<Utc>>,
@@ -1314,17 +1315,6 @@ impl ModelSyncService {
     }
 }
 
-impl Default for SyncState {
-    fn default() -> Self {
-        Self {
-            last_sync: None,
-            last_success: None,
-            last_error: None,
-            in_progress: false,
-            provider_status: HashMap::new(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

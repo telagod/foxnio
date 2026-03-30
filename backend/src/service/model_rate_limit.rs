@@ -247,7 +247,8 @@ impl ModelRateLimiter {
 
     /// 获取所有限制状态
     pub async fn get_all_limits(&self, account_id: i64) -> Vec<RateLimitStatus> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().unwrap().clone();
+        drop(cache);
         let mut statuses = Vec::new();
 
         for key in cache.keys() {

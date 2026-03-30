@@ -37,7 +37,7 @@ pub fn is_strong_password(password: &str) -> bool {
     }
 
     // 包含数字
-    let has_digit = password.chars().any(|c| c.is_digit(10));
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
 
     // 包含小写字母
     let has_lowercase = password.chars().any(|c| c.is_lowercase());
