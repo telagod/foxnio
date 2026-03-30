@@ -333,7 +333,7 @@ async fn test_model_permission_denied() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     // 验证错误消息
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
     assert!(error["error"].as_str().unwrap().contains("not allowed"));
 }
@@ -494,7 +494,7 @@ async fn test_ip_whitelist_denied() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     // 验证错误消息
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
     assert!(error["error"].as_str().unwrap().contains("IP"));
     assert!(error["error"].as_str().unwrap().contains("not allowed"));
@@ -631,7 +631,7 @@ async fn test_quota_enforcement() {
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
 
     // 验证错误消息
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
     assert!(error["error"].as_str().unwrap().contains("quota"));
 }
@@ -754,7 +754,7 @@ async fn test_expired_key() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     // 验证错误消息
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
     assert!(error["error"].as_str().unwrap().contains("expired"));
 }
@@ -801,7 +801,7 @@ async fn test_disabled_key() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     // 验证错误消息
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
     assert!(error["error"].as_str().unwrap().contains("disabled"));
 }
@@ -1171,7 +1171,7 @@ async fn test_error_messages() {
     );
 
     let response = protected_app.oneshot(request).await.unwrap();
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     // 验证错误消息包含 "expired"
@@ -1216,7 +1216,7 @@ async fn test_error_messages() {
     );
 
     let response = protected_app2.oneshot(request).await.unwrap();
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body: bytes::Bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     // 验证错误消息包含模型名称
