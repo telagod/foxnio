@@ -10,6 +10,7 @@ use axum::{
 };
 use serde_json::json;
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse, UpdateModelRequest};
 use crate::gateway::middleware::permission::check_permission;
@@ -20,6 +21,14 @@ use crate::state::AppState;
 use super::ApiError;
 
 /// 列出所有模型（公开 API）
+#[utoipa::path(
+    get,
+    path = "/v1/models",
+    responses(
+        (status = 200, description = "模型列表")
+    ),
+    tag = "模型"
+)]
 pub async fn list_models_public(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -66,6 +75,21 @@ pub async fn list_models_public(
 }
 
 /// 列出所有模型（管理 API）
+///
+/// 获取所有模型配置（管理员）
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/models",
+    responses(
+        (status = 200, description = "模型列表"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-模型"
+)]
 pub async fn list_models_admin(
     Extension(state): Extension<Arc<AppState>>,
     Extension(claims): Extension<crate::service::user::Claims>,
@@ -86,6 +110,22 @@ pub async fn list_models_admin(
 }
 
 /// 获取模型详情
+///
+/// 获取指定模型的详细配置信息（管理员）
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/models/{id}",
+    responses(
+        (status = 200, description = "模型详情"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足"),
+        (status = 404, description = "模型不存在")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-模型"
+)]
 pub async fn get_model(
     Extension(state): Extension<Arc<AppState>>,
     Extension(claims): Extension<crate::service::user::Claims>,

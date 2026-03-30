@@ -13,6 +13,7 @@ pub mod gateway;
 pub mod handler;
 pub mod health;
 pub mod metrics;
+pub mod middleware;
 pub mod model;
 pub mod server;
 pub mod service;

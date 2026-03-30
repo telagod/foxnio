@@ -29,6 +29,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use utoipa::OpenApi;
 
 /// 用户注册请求
 #[derive(Debug, Deserialize, ToSchema)]
@@ -49,7 +50,7 @@ pub struct LoginRequest {
 }
 
 /// 登录响应（包含 refresh token，支持 TOTP）
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(untagged)]
 pub enum LoginResponse {
     /// 直接登录成功（未启用 TOTP）
@@ -70,7 +71,7 @@ pub enum LoginResponse {
 }
 
 /// 登录响应（兼容旧接口）
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
@@ -92,7 +93,7 @@ pub struct AuthResponse {
 }
 
 /// 注册响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RegisterResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -102,7 +103,7 @@ pub struct RegisterResponse {
     pub user: UserInfo,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserInfo {
     pub id: String,
     pub email: String,
@@ -149,6 +150,18 @@ fn extract_ip_address(headers: &HeaderMap) -> Option<String> {
 }
 
 /// 注册
+///
+/// 创建新用户账号
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "注册成功", body = RegisterResponse),
+        (status = 400, description = "无效的请求参数")
+    ),
+    tag = "认证"
+)]
 pub async fn register(
     Extension(state): Extension<SharedState>,
     headers: HeaderMap,
@@ -201,6 +214,18 @@ pub async fn register(
 }
 
 /// 登录（返回 access_token 和 refresh_token，支持 TOTP）
+///
+/// 用户登录接口，支持TOTP两步验证
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "登录成功", body = AuthResponse),
+        (status = 401, description = "认证失败")
+    ),
+    tag = "认证"
+)]
 pub async fn login(
     Extension(state): Extension<SharedState>,
     headers: HeaderMap,
@@ -273,6 +298,20 @@ pub async fn login(
 }
 
 /// 获取当前用户信息
+///
+/// 获取当前登录用户的详细信息
+#[utoipa::path(
+    get,
+    path = "/api/v1/user/me",
+    responses(
+        (status = 200, description = "用户信息", body = UserInfo),
+        (status = 401, description = "未授权")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "用户"
+)]
 pub async fn get_me(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,

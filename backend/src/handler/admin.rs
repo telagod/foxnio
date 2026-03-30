@@ -7,6 +7,7 @@ use axum::{extract::Path, http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
+use utoipa::ToSchema;
 
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
@@ -20,7 +21,7 @@ use crate::service::{
 // ============ 用户管理 API ============
 
 /// 用户创建请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateUserRequest {
     pub email: String,
     pub password: String,
@@ -29,7 +30,7 @@ pub struct CreateUserRequest {
 }
 
 /// 用户更新请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserRequest {
     pub email: Option<String>,
     pub role: Option<String>,
@@ -37,13 +38,13 @@ pub struct UpdateUserRequest {
 }
 
 /// 余额更新请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateBalanceRequest {
     pub delta: i64,
 }
 
 /// 用户信息响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserResponse {
     pub id: String,
     pub email: String,
@@ -55,6 +56,21 @@ pub struct UserResponse {
 }
 
 /// 列出用户 - 需要 UserRead 权限
+///
+/// 获取所有用户列表（管理员）
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/users",
+    responses(
+        (status = 200, description = "用户列表"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-用户"
+)]
 pub async fn list_users(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
@@ -90,6 +106,23 @@ pub async fn list_users(
 }
 
 /// 创建用户 - 需要 UserWrite 权限
+///
+/// 创建新用户（管理员）
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/users",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 200, description = "用户创建成功"),
+        (status = 400, description = "无效的请求参数"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-用户"
+)]
 pub async fn create_user(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
@@ -151,6 +184,22 @@ pub async fn create_user(
 }
 
 /// 获取用户详情 - 需要 UserRead 权限
+///
+/// 获取指定用户的详细信息（管理员）
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/users/{id}",
+    responses(
+        (status = 200, description = "用户详情"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足"),
+        (status = 404, description = "用户不存在")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-用户"
+)]
 pub async fn get_user(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
@@ -188,6 +237,24 @@ pub async fn get_user(
 }
 
 /// 更新用户 - 需要 UserWrite 权限
+///
+/// 更新用户信息（管理员）
+#[utoipa::path(
+    put,
+    path = "/api/v1/admin/users/{id}",
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 200, description = "更新成功"),
+        (status = 400, description = "无效的请求参数"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足"),
+        (status = 404, description = "用户不存在")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-用户"
+)]
 pub async fn update_user(
     Extension(_state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,

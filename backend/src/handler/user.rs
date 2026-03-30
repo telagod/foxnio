@@ -8,26 +8,27 @@ use axum::{http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
+use utoipa::ToSchema;
 
 use super::ApiError;
 use crate::gateway::SharedState;
 use crate::service::user::{Claims, UserService};
 
 /// 更新用户信息请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserRequest {
     pub email: Option<String>,
 }
 
 /// 修改密码请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ChangePasswordRequest {
     pub current_password: String,
     pub new_password: String,
 }
 
 /// 用户信息响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserInfoResponse {
     pub id: String,
     pub email: String,
@@ -39,6 +40,22 @@ pub struct UserInfoResponse {
 }
 
 /// PUT /api/v1/user - 更新个人信息
+///
+/// 更新当前用户的个人信息
+#[utoipa::path(
+    put,
+    path = "/api/v1/user",
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 200, description = "更新成功"),
+        (status = 400, description = "无效的请求参数"),
+        (status = 401, description = "未授权")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "用户"
+)]
 pub async fn update_user_info(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
@@ -80,6 +97,22 @@ pub async fn update_user_info(
 }
 
 /// PUT /api/v1/user/password - 修改密码
+///
+/// 修改当前用户的密码
+#[utoipa::path(
+    put,
+    path = "/api/v1/user/password",
+    request_body = ChangePasswordRequest,
+    responses(
+        (status = 200, description = "密码修改成功"),
+        (status = 400, description = "无效的请求参数"),
+        (status = 401, description = "未授权")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "用户"
+)]
 pub async fn change_password(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,

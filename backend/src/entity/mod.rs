@@ -31,3 +31,5 @@ pub mod usages;
 pub mod user_attribute_definitions;
 pub mod user_attribute_values;
 pub mod users;
+pub mod webhook_deliveries;
+pub mod webhook_endpoints;
