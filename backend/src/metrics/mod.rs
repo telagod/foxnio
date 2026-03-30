@@ -265,6 +265,116 @@ lazy_static::lazy_static! {
         "foxnio_file_descriptors",
         "Number of open file descriptors"
     ).unwrap();
+
+    // ============================================================================
+    // Webhook 指标
+    // ============================================================================
+
+    /// 发送的 Webhook 事件总数
+    pub static ref WEBHOOK_EVENTS_SENT: IntCounter = register_int_counter!(opts!(
+        "foxnio_webhook_events_sent_total",
+        "Total webhook events sent"
+    )).unwrap();
+
+    /// 成功的 Webhook 投递数
+    pub static ref WEBHOOK_DELIVERY_SUCCESS: IntCounter = register_int_counter!(opts!(
+        "foxnio_webhook_delivery_success_total",
+        "Successful webhook deliveries"
+    )).unwrap();
+
+    /// 失败的 Webhook 投递数
+    pub static ref WEBHOOK_DELIVERY_FAILED: IntCounter = register_int_counter!(opts!(
+        "foxnio_webhook_delivery_failed_total",
+        "Failed webhook deliveries"
+    )).unwrap();
+
+    /// Webhook 重试次数
+    pub static ref WEBHOOK_RETRY_COUNT: IntCounter = register_int_counter!(opts!(
+        "foxnio_webhook_retry_total",
+        "Webhook retry attempts"
+    )).unwrap();
+
+    // ============================================================================
+    // 批量操作指标
+    // ============================================================================
+
+    /// 批量操作总数
+    pub static ref BATCH_OPERATIONS_TOTAL: IntCounter = register_int_counter!(opts!(
+        "foxnio_batch_operations_total",
+        "Total batch operations"
+    )).unwrap();
+
+    /// 批量操作处理的条目总数
+    pub static ref BATCH_ITEMS_PROCESSED: IntCounter = register_int_counter!(opts!(
+        "foxnio_batch_items_processed_total",
+        "Total items processed in batch operations"
+    )).unwrap();
+
+    /// 批量操作错误数
+    pub static ref BATCH_ERRORS: IntCounter = register_int_counter!(opts!(
+        "foxnio_batch_errors_total",
+        "Batch operation errors"
+    )).unwrap();
+
+    // ============================================================================
+    // API Key 权限指标
+    // ============================================================================
+
+    /// API Key 认证检查次数
+    pub static ref API_KEY_AUTH_CHECKS: IntCounter = register_int_counter!(opts!(
+        "foxnio_api_key_auth_checks_total",
+        "API key authentication checks"
+    )).unwrap();
+
+    /// API Key 配额超限次数
+    pub static ref API_KEY_QUOTA_EXCEEDED: IntCounter = register_int_counter!(opts!(
+        "foxnio_api_key_quota_exceeded_total",
+        "API key quota exceeded events"
+    )).unwrap();
+
+    /// API Key 模型访问拒绝次数
+    pub static ref API_KEY_MODEL_DENIED: IntCounter = register_int_counter!(opts!(
+        "foxnio_api_key_model_denied_total",
+        "API key model access denied events"
+    )).unwrap();
+
+    // ============================================================================
+    // 成本优化指标
+    // ============================================================================
+
+    /// 潜在成本节省金额
+    pub static ref COST_OPTIMIZATION_SAVINGS: Gauge = register_gauge!(opts!(
+        "foxnio_cost_optimization_potential_savings",
+        "Potential cost savings identified"
+    )).unwrap();
+
+    /// 成本优化建议生成数
+    pub static ref COST_RECOMMENDATIONS_GENERATED: IntCounter = register_int_counter!(opts!(
+        "foxnio_cost_recommendations_total",
+        "Cost optimization recommendations generated"
+    )).unwrap();
+
+    // ============================================================================
+    // 模型同步指标
+    // ============================================================================
+
+    /// 模型同步耗时
+    pub static ref MODEL_SYNC_DURATION: Histogram = register_histogram!(opts!(
+        "foxnio_model_sync_duration_seconds",
+        "Model sync duration"
+    )).unwrap();
+
+    /// 已同步的模型数量
+    pub static ref MODELS_SYNCED: IntGauge = register_int_gauge!(opts!(
+        "foxnio_models_synced",
+        "Number of models synced"
+    )).unwrap();
+
+    /// 模型价格变化检测数
+    pub static ref MODEL_PRICE_CHANGES: IntCounter = register_int_counter!(opts!(
+        "foxnio_model_price_changes_total",
+        "Model price changes detected"
+    )).unwrap();
 }
 
 /// 指标记录器 - 用于记录请求指标

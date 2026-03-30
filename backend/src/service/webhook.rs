@@ -17,6 +17,9 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::entity::{webhook_deliveries, webhook_endpoints};
+use crate::metrics::{
+    WEBHOOK_DELIVERY_FAILED, WEBHOOK_DELIVERY_SUCCESS, WEBHOOK_EVENTS_SENT, WEBHOOK_RETRY_COUNT,
+};
 
 use webhook_endpoints::WebhookEventType;
 
@@ -229,6 +232,9 @@ impl WebhookService {
             "Dispatching webhook event"
         );
 
+        // 记录发送的 webhook 事件数
+        WEBHOOK_EVENTS_SENT.inc_by(endpoints.len() as u64);
+
         // 为每个端点异步投递
         let mut handles = vec![];
         for endpoint in endpoints {
@@ -315,6 +321,9 @@ impl WebhookService {
                         self.update_delivery_success(delivery.id, attempt as i32, status_code, &response_body)
                             .await?;
 
+                        // 记录成功的投递
+                        WEBHOOK_DELIVERY_SUCCESS.inc();
+
                         info!(
                             endpoint_id = %endpoint.id,
                             delivery_id = %delivery.id,
@@ -337,11 +346,18 @@ impl WebhookService {
                             self.update_delivery_retry(delivery.id, attempt as i32, status_code, &response_body)
                                 .await?;
 
+                            // 记录重试
+                            WEBHOOK_RETRY_COUNT.inc();
+
                             sleep(self.calculate_backoff(attempt as i32)).await;
                         } else {
                             // 最后一次尝试也失败了
                             self.update_delivery_failed(delivery.id, attempt as i32, status_code, &response_body)
                                 .await?;
+
+                            // 记录失败的投递
+                            WEBHOOK_DELIVERY_FAILED.inc();
+
                             return Ok(());
                         }
                     }
@@ -360,11 +376,18 @@ impl WebhookService {
                         self.update_delivery_retry(delivery.id, attempt as i32, None, &e.to_string())
                             .await?;
 
+                        // 记录重试
+                        WEBHOOK_RETRY_COUNT.inc();
+
                         sleep(self.calculate_backoff(attempt as i32)).await;
                     } else {
                         // 最后一次尝试也失败了
                         self.update_delivery_failed(delivery.id, attempt as i32, None, &e.to_string())
                             .await?;
+
+                        // 记录失败的投递
+                        WEBHOOK_DELIVERY_FAILED.inc();
+
                         return Ok(());
                     }
                 }

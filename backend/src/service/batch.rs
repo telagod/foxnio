@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::metrics::{BATCH_ERRORS, BATCH_ITEMS_PROCESSED, BATCH_OPERATIONS_TOTAL};
+
 /// 批量操作结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchResult<T> {

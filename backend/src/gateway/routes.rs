@@ -635,6 +635,25 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         )
         .with_state(ws_handler);
 
+    // Webhook 路由 - 需要用户认证
+    let webhook_routes = Router::new()
+        .route("/api/v1/webhooks", post(handler::webhook::create_webhook))
+        .route("/api/v1/webhooks", get(handler::webhook::list_webhooks))
+        .route("/api/v1/webhooks/:id", get(handler::webhook::get_webhook))
+        .route("/api/v1/webhooks/:id", put(handler::webhook::update_webhook))
+        .route("/api/v1/webhooks/:id", delete(handler::webhook::delete_webhook))
+        .route("/api/v1/webhooks/:id/test", post(handler::webhook::test_webhook))
+        .route("/api/v1/webhooks/:id/deliveries", get(handler::webhook::list_deliveries))
+        .layer(axum::middleware::from_fn(middleware::jwt_auth));
+
+    // 批量操作路由 - 需要管理员权限（权限检查在 handler 内部）
+    let batch_routes = Router::new()
+        .route("/api/v1/admin/api-keys/batch-create", post(handler::batch::batch_create_api_keys))
+        .route("/api/v1/admin/accounts/batch-update", post(handler::batch::batch_update_accounts))
+        .route("/api/v1/admin/users/batch-import", post(handler::batch::batch_import_users))
+        .route("/api/v1/admin/api-keys/batch-delete", post(handler::batch::batch_delete_api_keys))
+        .layer(axum::middleware::from_fn(middleware::jwt_auth));
+
     // Gemini Native API 路由（v1beta）
     let gemini_routes = Router::new()
         // 模型列表和详情
@@ -664,6 +683,8 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router 
         .merge(admin_routes)
         .merge(ws_routes)
         .merge(gemini_routes)
+        .merge(webhook_routes)
+        .merge(batch_routes)
         // Swagger UI - OpenAPI 文档
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Responses API - 直接添加路由
