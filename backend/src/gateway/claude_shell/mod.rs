@@ -65,7 +65,7 @@ impl ClaudeShell {
     /// 发送流式消息请求
     pub async fn send_message_stream(&self, request: request::MessageRequest) -> Result<reqwest::Response> {
         let url = format!("{}/v1/messages", self.config.base_url);
-        let mut headers = headers::build_headers(&self.config.api_key, &self.config.api_version);
+        let headers = headers::build_headers(&self.config.api_key, &self.config.api_version);
         
         let mut stream_request = request;
         stream_request.stream = Some(true);
