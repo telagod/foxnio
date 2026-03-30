@@ -27,7 +27,7 @@ mod tests {
         let uuid = Uuid::new_v4();
         let id = uuid_to_i64(uuid);
         let back = i64_to_uuid(id);
-        
+
         // 前 8 字节应该匹配
         assert_eq!(uuid.as_bytes()[..8], back.as_bytes()[..8]);
     }

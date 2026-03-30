@@ -53,7 +53,10 @@ impl GeminiClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { http_client, config }
+        Self {
+            http_client,
+            config,
+        }
     }
 
     /// 使用默认配置创建客户端
@@ -175,7 +178,9 @@ impl GeminiClient {
         }
 
         let stream = response.bytes_stream();
-        Ok(Box::pin(stream.map(|r| r.map_err(|e| anyhow::anyhow!("Stream error: {}", e)))))
+        Ok(Box::pin(stream.map(|r| {
+            r.map_err(|e| anyhow::anyhow!("Stream error: {}", e))
+        })))
     }
 
     /// 计算 Token 数量
@@ -375,7 +380,10 @@ mod tests {
 
     #[test]
     fn test_extract_model_name() {
-        assert_eq!(extract_model_name("models/gemini-2.0-flash"), "gemini-2.0-flash");
+        assert_eq!(
+            extract_model_name("models/gemini-2.0-flash"),
+            "gemini-2.0-flash"
+        );
         assert_eq!(extract_model_name("gemini-2.0-flash"), "gemini-2.0-flash");
     }
 

@@ -99,9 +99,9 @@ impl Model {
                 if ips.is_empty() {
                     return true;
                 }
-                return ips.iter().any(|allowed_ip| {
-                    allowed_ip.as_str().map(|s| s == ip).unwrap_or(false)
-                });
+                return ips
+                    .iter()
+                    .any(|allowed_ip| allowed_ip.as_str().map(|s| s == ip).unwrap_or(false));
             }
         }
         // 如果没有设置 ip_whitelist，允许所有 IP
@@ -126,12 +126,12 @@ impl Model {
         if self.daily_quota.is_none() {
             return false;
         }
-        
+
         if let Some(reset_at) = self.quota_reset_at {
             // 如果重置时间已过，需要重置
             return reset_at <= Utc::now();
         }
-        
+
         // 如果设置了配额但没有重置时间，需要初始化
         true
     }

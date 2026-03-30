@@ -6,9 +6,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use reqwest::Client;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sha2::Sha256;
@@ -303,7 +301,9 @@ impl WebhookService {
         payload: JsonValue,
     ) -> Result<()> {
         // 创建投递记录
-        let delivery = self.create_delivery_record(endpoint.id, &event_type, &payload).await?;
+        let delivery = self
+            .create_delivery_record(endpoint.id, &event_type, &payload)
+            .await?;
 
         let max_attempts = endpoint.max_retries as usize + 1; // 首次 + 重试次数
 
@@ -318,8 +318,13 @@ impl WebhookService {
 
                     if status.is_success() {
                         // 成功，更新投递记录
-                        self.update_delivery_success(delivery.id, attempt as i32, status_code, &response_body)
-                            .await?;
+                        self.update_delivery_success(
+                            delivery.id,
+                            attempt as i32,
+                            status_code,
+                            &response_body,
+                        )
+                        .await?;
 
                         // 记录成功的投递
                         WEBHOOK_DELIVERY_SUCCESS.inc();
@@ -343,8 +348,13 @@ impl WebhookService {
                         );
 
                         if attempt < max_attempts - 1 {
-                            self.update_delivery_retry(delivery.id, attempt as i32, Some(status_code), &response_body)
-                                .await?;
+                            self.update_delivery_retry(
+                                delivery.id,
+                                attempt as i32,
+                                Some(status_code),
+                                &response_body,
+                            )
+                            .await?;
 
                             // 记录重试
                             WEBHOOK_RETRY_COUNT.inc();
@@ -352,8 +362,13 @@ impl WebhookService {
                             sleep(self.calculate_backoff(attempt as i32)).await;
                         } else {
                             // 最后一次尝试也失败了
-                            self.update_delivery_failed(delivery.id, attempt as i32, Some(status_code), &response_body)
-                                .await?;
+                            self.update_delivery_failed(
+                                delivery.id,
+                                attempt as i32,
+                                Some(status_code),
+                                &response_body,
+                            )
+                            .await?;
 
                             // 记录失败的投递
                             WEBHOOK_DELIVERY_FAILED.inc();
@@ -373,8 +388,13 @@ impl WebhookService {
                     );
 
                     if attempt < max_attempts - 1 {
-                        self.update_delivery_retry(delivery.id, attempt as i32, None, &e.to_string())
-                            .await?;
+                        self.update_delivery_retry(
+                            delivery.id,
+                            attempt as i32,
+                            None,
+                            &e.to_string(),
+                        )
+                        .await?;
 
                         // 记录重试
                         WEBHOOK_RETRY_COUNT.inc();
@@ -382,8 +402,13 @@ impl WebhookService {
                         sleep(self.calculate_backoff(attempt as i32)).await;
                     } else {
                         // 最后一次尝试也失败了
-                        self.update_delivery_failed(delivery.id, attempt as i32, None, &e.to_string())
-                            .await?;
+                        self.update_delivery_failed(
+                            delivery.id,
+                            attempt as i32,
+                            None,
+                            &e.to_string(),
+                        )
+                        .await?;
 
                         // 记录失败的投递
                         WEBHOOK_DELIVERY_FAILED.inc();
@@ -506,7 +531,9 @@ impl WebhookService {
         active_model.attempts = Set(attempts + 1);
         active_model.response_code = Set(response_code);
         active_model.response_body = Set(Some(response_body.to_string()));
-        active_model.next_retry_at = Set(Some(Utc::now() + chrono::Duration::seconds(2_i64.pow(attempts as u32))));
+        active_model.next_retry_at = Set(Some(
+            Utc::now() + chrono::Duration::seconds(2_i64.pow(attempts as u32)),
+        ));
 
         active_model.update(&self.db).await?;
         Ok(())

@@ -218,7 +218,9 @@ impl FailoverManager {
     where
         F: FnMut(
             &accounts::Model,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, UpstreamFailoverError>> + Send>>,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<T, UpstreamFailoverError>> + Send>,
+        >,
     {
         let mut last_error = None;
         let mut attempts = 0;
@@ -257,7 +259,8 @@ impl FailoverManager {
 
                         // 同账号重试：对 RetryableOnSameAccount 的临时性错误，先在同一账号上重试
                         if failover_err.retryable_on_same_account {
-                            let retry_count = same_account_retry_count.entry(account_id).or_insert(0);
+                            let retry_count =
+                                same_account_retry_count.entry(account_id).or_insert(0);
 
                             if *retry_count < self.config.max_same_account_retries {
                                 *retry_count += 1;
@@ -271,18 +274,21 @@ impl FailoverManager {
                                 );
 
                                 // 等待后重试
-                                tokio::time::sleep(
-                                    Duration::from_millis(self.config.same_account_retry_delay_ms)
-                                ).await;
+                                tokio::time::sleep(Duration::from_millis(
+                                    self.config.same_account_retry_delay_ms,
+                                ))
+                                .await;
                                 continue;
                             }
 
                             // 同账号重试用尽，执行临时封禁
-                            self.temp_unschedule_retryable_error(&account_id, &failover_err).await;
+                            self.temp_unschedule_retryable_error(&account_id, &failover_err)
+                                .await;
                         }
 
                         // 标记失败
-                        self.mark_failure(account_id, failover_err.to_string()).await;
+                        self.mark_failure(account_id, failover_err.to_string())
+                            .await;
 
                         // 加入失败列表
                         failed_accounts.insert(account_id, failover_err);
@@ -299,9 +305,8 @@ impl FailoverManager {
         }
 
         // 所有账号都失败
-        let last_err = last_error.unwrap_or_else(|| {
-            UpstreamFailoverError::new(502, b"All accounts exhausted".to_vec())
-        });
+        let last_err = last_error
+            .unwrap_or_else(|| UpstreamFailoverError::new(502, b"All accounts exhausted".to_vec()));
 
         bail!(
             "All accounts failed after {} attempts. Last error: {}",
@@ -323,11 +328,17 @@ impl FailoverManager {
         let (duration, reason) = match failover_err.status_code {
             // 400: Google 配置类错误
             400 => {
-                let msg = failover_err.extract_message()
+                let msg = failover_err
+                    .extract_message()
                     .unwrap_or_else(|| "unknown error".to_string());
-                let reason = format!("400: {} (auto temp-unschedule {}s)", 
-                    msg, self.config.google_config_error_cooldown_secs);
-                (Duration::from_secs(self.config.google_config_error_cooldown_secs), reason)
+                let reason = format!(
+                    "400: {} (auto temp-unschedule {}s)",
+                    msg, self.config.google_config_error_cooldown_secs
+                );
+                (
+                    Duration::from_secs(self.config.google_config_error_cooldown_secs),
+                    reason,
+                )
             }
             // 502: 空响应
             502 => {
@@ -335,7 +346,10 @@ impl FailoverManager {
                     "empty stream response (auto temp-unschedule {}s)",
                     self.config.empty_response_cooldown_secs
                 );
-                (Duration::from_secs(self.config.empty_response_cooldown_secs), reason)
+                (
+                    Duration::from_secs(self.config.empty_response_cooldown_secs),
+                    reason,
+                )
             }
             _ => return,
         };
@@ -474,7 +488,10 @@ impl FailoverManager {
     }
 
     /// 获取临时封禁状态
-    pub async fn get_temp_unsched_state(&self, account_id: &uuid::Uuid) -> Option<TempUnschedState> {
+    pub async fn get_temp_unsched_state(
+        &self,
+        account_id: &uuid::Uuid,
+    ) -> Option<TempUnschedState> {
         let status = self.health_status.read().await;
 
         status.get(account_id).and_then(|health| {
@@ -489,7 +506,7 @@ impl FailoverManager {
                 TempUnschedState {
                     until_unix: Utc::now().timestamp() + remaining.as_secs() as i64,
                     triggered_at_unix: Utc::now().timestamp() - 60, // 简化，实际应记录
-                    status_code: 0, // 简化，实际应记录
+                    status_code: 0,                                 // 简化，实际应记录
                     matched_keyword: None,
                     reason: health.temp_unschedulable_reason.clone().unwrap_or_default(),
                 }
@@ -548,7 +565,10 @@ mod tests {
     fn test_upstream_failover_error_extract_message() {
         let json = r#"{"error": {"message": "context length exceeded"}}"#;
         let err = UpstreamFailoverError::new(400, json.as_bytes().to_vec());
-        assert_eq!(err.extract_message(), Some("context length exceeded".to_string()));
+        assert_eq!(
+            err.extract_message(),
+            Some("context length exceeded".to_string())
+        );
 
         let text = "plain text error message";
         let err = UpstreamFailoverError::new(500, text.as_bytes().to_vec());
@@ -575,11 +595,13 @@ mod tests {
         let account_id = uuid::Uuid::new_v4();
 
         // 临时封禁
-        manager.temp_unschedule(
-            &account_id,
-            Duration::from_secs(60),
-            "test reason".to_string(),
-        ).await;
+        manager
+            .temp_unschedule(
+                &account_id,
+                Duration::from_secs(60),
+                "test reason".to_string(),
+            )
+            .await;
 
         // 检查是否不健康
         assert!(!manager.is_account_healthy(&account_id).await);
@@ -601,7 +623,9 @@ mod tests {
 
         // 触发 400 错误的临时封禁
         let err = UpstreamFailoverError::retryable(400, b"invalid project resource name".to_vec());
-        manager.temp_unschedule_retryable_error(&account_id, &err).await;
+        manager
+            .temp_unschedule_retryable_error(&account_id, &err)
+            .await;
 
         // 检查是否不健康
         assert!(!manager.is_account_healthy(&account_id).await);

@@ -12,8 +12,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse};
 use super::model_registry::{ModelRegistry, RuntimeModelConfig};
+use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse};
 
 /// 最大重试次数
 const MAX_RETRIES: u32 = 3;
@@ -192,7 +192,14 @@ impl ModelSyncService {
         let mut results = Vec::new();
 
         // 同步各提供商
-        for provider in &["openai", "anthropic", "google", "deepseek", "mistral", "cohere"] {
+        for provider in &[
+            "openai",
+            "anthropic",
+            "google",
+            "deepseek",
+            "mistral",
+            "cohere",
+        ] {
             match self.sync_provider_with_retry(provider).await {
                 Ok(result) => {
                     info!(
@@ -297,8 +304,10 @@ impl ModelSyncService {
     /// 从 OpenAI 同步模型
     async fn sync_openai(&self) -> Result<SyncResult> {
         debug!("Fetching OpenAI models");
-        
-        let api_key = self.get_api_key("openai").await
+
+        let api_key = self
+            .get_api_key("openai")
+            .await
             .context("OpenAI API key not configured")?;
 
         // 调用 OpenAI API 获取模型列表
@@ -380,7 +389,15 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models("openai", &chat_models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>()).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "openai",
+                &chat_models
+                    .iter()
+                    .map(|m| m.id.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "openai".to_string(),
@@ -395,7 +412,7 @@ impl ModelSyncService {
     /// 从 Anthropic 同步模型（基于已知模型列表）
     async fn sync_anthropic(&self) -> Result<SyncResult> {
         debug!("Syncing Anthropic models");
-        
+
         // Anthropic 没有公开的模型列表 API，使用已知模型
         let known_models = vec![
             AnthropicModelInfo {
@@ -488,10 +505,13 @@ impl ModelSyncService {
                 ) {
                     price_changes.push(price_change);
                     updated_models.push(model_info.name.clone());
-                    
+
                     // 更新模型价格
                     if let Err(e) = self.update_model_prices(existing, model_info).await {
-                        warn!("Failed to update Anthropic model {}: {}", model_info.name, e);
+                        warn!(
+                            "Failed to update Anthropic model {}: {}",
+                            model_info.name, e
+                        );
                         errors.push(format!("Update failed for {}: {}", model_info.name, e));
                     }
                 }
@@ -529,10 +549,15 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models(
-            "anthropic",
-            &known_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(),
-        ).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "anthropic",
+                &known_models
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "anthropic".to_string(),
@@ -547,8 +572,10 @@ impl ModelSyncService {
     /// 从 Google/Gemini 同步模型
     async fn sync_google(&self) -> Result<SyncResult> {
         debug!("Syncing Google/Gemini models");
-        
-        let api_key = self.get_api_key("google").await
+
+        let api_key = self
+            .get_api_key("google")
+            .await
             .context("Google API key not configured")?;
 
         // 调用 Gemini API
@@ -556,7 +583,7 @@ impl ModelSyncService {
             "https://generativelanguage.googleapis.com/v1beta/models?key={}",
             api_key
         );
-        
+
         let response = self
             .http_client
             .get(&url)
@@ -581,9 +608,7 @@ impl ModelSyncService {
         let gemini_models: Vec<&GeminiModel> = models
             .models
             .iter()
-            .filter(|m| {
-                m.name.contains("gemini") && !m.name.contains("embedding")
-            })
+            .filter(|m| m.name.contains("gemini") && !m.name.contains("embedding"))
             .collect();
 
         info!("Found {} Gemini models", gemini_models.len());
@@ -622,10 +647,15 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models(
-            "google",
-            &gemini_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(),
-        ).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "google",
+                &gemini_models
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "google".to_string(),
@@ -640,13 +670,15 @@ impl ModelSyncService {
     /// 从 DeepSeek 同步模型
     async fn sync_deepseek(&self) -> Result<SyncResult> {
         debug!("Syncing DeepSeek models");
-        
-        let api_key = self.get_api_key("deepseek").await
+
+        let api_key = self
+            .get_api_key("deepseek")
+            .await
             .context("DeepSeek API key not configured")?;
 
         // DeepSeek 模型列表
         let url = "https://api.deepseek.com/v1/models";
-        
+
         let response = self
             .http_client
             .get(url)
@@ -741,10 +773,15 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models(
-            "deepseek",
-            &known_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(),
-        ).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "deepseek",
+                &known_models
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "deepseek".to_string(),
@@ -759,13 +796,15 @@ impl ModelSyncService {
     /// 从 Mistral 同步模型
     async fn sync_mistral(&self) -> Result<SyncResult> {
         debug!("Syncing Mistral models");
-        
-        let api_key = self.get_api_key("mistral").await
+
+        let api_key = self
+            .get_api_key("mistral")
+            .await
             .context("Mistral API key not configured")?;
 
         // 调用 Mistral API
         let url = "https://api.mistral.ai/v1/models";
-        
+
         let response = self
             .http_client
             .get(url)
@@ -862,10 +901,16 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models(
-            "mistral",
-            &models.data.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
-        ).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "mistral",
+                &models
+                    .data
+                    .iter()
+                    .map(|m| m.id.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "mistral".to_string(),
@@ -880,13 +925,15 @@ impl ModelSyncService {
     /// 从 Cohere 同步模型
     async fn sync_cohere(&self) -> Result<SyncResult> {
         debug!("Syncing Cohere models");
-        
-        let api_key = self.get_api_key("cohere").await
+
+        let api_key = self
+            .get_api_key("cohere")
+            .await
             .context("Cohere API key not configured")?;
 
         // 调用 Cohere API
         let url = "https://api.cohere.ai/v1/models";
-        
+
         let response = self
             .http_client
             .get(url)
@@ -982,10 +1029,16 @@ impl ModelSyncService {
         }
 
         // 检测废弃模型
-        let deprecated_models = self.detect_deprecated_models(
-            "cohere",
-            &models.models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(),
-        ).await?;
+        let deprecated_models = self
+            .detect_deprecated_models(
+                "cohere",
+                &models
+                    .models
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
         Ok(SyncResult {
             provider: "cohere".to_string(),
@@ -1008,9 +1061,11 @@ impl ModelSyncService {
     ) -> Option<PriceChange> {
         // 价格变化超过 1% 则认为有变化
         let threshold = 0.01;
-        
-        let input_changed = (old_input - new_input).abs() > old_input * threshold || old_input == 0.0 && new_input > 0.0;
-        let output_changed = (old_output - new_output).abs() > old_output * threshold || old_output == 0.0 && new_output > 0.0;
+
+        let input_changed = (old_input - new_input).abs() > old_input * threshold
+            || old_input == 0.0 && new_input > 0.0;
+        let output_changed = (old_output - new_output).abs() > old_output * threshold
+            || old_output == 0.0 && new_output > 0.0;
 
         if input_changed || output_changed {
             info!(
@@ -1074,10 +1129,13 @@ impl ModelSyncService {
     ) -> Result<()> {
         debug!(
             "Updating prices for {}: input {:.2} -> {:.2}, output {:.2} -> {:.2}",
-            existing.name, existing.input_price, model_info.input_price, 
-            existing.output_price, model_info.output_price
+            existing.name,
+            existing.input_price,
+            model_info.input_price,
+            existing.output_price,
+            model_info.output_price
         );
-        
+
         // 这里应该调用 model_registry.update() 方法
         // 暂时只记录日志
         Ok(())
@@ -1086,7 +1144,7 @@ impl ModelSyncService {
     /// 获取 OpenAI 模型配置
     fn get_openai_model_config(&self, model_name: &str) -> Result<CreateModelRequest> {
         // OpenAI 模型价格映射
-        let (input_price, output_price, context_window, supports_vision) = 
+        let (input_price, output_price, context_window, supports_vision) =
             if model_name.starts_with("gpt-4o") {
                 (2.5, 10.0, 128000, true)
             } else if model_name.starts_with("gpt-4-turbo") {
@@ -1127,18 +1185,17 @@ impl ModelSyncService {
     /// 获取 Gemini 模型配置
     fn get_gemini_model_config(&self, model: &GeminiModel) -> Result<CreateModelRequest> {
         let model_name = model.name.strip_prefix("models/").unwrap_or(&model.name);
-        
+
         // Gemini 模型价格映射
-        let (input_price, output_price, context_window) = 
-            if model_name.contains("gemini-2.0") {
-                (0.0, 0.0, 1048576) // Gemini 2.0 Flash is free
-            } else if model_name.contains("gemini-1.5-pro") {
-                (1.25, 5.0, 2097152)
-            } else if model_name.contains("gemini-1.5-flash") {
-                (0.075, 0.3, 1048576)
-            } else {
-                (0.5, 1.5, 32768)
-            };
+        let (input_price, output_price, context_window) = if model_name.contains("gemini-2.0") {
+            (0.0, 0.0, 1048576) // Gemini 2.0 Flash is free
+        } else if model_name.contains("gemini-1.5-pro") {
+            (1.25, 5.0, 2097152)
+        } else if model_name.contains("gemini-1.5-flash") {
+            (0.075, 0.3, 1048576)
+        } else {
+            (0.5, 1.5, 32768)
+        };
 
         Ok(CreateModelRequest {
             name: model_name.to_string(),
@@ -1162,7 +1219,11 @@ impl ModelSyncService {
     }
 
     /// 获取默认模型配置
-    fn get_default_model_config(&self, provider: &str, model_name: &str) -> Result<CreateModelRequest> {
+    fn get_default_model_config(
+        &self,
+        provider: &str,
+        model_name: &str,
+    ) -> Result<CreateModelRequest> {
         Ok(CreateModelRequest {
             name: model_name.to_string(),
             aliases: vec![],
@@ -1191,8 +1252,11 @@ impl ModelSyncService {
 
     /// 启动定时同步任务
     pub async fn start_periodic_sync(self: Arc<Self>, interval_hours: u64) {
-        info!("Starting periodic model sync every {} hours", interval_hours);
-        
+        info!(
+            "Starting periodic model sync every {} hours",
+            interval_hours
+        );
+
         tokio::spawn(async move {
             let interval = std::time::Duration::from_secs(interval_hours * 3600);
             let mut consecutive_failures = 0;
@@ -1205,10 +1269,12 @@ impl ModelSyncService {
                 match self.sync_all().await {
                     Ok(results) => {
                         consecutive_failures = 0;
-                        
+
                         let total_new: usize = results.iter().map(|r| r.new_models.len()).sum();
-                        let total_updated: usize = results.iter().map(|r| r.updated_models.len()).sum();
-                        let total_deprecated: usize = results.iter().map(|r| r.deprecated_models.len()).sum();
+                        let total_updated: usize =
+                            results.iter().map(|r| r.updated_models.len()).sum();
+                        let total_deprecated: usize =
+                            results.iter().map(|r| r.deprecated_models.len()).sum();
                         let total_errors: usize = results.iter().map(|r| r.errors.len()).sum();
 
                         info!(
@@ -1221,7 +1287,7 @@ impl ModelSyncService {
                             .iter()
                             .flat_map(|r| r.price_changes.clone())
                             .collect();
-                        
+
                         if !price_changes.is_empty() {
                             warn!("Price changes detected: {:?}", price_changes);
                             // TODO: 发送通知到指定渠道
@@ -1291,7 +1357,7 @@ mod tests {
             models_count: 10,
             last_error: None,
         };
-        
+
         assert_eq!(status.provider, "openai");
         assert_eq!(status.models_count, 10);
         assert!(status.last_sync.is_some());
@@ -1317,7 +1383,7 @@ mod tests {
 
         let json = serde_json::to_string(&result).unwrap();
         let deserialized: SyncResult = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.provider, "anthropic");
         assert_eq!(deserialized.new_models.len(), 1);
         assert_eq!(deserialized.price_changes.len(), 1);
@@ -1354,13 +1420,17 @@ mod tests {
         );
 
         // GPT-4o
-        let config = service.get_openai_model_config("gpt-4o-2024-05-13").unwrap();
+        let config = service
+            .get_openai_model_config("gpt-4o-2024-05-13")
+            .unwrap();
         assert_eq!(config.input_price, 2.5);
         assert_eq!(config.output_price, 10.0);
         assert!(config.supports_vision);
 
         // GPT-3.5-turbo
-        let config = service.get_openai_model_config("gpt-3.5-turbo-0125").unwrap();
+        let config = service
+            .get_openai_model_config("gpt-3.5-turbo-0125")
+            .unwrap();
         assert_eq!(config.input_price, 0.5);
         assert_eq!(config.output_price, 1.5);
         assert!(!config.supports_vision);
@@ -1373,17 +1443,15 @@ mod tests {
 
     #[test]
     fn test_anthropic_model_info() {
-        let models = vec![
-            AnthropicModelInfo {
-                name: "claude-3-5-sonnet-20241022".into(),
-                display_name: "Claude 3.5 Sonnet".into(),
-                input_price: 3.0,
-                output_price: 15.0,
-                context_window: 200000,
-                max_tokens: 8192,
-                supports_vision: true,
-            },
-        ];
+        let models = vec![AnthropicModelInfo {
+            name: "claude-3-5-sonnet-20241022".into(),
+            display_name: "Claude 3.5 Sonnet".into(),
+            input_price: 3.0,
+            output_price: 15.0,
+            context_window: 200000,
+            max_tokens: 8192,
+            supports_vision: true,
+        }];
 
         assert_eq!(models[0].name, "claude-3-5-sonnet-20241022");
         assert_eq!(models[0].input_price, 3.0);
@@ -1418,16 +1486,14 @@ mod tests {
 
     #[test]
     fn test_deepseek_model_info() {
-        let models = vec![
-            DeepSeekModelInfo {
-                name: "deepseek-chat".into(),
-                display_name: "DeepSeek Chat".into(),
-                input_price: 0.14,
-                output_price: 0.28,
-                context_window: 64000,
-                max_tokens: 4096,
-            },
-        ];
+        let models = vec![DeepSeekModelInfo {
+            name: "deepseek-chat".into(),
+            display_name: "DeepSeek Chat".into(),
+            input_price: 0.14,
+            output_price: 0.28,
+            context_window: 64000,
+            max_tokens: 4096,
+        }];
 
         assert_eq!(models[0].name, "deepseek-chat");
         assert_eq!(models[0].input_price, 0.14);
@@ -1442,7 +1508,9 @@ mod tests {
         );
 
         // 设置 API 密钥
-        service.set_api_key("openai", "sk-test-key".to_string()).await;
+        service
+            .set_api_key("openai", "sk-test-key".to_string())
+            .await;
 
         // 获取 API 密钥
         let key = service.get_api_key("openai").await.unwrap();
@@ -1469,6 +1537,9 @@ mod tests {
         // 尝试同步应该失败
         let result = service.sync_all().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("already in progress"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already in progress"));
     }
 }

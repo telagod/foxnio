@@ -13,9 +13,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::utils::uuid_conv::uuid_to_i64;
 use super::metrics::AccountMetrics;
 use super::{AccountInfo, AccountStatus, ScheduleContext, ScheduleResult};
+use crate::utils::uuid_conv::uuid_to_i64;
 
 /// 账号负载信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,7 +50,8 @@ impl AccountLoadInfo {
     /// 计算负载率
     pub fn calculate_load_rate(&mut self) {
         if self.max_concurrency > 0 {
-            self.load_rate = (self.current_concurrency as f64 / self.max_concurrency as f64) * 100.0;
+            self.load_rate =
+                (self.current_concurrency as f64 / self.max_concurrency as f64) * 100.0;
         } else {
             self.load_rate = 0.0;
         }
@@ -63,7 +64,8 @@ impl AccountLoadInfo {
 
     /// 获取可用槽位
     pub fn available_slots(&self) -> u32 {
-        self.max_concurrency.saturating_sub(self.current_concurrency)
+        self.max_concurrency
+            .saturating_sub(self.current_concurrency)
     }
 }
 
@@ -271,8 +273,7 @@ impl AccountRuntimeStats {
                     ALPHA * (ttft as f64) + (1.0 - ALPHA) * old_value
                 };
 
-                self.ttft_ewma
-                    .store(new_value.to_bits(), Ordering::Relaxed);
+                self.ttft_ewma.store(new_value.to_bits(), Ordering::Relaxed);
             }
         }
     }
@@ -285,7 +286,12 @@ impl AccountRuntimeStats {
             let new_value = alpha * sample + (1.0 - alpha) * old_value;
 
             if target
-                .compare_exchange_weak(old_bits, new_value.to_bits(), Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange_weak(
+                    old_bits,
+                    new_value.to_bits(),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
                 .is_ok()
             {
                 break;
@@ -295,7 +301,8 @@ impl AccountRuntimeStats {
 
     /// 获取快照
     pub fn snapshot(&self) -> (f64, f64, bool) {
-        let error_rate = f64::from_bits(self.error_rate_ewma.load(Ordering::Relaxed)).clamp(0.0, 1.0);
+        let error_rate =
+            f64::from_bits(self.error_rate_ewma.load(Ordering::Relaxed)).clamp(0.0, 1.0);
         let ttft_value = f64::from_bits(self.ttft_ewma.load(Ordering::Relaxed));
 
         if ttft_value.is_nan() {
@@ -524,13 +531,13 @@ impl LoadAwareScheduler {
                 decision.layer = ScheduleLayer::PreviousResponse;
                 decision.sticky_previous_hit = true;
                 decision.selected_account_id = Some(uuid_to_i64(result.account.id));
-                
+
                 // 同时绑定会话
                 if let Some(ref session_id) = ctx.session_id {
                     self.bind_sticky_session(session_id.clone(), uuid_to_i64(result.account.id))
                         .await;
                 }
-                
+
                 return Some(result);
             }
         }
@@ -546,16 +553,17 @@ impl LoadAwareScheduler {
         }
 
         // 3. 负载均衡选择
-        let (result, candidate_count, top_k, load_skew) = self.select_by_load_balance(accounts, ctx).await;
-        
+        let (result, candidate_count, top_k, load_skew) =
+            self.select_by_load_balance(accounts, ctx).await;
+
         decision.layer = ScheduleLayer::LoadBalance;
         decision.candidate_count = candidate_count;
         decision.top_k = top_k;
         decision.load_skew = load_skew;
-        
+
         if let Some(ref result) = result {
             decision.selected_account_id = Some(uuid_to_i64(result.account.id));
-            
+
             // 绑定会话
             if let Some(ref session_id) = ctx.session_id {
                 self.bind_sticky_session(session_id.clone(), uuid_to_i64(result.account.id))
@@ -574,10 +582,13 @@ impl LoadAwareScheduler {
         _ctx: &ScheduleContext,
     ) -> Option<ScheduleResult> {
         let responses = self.previous_responses.read().await;
-        
+
         if let Some(entry) = responses.get(previous_response_id) {
             // 检查账号是否仍然可用
-            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == entry.account_id) {
+            if let Some(account) = accounts
+                .iter()
+                .find(|a| uuid_to_i64(a.id) == entry.account_id)
+            {
                 if account.status.is_available() {
                     let metrics = self
                         .account_metrics
@@ -615,7 +626,10 @@ impl LoadAwareScheduler {
             }
 
             // 检查账号是否仍然可用
-            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == entry.account_id) {
+            if let Some(account) = accounts
+                .iter()
+                .find(|a| uuid_to_i64(a.id) == entry.account_id)
+            {
                 if account.status.is_available() {
                     // 刷新访问时间
                     drop(sessions);
@@ -674,7 +688,9 @@ impl LoadAwareScheduler {
             let load_info = loads
                 .get(&(uuid_to_i64(account.id)))
                 .cloned()
-                .unwrap_or_else(|| AccountLoadInfo::new(uuid_to_i64(account.id), account.concurrent_limit));
+                .unwrap_or_else(|| {
+                    AccountLoadInfo::new(uuid_to_i64(account.id), account.concurrent_limit)
+                });
 
             // 更新优先级范围
             if account.priority < min_priority {
@@ -690,8 +706,9 @@ impl LoadAwareScheduler {
             }
 
             // 获取运行时统计
-            let (error_rate, ttft, has_ttft) = self.runtime_stats.snapshot(uuid_to_i64(account.id)).await;
-            
+            let (error_rate, ttft, has_ttft) =
+                self.runtime_stats.snapshot(uuid_to_i64(account.id)).await;
+
             if has_ttft && ttft > 0.0 {
                 if !has_ttft_sample {
                     min_ttft = ttft;
@@ -721,7 +738,8 @@ impl LoadAwareScheduler {
         }
 
         // 计算负载偏斜度
-        let load_skew = calc_load_skew_by_moments(load_rate_sum, load_rate_sum_squares, candidates.len());
+        let load_skew =
+            calc_load_skew_by_moments(load_rate_sum, load_rate_sum_squares, candidates.len());
 
         // 计算评分
         let weights = &self.config.score_weights;
@@ -738,7 +756,8 @@ impl LoadAwareScheduler {
             let load_factor = 1.0 - (candidate.load_info.load_rate / 100.0).clamp(0.0, 1.0);
 
             // 队列因子（等待越少越好）
-            let queue_factor = 1.0 - (candidate.load_info.waiting_count as f64 / max_waiting as f64).min(1.0);
+            let queue_factor =
+                1.0 - (candidate.load_info.waiting_count as f64 / max_waiting as f64).min(1.0);
 
             // 错误率因子（错误越少越好）
             let error_factor = 1.0 - candidate.error_rate.clamp(0.0, 1.0);
@@ -767,7 +786,10 @@ impl LoadAwareScheduler {
         // 尝试选择第一个可用账号
         for candidate in selection_order {
             // 找到对应的账号
-            if let Some(account) = accounts.iter().find(|a| uuid_to_i64(a.id) == candidate.account_id) {
+            if let Some(account) = accounts
+                .iter()
+                .find(|a| uuid_to_i64(a.id) == candidate.account_id)
+            {
                 let metrics = self
                     .account_metrics
                     .get_or_create_account_metrics(account.id)
@@ -944,7 +966,8 @@ fn build_weighted_selection_order(candidates: &[CandidateScore]) -> Vec<Candidat
 
     let _total_weight: f64 = weights.iter().sum();
     let mut order = Vec::with_capacity(candidates.len());
-    let mut remaining: Vec<(usize, f64)> = weights.iter().enumerate().map(|(i, w)| (i, *w)).collect();
+    let mut remaining: Vec<(usize, f64)> =
+        weights.iter().enumerate().map(|(i, w)| (i, *w)).collect();
 
     // 使用随机数生成器
     let mut rng = rand::thread_rng();

@@ -88,7 +88,10 @@ impl AccountService {
     }
 
     /// Get account with scheduling info
-    pub async fn get_with_scheduling(&self, id: i64) -> Result<AccountWithScheduling, AccountError> {
+    pub async fn get_with_scheduling(
+        &self,
+        id: i64,
+    ) -> Result<AccountWithScheduling, AccountError> {
         let account = query_as::<_, AccountWithScheduling>(
             "SELECT id, name, provider, status, credentials, models, \
              COALESCE(priority, 0) as priority, \
@@ -117,7 +120,9 @@ impl AccountService {
     }
 
     /// List active accounts with scheduling info
-    pub async fn list_active_with_scheduling(&self) -> Result<Vec<AccountWithScheduling>, AccountError> {
+    pub async fn list_active_with_scheduling(
+        &self,
+    ) -> Result<Vec<AccountWithScheduling>, AccountError> {
         let accounts = query_as::<_, AccountWithScheduling>(
             "SELECT id, name, provider, status, credentials, models, \
              COALESCE(priority, 0) as priority, \
@@ -134,7 +139,10 @@ impl AccountService {
     }
 
     /// List schedulable accounts (active and with proper configuration)
-    pub async fn list_schedulable(&self, group_id: Option<i64>) -> Result<Vec<AccountWithScheduling>, AccountError> {
+    pub async fn list_schedulable(
+        &self,
+        group_id: Option<i64>,
+    ) -> Result<Vec<AccountWithScheduling>, AccountError> {
         let accounts = if let Some(gid) = group_id {
             query_as::<_, AccountWithScheduling>(
                 "SELECT a.id, a.name, a.provider, a.status, a.credentials, a.models, \
@@ -158,7 +166,10 @@ impl AccountService {
     }
 
     /// Get account concurrency limits
-    pub async fn get_concurrency_batch(&self, account_ids: &[i64]) -> Result<Vec<AccountConcurrency>, AccountError> {
+    pub async fn get_concurrency_batch(
+        &self,
+        account_ids: &[i64],
+    ) -> Result<Vec<AccountConcurrency>, AccountError> {
         let accounts = query_as::<_, AccountConcurrency>(
             "SELECT id, COALESCE(concurrency, 10) as max_concurrency \
              FROM accounts WHERE id = ANY($1)",
@@ -268,7 +279,10 @@ impl AccountService {
     }
 
     /// Filter accounts by model support
-    pub fn filter_by_model(accounts: &[AccountWithScheduling], model: &str) -> Vec<AccountWithScheduling> {
+    pub fn filter_by_model(
+        accounts: &[AccountWithScheduling],
+        model: &str,
+    ) -> Vec<AccountWithScheduling> {
         accounts
             .iter()
             .filter(|a| a.models.iter().any(|m| m == model || m == "*"))

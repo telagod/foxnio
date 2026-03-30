@@ -7,8 +7,8 @@
 use axum::{http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use uuid::Uuid;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 use super::ApiError;
 use crate::gateway::SharedState;

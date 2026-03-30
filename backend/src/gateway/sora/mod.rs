@@ -69,7 +69,10 @@ mod tests {
 
     #[test]
     fn test_get_sora_endpoint() {
-        assert_eq!(get_sora_endpoint("gpt-image"), Some("/v1/images/generations"));
+        assert_eq!(
+            get_sora_endpoint("gpt-image"),
+            Some("/v1/images/generations")
+        );
         assert_eq!(
             get_sora_endpoint("sora2-landscape-10s"),
             Some("/v1/videos/generations")

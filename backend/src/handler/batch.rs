@@ -15,8 +15,7 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::batch::{
-    BatchOperationService, BatchResult, CreateApiKeyRequest, CreateUserCsvRecord,
-    CreateUserRequest,
+    BatchOperationService, BatchResult, CreateApiKeyRequest, CreateUserCsvRecord, CreateUserRequest,
 };
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
@@ -97,17 +96,16 @@ pub async fn batch_update_accounts(
         ));
     }
 
-    let updates: std::collections::HashMap<String, serde_json::Value> = serde_json::from_value(req.updates.clone())
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid updates: {}", e)))?;
+    let updates: std::collections::HashMap<String, serde_json::Value> =
+        serde_json::from_value(req.updates.clone())
+            .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid updates: {}", e)))?;
 
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
-        .batch_update_accounts(
-            crate::service::batch::BatchUpdateRequest {
-                ids: req.ids,
-                updates,
-            },
-        )
+        .batch_update_accounts(crate::service::batch::BatchUpdateRequest {
+            ids: req.ids,
+            updates,
+        })
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

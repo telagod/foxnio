@@ -1,7 +1,7 @@
 // 错误处理 - Anthropic API 错误响应
 
-use serde::{Deserialize, Serialize};
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 /// Anthropic API 错误响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub struct ErrorDetail {
     /// 错误类型
     #[serde(rename = "type")]
     pub error_type: String,
-    
+
     /// 错误消息
     pub message: String,
 }
@@ -44,24 +44,22 @@ impl AnthropicError {
     pub fn is_authentication_error(&self) -> bool {
         self.error.error_type == error_types::AUTHENTICATION_ERROR
     }
-    
+
     /// 是否为限流错误
     pub fn is_rate_limit_error(&self) -> bool {
         self.error.error_type == error_types::RATE_LIMIT_ERROR
     }
-    
+
     /// 是否为过载错误（需要重试）
     pub fn is_overloaded_error(&self) -> bool {
         self.error.error_type == error_types::OVERLOADED_ERROR
     }
-    
+
     /// 是否可重试
     pub fn is_retryable(&self) -> bool {
         matches!(
             self.error.error_type.as_str(),
-            error_types::RATE_LIMIT_ERROR | 
-            error_types::API_ERROR | 
-            error_types::OVERLOADED_ERROR
+            error_types::RATE_LIMIT_ERROR | error_types::API_ERROR | error_types::OVERLOADED_ERROR
         )
     }
 }
@@ -78,7 +76,7 @@ mod tests {
                 "message": "Invalid request"
             }
         }"#;
-        
+
         let error = parse_error(json).unwrap();
         assert_eq!(error.error.error_type, "invalid_request_error");
         assert_eq!(error.error.message, "Invalid request");
@@ -92,7 +90,7 @@ mod tests {
                 message: "Rate limit exceeded".to_string(),
             },
         };
-        
+
         assert!(error.is_rate_limit_error());
         assert!(error.is_retryable());
     }

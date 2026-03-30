@@ -2,7 +2,6 @@
 
 pub mod account;
 pub mod account_service;
-pub mod batch;
 pub mod announcement;
 pub mod api_key;
 pub mod api_key_auth_cache;
@@ -11,6 +10,7 @@ pub mod api_key_test;
 pub mod audit;
 pub mod auth_service;
 pub mod backup;
+pub mod batch;
 pub mod batch_operations;
 pub mod bedrock;
 pub mod billing;
@@ -20,6 +20,7 @@ pub mod billing_test;
 pub mod claude_code_validator;
 pub mod claude_token_provider;
 pub mod concurrency;
+pub mod cost_optimizer;
 pub mod credential;
 pub mod domain_constants;
 pub mod email;
@@ -28,12 +29,10 @@ pub mod group;
 pub mod header_util;
 pub mod health_scorer;
 pub mod identity_service;
+pub mod model_rate_limit;
 pub mod model_registry;
 pub mod model_router;
 pub mod model_sync;
-pub mod model_rate_limit;
-pub mod wait_queue;
-pub mod cost_optimizer;
 pub mod oauth;
 pub mod oauth_refresh_api;
 pub mod openai_account_scheduler;
@@ -109,10 +108,9 @@ pub mod user_ext;
 pub mod user_group;
 pub mod user_subscription;
 pub mod user_test;
+pub mod wait_queue;
 
 // P0 - 新增服务文件
-pub mod webhook;
-pub mod window_cost_cache;
 pub mod account_quota_reset;
 pub mod account_rpm;
 pub mod account_test_service;
@@ -143,6 +141,8 @@ pub mod user_group_rate;
 pub mod user_group_rate_resolver;
 pub mod user_msg_queue_service;
 pub mod user_subscription_port;
+pub mod webhook;
+pub mod window_cost_cache;
 pub mod wire;
 
 // P0 - 核心高级功能

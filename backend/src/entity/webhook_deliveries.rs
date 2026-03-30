@@ -114,11 +114,11 @@ impl Model {
         if !self.can_retry() {
             return false;
         }
-        
+
         if let Some(next_retry) = self.next_retry_at {
             return next_retry <= Utc::now();
         }
-        
+
         // 如果没有设置下次重试时间，表示需要立即重试
         true
     }

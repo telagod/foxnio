@@ -36,8 +36,8 @@ use uuid::Uuid;
 pub use cost_optimizer::{BudgetSummary, CostConfig, CostOptimizer};
 #[allow(unused_imports)]
 pub use load_balancer::{
-    AccountLoadInfo, LoadAwareScheduler, LoadAwareSchedulerConfig, ScheduleDecision,
-    ScheduleLayer, SchedulerMetricsSnapshot, SchedulerScoreWeights,
+    AccountLoadInfo, LoadAwareScheduler, LoadAwareSchedulerConfig, ScheduleDecision, ScheduleLayer,
+    SchedulerMetricsSnapshot, SchedulerScoreWeights,
 };
 #[allow(unused_imports)]
 pub use metrics::{AccountMetrics, SchedulerMetrics};
@@ -851,7 +851,10 @@ impl Scheduler {
         }
 
         // 获取槽位
-        match self.acquire_slot(user_id, &model, priority, Some(timeout)).await {
+        match self
+            .acquire_slot(user_id, &model, priority, Some(timeout))
+            .await
+        {
             Ok(_slot) => {
                 // 有槽位了，再次尝试选择
                 self.select(ctx).await

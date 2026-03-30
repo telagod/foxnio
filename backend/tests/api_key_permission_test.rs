@@ -15,24 +15,24 @@
 use axum::{
     body::Body,
     extract::ConnectInfo,
-    http::{Request, StatusCode, header::AUTHORIZATION},
+    http::{header::AUTHORIZATION, Request, StatusCode},
     middleware,
     routing::{get, post},
     Json, Router,
 };
 use chrono::{Duration, Utc};
-use serde_json::{json, Value};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
+use serde_json::{json, Value};
 use std::net::SocketAddr;
 use tower::ServiceExt;
 use uuid::Uuid;
 
 // 导入项目模块
 use backend::entity::api_keys;
-use backend::middleware::api_key_auth::{api_key_auth_with_permissions, ApiKeyAuthError};
 use backend::gateway::SharedState;
+use backend::middleware::api_key_auth::{api_key_auth_with_permissions, ApiKeyAuthError};
 
 mod common;
 use common::*;
@@ -127,13 +127,11 @@ async fn create_api_key_with_permissions(
     let key = format!("sk-test-{}", Uuid::new_v4().to_string().replace('-', ""));
     let prefix = key[..10].to_string();
 
-    let allowed_models_json = allowed_models.map(|models| {
-        serde_json::to_value(models).expect("Failed to serialize allowed_models")
-    });
+    let allowed_models_json = allowed_models
+        .map(|models| serde_json::to_value(models).expect("Failed to serialize allowed_models"));
 
-    let ip_whitelist_json = ip_whitelist.map(|ips| {
-        serde_json::to_value(ips).expect("Failed to serialize ip_whitelist")
-    });
+    let ip_whitelist_json = ip_whitelist
+        .map(|ips| serde_json::to_value(ips).expect("Failed to serialize ip_whitelist"));
 
     // 插入 API key
     sqlx::query(
@@ -163,7 +161,7 @@ async fn create_api_key_with_permissions(
     .expect("Failed to create API key");
 
     // 查询并返回创建的 API key
-    let api_key: (String, String, String, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<String>, String) = 
+    let api_key: (String, String, String, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<String>, String) =
         sqlx::query_as(
             "SELECT key, prefix, status, allowed_models, ip_whitelist, daily_quota, daily_used_quota, expires_at, created_at FROM api_keys WHERE id = ?"
         )
@@ -183,7 +181,11 @@ async fn create_api_key_with_permissions(
         rate_limit_rpm: Some(60),
         allowed_models: api_key.3.and_then(|s| serde_json::from_str(&s).ok()),
         ip_whitelist: api_key.4.and_then(|s| serde_json::from_str(&s).ok()),
-        expires_at: api_key.7.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
+        expires_at: api_key.7.and_then(|s| {
+            chrono::DateTime::parse_from_rfc3339(&s)
+                .ok()
+                .map(|dt| dt.with_timezone(&Utc))
+        }),
         daily_quota: api_key.5,
         daily_used_quota: api_key.6,
         quota_reset_at: None,
@@ -205,7 +207,13 @@ async fn update_quota_used(db: &DatabaseConnection, key_id: Uuid, used: i64) {
 }
 
 /// 模拟从特定 IP 发送请求
-fn mock_request_from_ip(method: &str, uri: &str, api_key: &str, ip: &str, body: Option<Value>) -> Request<Body> {
+fn mock_request_from_ip(
+    method: &str,
+    uri: &str,
+    api_key: &str,
+    ip: &str,
+    body: Option<Value>,
+) -> Request<Body> {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -214,7 +222,9 @@ fn mock_request_from_ip(method: &str, uri: &str, api_key: &str, ip: &str, body: 
 
     if let Some(b) = body {
         builder = builder.header("content-type", "application/json");
-        builder.body(Body::from(serde_json::to_string(&b).unwrap())).unwrap()
+        builder
+            .body(Body::from(serde_json::to_string(&b).unwrap()))
+            .unwrap()
     } else {
         builder.body(Body::empty()).unwrap()
     }
@@ -222,9 +232,9 @@ fn mock_request_from_ip(method: &str, uri: &str, api_key: &str, ip: &str, body: 
 
 /// 创建测试用的 SharedState
 fn create_test_state(db: DatabaseConnection) -> SharedState {
-    use std::sync::Arc;
     use backend::cache::RedisPool;
     use backend::config::Config;
+    use std::sync::Arc;
 
     SharedState {
         db,
@@ -298,9 +308,7 @@ async fn test_model_permission_denied() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -354,9 +362,7 @@ async fn test_model_permission_wildcard() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -414,9 +420,7 @@ async fn test_ip_whitelist_allowed() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -465,9 +469,7 @@ async fn test_ip_whitelist_denied() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -506,14 +508,8 @@ async fn test_ip_whitelist_empty() {
 
     // 创建没有 IP 白名单限制的 API key
     let (api_key_model, api_key) = create_api_key_with_permissions(
-        &db,
-        user_id,
-        "Test Key",
-        None,
-        None, // null 表示允许所有 IP
-        None,
-        None,
-        "active",
+        &db, user_id, "Test Key", None, None, // null 表示允许所有 IP
+        None, None, "active",
     )
     .await;
 
@@ -522,9 +518,7 @@ async fn test_ip_whitelist_empty() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -609,9 +603,7 @@ async fn test_quota_enforcement() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -668,9 +660,7 @@ async fn test_quota_reset() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -739,9 +729,7 @@ async fn test_expired_key() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -779,14 +767,7 @@ async fn test_disabled_key() {
 
     // 创建已禁用的 API key（status = "disabled"）
     let (api_key_model, api_key) = create_api_key_with_permissions(
-        &db,
-        user_id,
-        "Test Key",
-        None,
-        None,
-        None,
-        None,
-        "disabled", // 设置为禁用状态
+        &db, user_id, "Test Key", None, None, None, None, "disabled", // 设置为禁用状态
     )
     .await;
 
@@ -795,9 +776,7 @@ async fn test_disabled_key() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -841,8 +820,8 @@ async fn test_permission_combination() {
         "Test Key",
         Some(vec!["gpt-4", "gpt-3.5-turbo"]), // 只允许这两个模型
         Some(vec!["192.168.1.100", "192.168.1.101"]), // 只允许这两个 IP
-        Some(100), // 每日配额 100
-        Some(future_time), // 30天后过期
+        Some(100),                            // 每日配额 100
+        Some(future_time),                    // 30天后过期
         "active",
     )
     .await;
@@ -852,9 +831,7 @@ async fn test_permission_combination() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -874,7 +851,11 @@ async fn test_permission_combination() {
     );
 
     let response = protected_app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK, "All conditions met should succeed");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "All conditions met should succeed"
+    );
 
     // 场景 2: 模型不允许 - 应该失败
     let request = mock_request_from_ip(
@@ -950,7 +931,11 @@ async fn test_permission_combination() {
     );
 
     let response = protected_app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK, "After quota reset should succeed");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "After quota reset should succeed"
+    );
 }
 
 // ============================================================================
@@ -981,9 +966,7 @@ async fn test_empty_allowed_models() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1030,9 +1013,7 @@ async fn test_zero_quota_unlimited() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1083,9 +1064,7 @@ async fn test_future_expiration_allowed() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1116,13 +1095,7 @@ async fn test_no_expiration() {
 
     // 创建没有过期时间的 API key（永不过期）
     let (api_key_model, api_key) = create_api_key_with_permissions(
-        &db,
-        user_id,
-        "Test Key",
-        None,
-        None,
-        None,
-        None, // 无过期时间
+        &db, user_id, "Test Key", None, None, None, None, // 无过期时间
         "active",
     )
     .await;
@@ -1132,9 +1105,7 @@ async fn test_no_expiration() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1181,9 +1152,7 @@ async fn test_error_messages() {
     let protected_app = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1206,7 +1175,11 @@ async fn test_error_messages() {
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     // 验证错误消息包含 "expired"
-    assert!(error["error"].as_str().unwrap().to_lowercase().contains("expired"));
+    assert!(error["error"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("expired"));
 
     // 测试模型不允许的错误消息
     let (_, api_key2) = create_api_key_with_permissions(
@@ -1224,9 +1197,7 @@ async fn test_error_messages() {
     let protected_app2 = Router::new()
         .route(
             "/v1/chat/completions",
-            post(|| async {
-                Json(json!({"success": true}))
-            }),
+            post(|| async { Json(json!({"success": true})) }),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),

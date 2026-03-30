@@ -158,13 +158,20 @@ impl Model {
         self.supported_model_scopes
             .as_ref()
             .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_else(|| vec!["claude".to_string(), "gemini_text".to_string(), "gemini_image".to_string()])
+            .unwrap_or_else(|| {
+                vec![
+                    "claude".to_string(),
+                    "gemini_text".to_string(),
+                    "gemini_image".to_string(),
+                ]
+            })
     }
 
     /// 根据请求模型获取路由账号 ID 列表
     /// 返回匹配的优先账号 ID 列表，如果没有匹配规则则返回 None
     pub fn get_routing_account_ids(&self, requested_model: &str) -> Option<Vec<i64>> {
-        if !self.model_routing_enabled || self.model_routing.is_none() || requested_model.is_empty() {
+        if !self.model_routing_enabled || self.model_routing.is_none() || requested_model.is_empty()
+        {
             return None;
         }
 

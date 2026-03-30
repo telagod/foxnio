@@ -205,7 +205,11 @@ impl BatchOperationService {
 
         for (index, record) in reader.deserialize().enumerate() {
             match record {
-                Ok(CreateUserCsvRecord { email: _, password: _, role: _ }) => {
+                Ok(CreateUserCsvRecord {
+                    email: _,
+                    password: _,
+                    role: _,
+                }) => {
                     let error_msg = "User creation not yet implemented with SeaORM".to_string();
                     failed += 1;
                     results.push(BatchItemResult {

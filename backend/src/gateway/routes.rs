@@ -23,12 +23,12 @@ use super::{
 use crate::gateway::middleware::permission::check_permission;
 use crate::handler;
 use crate::health::HealthChecker;
-use utoipa::OpenApi;
 use crate::service::permission::Permission;
 use crate::service::{
     LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService,
 };
 use crate::state::AppState;
+use utoipa::OpenApi;
 
 pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<Arc<AppState>> {
     let shared_state = Arc::new(state);
@@ -164,7 +164,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         // Sora 图片/视频生成
         .route("/v1/images/generations", post(handle_sora_image_generation))
         .route("/v1/videos/generations", post(handle_sora_video_generation))
-        .route("/v1/videos/generations/:id", get(get_sora_generation_status))
+        .route(
+            "/v1/videos/generations/:id",
+            get(get_sora_generation_status),
+        )
         .route("/v1/prompts/enhance", post(handle_prompt_enhance))
         // Sora 模型列表
         .route("/v1/sora/models", get(list_sora_models))
@@ -640,18 +643,42 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .route("/api/v1/webhooks", post(handler::webhook::create_webhook))
         .route("/api/v1/webhooks", get(handler::webhook::list_webhooks))
         .route("/api/v1/webhooks/:id", get(handler::webhook::get_webhook))
-        .route("/api/v1/webhooks/:id", put(handler::webhook::update_webhook))
-        .route("/api/v1/webhooks/:id", delete(handler::webhook::delete_webhook))
-        .route("/api/v1/webhooks/:id/test", post(handler::webhook::test_webhook))
-        .route("/api/v1/webhooks/:id/deliveries", get(handler::webhook::list_deliveries))
+        .route(
+            "/api/v1/webhooks/:id",
+            put(handler::webhook::update_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/:id",
+            delete(handler::webhook::delete_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/:id/test",
+            post(handler::webhook::test_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/:id/deliveries",
+            get(handler::webhook::list_deliveries),
+        )
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // 批量操作路由 - 需要管理员权限（权限检查在 handler 内部）
     let batch_routes = Router::new()
-        .route("/api/v1/admin/api-keys/batch-create", post(handler::batch::batch_create_api_keys))
-        .route("/api/v1/admin/accounts/batch-update", post(handler::batch::batch_update_accounts))
-        .route("/api/v1/admin/users/batch-import", post(handler::batch::batch_import_users))
-        .route("/api/v1/admin/api-keys/batch-delete", post(handler::batch::batch_delete_api_keys))
+        .route(
+            "/api/v1/admin/api-keys/batch-create",
+            post(handler::batch::batch_create_api_keys),
+        )
+        .route(
+            "/api/v1/admin/accounts/batch-update",
+            post(handler::batch::batch_update_accounts),
+        )
+        .route(
+            "/api/v1/admin/users/batch-import",
+            post(handler::batch::batch_import_users),
+        )
+        .route(
+            "/api/v1/admin/api-keys/batch-delete",
+            post(handler::batch::batch_delete_api_keys),
+        )
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // Gemini Native API 路由（v1beta）
@@ -660,7 +687,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .route("/v1beta/models", get(super::gemini::list_models))
         .route("/v1beta/models/{model}", get(super::gemini::get_model))
         // 内容生成（支持动态 action: generateContent, streamGenerateContent 等）
-        .route("/v1beta/models/{model_action}", post(super::gemini::generate_content))
+        .route(
+            "/v1beta/models/{model_action}",
+            post(super::gemini::generate_content),
+        )
         // 流式生成（显式路由，支持 alt=sse 查询参数）
         .route(
             "/v1beta/models/{model}:streamGenerateContent",
