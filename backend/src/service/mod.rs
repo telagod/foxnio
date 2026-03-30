@@ -30,6 +30,8 @@ pub mod identity_service;
 pub mod model_registry;
 pub mod model_router;
 pub mod model_sync;
+pub mod model_rate_limit;
+pub mod wait_queue;
 pub mod cost_optimizer;
 pub mod oauth;
 pub mod oauth_refresh_api;
