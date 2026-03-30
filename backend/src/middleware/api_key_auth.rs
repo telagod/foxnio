@@ -58,17 +58,22 @@ impl IntoResponse for ApiKeyAuthError {
             ApiKeyAuthError::Disabled => {
                 (StatusCode::UNAUTHORIZED, "API key is disabled")
             }
-            ApiKeyAuthError::IpNotAllowed(ip) => {
-                (StatusCode::FORBIDDEN, &format!("IP {} is not allowed", ip))
+            ApiKeyAuthError::IpNotAllowed(ref ip) => {
+                let msg = format!("IP {} is not allowed", ip);
+                (StatusCode::FORBIDDEN, Box::leak(msg.into_boxed_str()) as &str)
             }
-            ApiKeyAuthError::ModelNotAllowed(model) => {
-                (StatusCode::FORBIDDEN, &format!("Model {} is not allowed", model))
+            ApiKeyAuthError::ModelNotAllowed(ref model) => {
+                let msg = format!("Model {} is not allowed", model);
+                (StatusCode::FORBIDDEN, Box::leak(msg.into_boxed_str()) as &str)
             }
             ApiKeyAuthError::QuotaExceeded => {
                 (StatusCode::TOO_MANY_REQUESTS, "Daily quota exceeded")
             }
-            ApiKeyAuthError::DatabaseError(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str())
+            ApiKeyAuthError::DatabaseError(ref msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Box::leak(msg.clone().into_boxed_str()) as &str)
+            }
+            ApiKeyAuthError::MissingApiKey => {
+                (StatusCode::UNAUTHORIZED, "API key is required")
             }
         };
 

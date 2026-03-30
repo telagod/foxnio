@@ -12,7 +12,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use super::model_registry::{CreateModelRequest, ModelRegistry, RuntimeModelConfig};
+use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse};
+use super::model_registry::{ModelRegistry, RuntimeModelConfig};
 
 /// 最大重试次数
 const MAX_RETRIES: u32 = 3;
@@ -338,7 +339,7 @@ impl ModelSyncService {
         info!("Found {} OpenAI chat models", chat_models.len());
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "openai")
@@ -392,7 +393,7 @@ impl ModelSyncService {
     }
 
     /// 从 Anthropic 同步模型（基于已知模型列表）
-    async fn sync_anthropic() -> Result<SyncResult> {
+    async fn sync_anthropic(&self) -> Result<SyncResult> {
         debug!("Syncing Anthropic models");
         
         // Anthropic 没有公开的模型列表 API，使用已知模型
@@ -468,7 +469,7 @@ impl ModelSyncService {
         let mut errors = vec![];
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "anthropic")
@@ -588,7 +589,7 @@ impl ModelSyncService {
         info!("Found {} Gemini models", gemini_models.len());
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "google")
@@ -686,7 +687,7 @@ impl ModelSyncService {
         let mut errors = Vec::new();
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "deepseek")
@@ -796,7 +797,7 @@ impl ModelSyncService {
         ]);
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "mistral")
@@ -916,7 +917,7 @@ impl ModelSyncService {
         ]);
 
         // 获取现有模型
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let existing_map: HashMap<String, &RuntimeModelConfig> = existing_models
             .iter()
             .filter(|m| m.provider == "cohere")
@@ -1035,7 +1036,7 @@ impl ModelSyncService {
         provider: &str,
         current_models: &[&str],
     ) -> Result<Vec<String>> {
-        let existing_models = self.model_registry.list_models().await?;
+        let existing_models = self.model_registry.list_by_provider("all").await;
         let current_set: std::collections::HashSet<&str> = current_models.iter().cloned().collect();
 
         let deprecated: Vec<String> = existing_models

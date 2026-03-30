@@ -12,7 +12,7 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -598,7 +598,7 @@ impl CostOptimizerService {
         // 统计每小时的请求数
         let mut hour_counts: HashMap<u32, i64> = HashMap::new();
         for record in data {
-            let hour = record.timestamp.hour();
+            let hour = record.timestamp.naive_utc().hour();
             *hour_counts.entry(hour).or_insert(0) += 1;
         }
 
@@ -613,7 +613,7 @@ impl CostOptimizerService {
 
         if peak_ratio > 0.4 {
             let peak_cost: f64 = data.iter()
-                .filter(|r| r.timestamp.hour() == max_hour)
+                .filter(|r| r.timestamp.naive_utc().hour() == max_hour)
                 .map(|r| r.cost)
                 .sum();
 
@@ -815,7 +815,7 @@ impl CostOptimizerService {
     fn detect_traffic_anomaly(&self, data: &[UsageRecord]) -> Option<Anomaly> {
         let total_requests = data.len() as i64;
         let night_requests = data.iter()
-            .filter(|r| r.timestamp.hour() < 6)
+            .filter(|r| r.timestamp.naive_utc().hour() < 6)
             .count() as i64;
 
         let night_ratio = night_requests as f64 / total_requests as f64;

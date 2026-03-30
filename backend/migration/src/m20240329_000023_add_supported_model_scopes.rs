@@ -24,12 +24,9 @@ impl MigrationTrait for Migration {
 
         // 设置默认值
         manager
-            .exec_stmt(
-                Statement::from_sql_and_values(
-                    manager.get_database_backend(),
-                    r#"UPDATE groups SET supported_model_scopes = '["claude", "gemini_text", "gemini_image"]'::jsonb WHERE supported_model_scopes IS NULL"#,
-                    [],
-                ),
+            .get_connection()
+            .execute_unprepared(
+                r#"UPDATE groups SET supported_model_scopes = '["claude", "gemini_text", "gemini_image"]'::jsonb WHERE supported_model_scopes IS NULL"#,
             )
             .await?;
 

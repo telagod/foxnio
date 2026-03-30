@@ -122,6 +122,7 @@ impl GroupService {
             fallback_group_id: Set(req.fallback_group_id),
             claude_code_only: Set(req.claude_code_only.unwrap_or(false)),
             fallback_group_id_on_invalid_request: Set(None),
+            supported_model_scopes: Set(None),
             sort_order: Set(req.sort_order.unwrap_or(0)),
             is_exclusive: Set(req.is_exclusive.unwrap_or(false)),
             created_at: Set(now),

@@ -29,17 +29,17 @@ pub struct AccountWithScheduling {
     pub credentials: String,
     pub models: Vec<String>,
     pub priority: i32,
-    pub concurrency: u32,
+    pub concurrency: i32,
     pub load_factor: f64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 /// 账号并发信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AccountConcurrency {
     pub id: i64,
-    pub max_concurrency: u32,
+    pub max_concurrency: i32,
 }
 
 /// 账号负载信息（用于调度）

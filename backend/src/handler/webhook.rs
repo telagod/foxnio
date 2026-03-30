@@ -108,8 +108,9 @@ pub async fn create_webhook(
 
     let webhook_service = WebhookService::new(state.db.clone());
 
+    let secret_for_create = req.secret.clone().unwrap_or_default();
     let endpoint = webhook_service
-        .create_endpoint(user_id, req.url, req.events, req.secret)
+        .create_endpoint(user_id, req.url, req.events, secret_for_create)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

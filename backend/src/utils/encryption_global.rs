@@ -1,10 +1,9 @@
 //! 全局加密服务管理
-
 //!
 //! 提供全局的加密服务实例，支持运行时初始化和密钥轮换。
 
 #![allow(dead_code)]
-use crate::utils::{EncryptionError, EncryptionService};
+use super::encryption::{EncryptionError, EncryptionService};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 

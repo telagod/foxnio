@@ -115,6 +115,7 @@ impl ModelRateLimiter {
                     // 检查 token 限制
                     if let Some(tpm) = config.tokens_per_minute {
                         if state.token_count >= tpm {
+                            let rpm = config.requests_per_minute;
                             let remaining_time = config.duration_secs - elapsed;
                             return Ok(RateLimitStatus {
                                 account_id,

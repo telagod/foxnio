@@ -95,7 +95,7 @@ impl MigrationTrait for Migration {
         // Add check constraint for valid status
         manager
             .get_connection()
-            .execute_unbound(
+            .execute_unprepared(
                 r#"
                 ALTER TABLE webhook_deliveries 
                 ADD CONSTRAINT valid_webhook_status 
@@ -107,7 +107,7 @@ impl MigrationTrait for Migration {
         // Create partial index for retrying status
         manager
             .get_connection()
-            .execute_unbound(
+            .execute_unprepared(
                 r#"
                 CREATE INDEX idx_webhook_deliveries_retry 
                 ON webhook_deliveries (next_retry_at) 

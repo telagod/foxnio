@@ -287,7 +287,7 @@ impl std::fmt::Display for QueueError {
 impl std::error::Error for QueueError {}
 
 /// 分配给请求的槽位
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AllocationSlot {
     /// 槽位 ID
     pub id: Uuid,
@@ -405,11 +405,13 @@ impl WaitingQueue {
         // 需要等待，检查队列是否已满
         let queue = self.queue.lock().await;
         if queue.len() >= self.config.max_queue_size {
+            let queue_size = queue.len();
+            let max_size = self.config.max_queue_size;
             drop(queue);
             self.metrics.record_reject();
             return Err(QueueError::QueueFull {
-                queue_size: queue.len(),
-                max_size: self.config.max_queue_size,
+                queue_size,
+                max_size,
             });
         }
         drop(queue);
