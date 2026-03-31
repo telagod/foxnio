@@ -1,6 +1,6 @@
 // Claude Code Shell 集成测试
 
-use foxnio_gateway::claude_shell::{
+use foxnio::gateway::claude_shell::{
     parse_sse_line, parse_sse_stream,
     request::{Message, MessageContent, MessageRequest},
     ClaudeShell, ClaudeShellConfig,
@@ -90,7 +90,7 @@ data: [DONE]"#;
 /// 测试错误响应解析
 #[test]
 fn test_error_parsing() {
-    use foxnio_gateway::claude_shell::AnthropicError;
+    use foxnio::gateway::claude_shell::AnthropicError;
 
     let json = r#"{
         "error": {
@@ -110,7 +110,7 @@ fn test_error_parsing() {
 /// 测试错误类型判断
 #[test]
 fn test_error_types() {
-    use foxnio_gateway::claude_shell::{error_types, AnthropicError, ErrorDetail};
+    use foxnio::gateway::claude_shell::{AnthropicError, ErrorDetail};
 
     let rate_limit_error = AnthropicError {
         error: ErrorDetail {
