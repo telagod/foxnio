@@ -99,15 +99,15 @@ impl MetricsCollector {
         // 导出计数器
         for (name, counter) in &self.counters {
             let value = counter.load(Ordering::SeqCst);
-            output.push_str(&format!("# TYPE {} counter\n", name));
-            output.push_str(&format!("{} {}\n", name, value));
+            output.push_str(&format!("# TYPE {name} counter\n"));
+            output.push_str(&format!("{name} {value}\n"));
         }
 
         // 导出计量器
         for (name, gauge) in &self.gauges {
             let value = *gauge.lock().unwrap();
-            output.push_str(&format!("# TYPE {} gauge\n", name));
-            output.push_str(&format!("{} {}\n", name, value));
+            output.push_str(&format!("# TYPE {name} gauge\n"));
+            output.push_str(&format!("{name} {value}\n"));
         }
 
         output

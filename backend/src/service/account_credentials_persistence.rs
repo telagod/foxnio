@@ -135,7 +135,7 @@ impl AccountCredentialsPersistence {
     fn encrypt(&self, value: &str) -> Result<String> {
         // TODO: 实现实际的加密
         // 使用 AES-256-GCM 或类似的加密算法
-        Ok(format!("encrypted:{}", value))
+        Ok(format!("encrypted:{value}"))
     }
 
     /// 解密

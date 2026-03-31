@@ -271,7 +271,7 @@ pub async fn cleanup_audit_logs(
     Ok(Json(serde_json::json!({
         "success": true,
         "deleted_count": deleted,
-        "message": format!("Deleted {} old audit logs", deleted)
+        "message": format!("Deleted {deleted} old audit logs")
     })))
 }
 

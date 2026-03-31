@@ -373,7 +373,7 @@ impl BatchOperationService {
                 }
                 Err(e) => {
                     failed += 1;
-                    errors.push(format!("Invalid UUID {}: {}", id_str, e));
+                    errors.push(format!("Invalid UUID {id_str}: {e}"));
                 }
             }
         }

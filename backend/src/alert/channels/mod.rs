@@ -50,27 +50,27 @@ pub fn create_channel(
     match channel_type {
         AlertChannelType::Email => {
             let config: EmailChannelConfig = serde_json::from_value(config.clone())
-                .map_err(|e| format!("Invalid email config: {}", e))?;
+                .map_err(|e| format!("Invalid email config: {e}"))?;
             Ok(Box::new(EmailChannel::new(config)))
         }
         AlertChannelType::Webhook => {
             let config: WebhookChannelConfig = serde_json::from_value(config.clone())
-                .map_err(|e| format!("Invalid webhook config: {}", e))?;
+                .map_err(|e| format!("Invalid webhook config: {e}"))?;
             Ok(Box::new(WebhookChannel::new(config)))
         }
         AlertChannelType::DingTalk => {
             let config: DingTalkChannelConfig = serde_json::from_value(config.clone())
-                .map_err(|e| format!("Invalid dingtalk config: {}", e))?;
+                .map_err(|e| format!("Invalid dingtalk config: {e}"))?;
             Ok(Box::new(DingTalkChannel::new(config)))
         }
         AlertChannelType::Feishu => {
             let config: FeishuChannelConfig = serde_json::from_value(config.clone())
-                .map_err(|e| format!("Invalid feishu config: {}", e))?;
+                .map_err(|e| format!("Invalid feishu config: {e}"))?;
             Ok(Box::new(FeishuChannel::new(config)))
         }
         AlertChannelType::Slack => {
             let config: SlackChannelConfig = serde_json::from_value(config.clone())
-                .map_err(|e| format!("Invalid slack config: {}", e))?;
+                .map_err(|e| format!("Invalid slack config: {e}"))?;
             Ok(Box::new(SlackChannel::new(config)))
         }
     }

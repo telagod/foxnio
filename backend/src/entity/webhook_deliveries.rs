@@ -145,9 +145,9 @@ impl Model {
                 } else {
                     body.clone()
                 };
-                format!("HTTP {}: {}", code, truncated)
+                format!("HTTP {code}: {truncated}")
             }
-            (Some(code), None) => format!("HTTP {} (no body)", code),
+            (Some(code), None) => format!("HTTP {code} (no body)"),
             (None, _) => "No response".to_string(),
         }
     }

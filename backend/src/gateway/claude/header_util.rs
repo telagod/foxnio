@@ -122,10 +122,7 @@ pub fn build_claude_headers_ordered(
             "true".to_string(),
         ),
         ("anthropic-version".to_string(), version.to_string()),
-        (
-            "authorization".to_string(),
-            format!("Bearer {}", auth_token),
-        ),
+        ("authorization".to_string(), format!("Bearer {auth_token}")),
         ("x-app".to_string(), "cli".to_string()),
         ("User-Agent".to_string(), user_agent.to_string()),
         ("content-type".to_string(), "application/json".to_string()),

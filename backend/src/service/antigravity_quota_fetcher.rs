@@ -45,7 +45,7 @@ impl AntigravityQuotaFetcher {
         let response = self
             .client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await?
             .json::<QuotaResponse>()

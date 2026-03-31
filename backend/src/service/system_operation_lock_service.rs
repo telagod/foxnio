@@ -93,7 +93,7 @@ impl SystemOperationLockService {
                 "Lock '{}' is held by {}, not {}",
                 key, lock.owner, owner
             )),
-            None => Err(format!("Lock '{}' not found", key)),
+            None => Err(format!("Lock '{key}' not found")),
         }
     }
 

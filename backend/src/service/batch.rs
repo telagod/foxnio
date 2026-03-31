@@ -224,7 +224,7 @@ impl BatchOperationService {
                     results.push(BatchItemResult {
                         index,
                         data: None,
-                        error: Some(format!("CSV parse error: {}", e)),
+                        error: Some(format!("CSV parse error: {e}")),
                     });
                     BATCH_ERRORS.inc();
                 }

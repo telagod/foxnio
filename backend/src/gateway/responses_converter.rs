@@ -469,7 +469,7 @@ pub fn anthropic_event_to_responses_events(
                     };
 
                     events.push(ResponsesStreamEvent {
-                        event_type: format!("response.{}", status),
+                        event_type: format!("response.{status}"),
                         response: Some(ResponsesResponse {
                             id: state.message_id.clone().unwrap_or_default(),
                             object: "response".to_string(),

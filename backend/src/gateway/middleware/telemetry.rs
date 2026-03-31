@@ -46,7 +46,7 @@ pub fn is_telemetry_endpoint(uri: &Uri) -> bool {
 
     TELEMETRY_DOMAINS
         .iter()
-        .any(|domain| host == *domain || host.ends_with(&format!(".{}", domain)))
+        .any(|domain| host == *domain || host.ends_with(&format!(".{domain}")))
 }
 
 /// 拦截遥测请求中间件
@@ -96,7 +96,7 @@ pub fn generate_metadata_user_id(version: &str) -> String {
         .to_string()
     } else {
         // 旧格式（字符串）
-        format!("user_{}_account__session_{}", device_id, session_id)
+        format!("user_{device_id}_account__session_{session_id}")
     }
 }
 

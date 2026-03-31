@@ -73,7 +73,7 @@ impl RedisRateLimiter {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         // 使用 Redis INCR + EXPIRE 实现滑动窗口
-        let redis_key = format!("ratelimit:{}", key);
+        let redis_key = format!("ratelimit:{key}");
 
         // 获取当前计数
         let current: u64 = conn.get(&redis_key).await.unwrap_or(0);
@@ -154,7 +154,7 @@ impl RedisRateLimiter {
             return {1, new_count, limit, ttl}
         "#;
 
-        let redis_key = format!("ratelimit:{}", key);
+        let redis_key = format!("ratelimit:{key}");
 
         let result: (i64, u64, u64, i64) = redis::cmd("EVAL")
             .arg(lua_script)
@@ -183,7 +183,7 @@ impl RedisRateLimiter {
     /// 重置速率限制计数器
     pub async fn reset(&self, key: &str) -> Result<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let redis_key = format!("ratelimit:{}", key);
+        let redis_key = format!("ratelimit:{key}");
         let _: () = conn.del(&redis_key).await?;
         Ok(())
     }
@@ -191,7 +191,7 @@ impl RedisRateLimiter {
     /// 获取当前计数
     pub async fn get_current_count(&self, key: &str) -> Result<u64> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let redis_key = format!("ratelimit:{}", key);
+        let redis_key = format!("ratelimit:{key}");
         let count: u64 = conn.get(&redis_key).await.unwrap_or(0);
         Ok(count)
     }
@@ -265,10 +265,10 @@ impl DistributedRateLimiter {
         if let Some(ref limiter) = self.redis_limiter {
             let mut limiter = limiter.clone();
             limiter.config = config;
-            limiter.check_rate_limit(&format!("user:{}", user_id)).await
+            limiter.check_rate_limit(&format!("user:{user_id}")).await
         } else {
             Ok(self
-                .check_local_limit(&format!("user:{}", user_id), config)
+                .check_local_limit(&format!("user:{user_id}"), config)
                 .await)
         }
     }
@@ -285,11 +285,11 @@ impl DistributedRateLimiter {
             let mut limiter = limiter.clone();
             limiter.config = config;
             limiter
-                .check_rate_limit(&format!("apikey:{}", api_key_id))
+                .check_rate_limit(&format!("apikey:{api_key_id}"))
                 .await
         } else {
             Ok(self
-                .check_local_limit(&format!("apikey:{}", api_key_id), config)
+                .check_local_limit(&format!("apikey:{api_key_id}"), config)
                 .await)
         }
     }

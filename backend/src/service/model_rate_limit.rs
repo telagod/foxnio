@@ -251,7 +251,7 @@ impl ModelRateLimiter {
         let mut statuses = Vec::new();
 
         for key in cache.keys() {
-            if key.starts_with(&format!("{}:", account_id)) {
+            if key.starts_with(&format!("{account_id}:")) {
                 let parts: Vec<&str> = key.split(':').collect();
                 if parts.len() == 2 {
                     let model = parts[1];
@@ -275,7 +275,7 @@ impl ModelRateLimiter {
 
     /// 生成 Redis key
     fn make_key(&self, account_id: i64, model: &str) -> String {
-        format!("{}:{}", account_id, model)
+        format!("{account_id}:{model}")
     }
 
     /// Redis 检查（内部方法）
@@ -290,7 +290,7 @@ impl ModelRateLimiter {
         // 使用 Redis 的 INCR + EXPIRE 或 Sorted Set
 
         // 伪代码：
-        // let key = format!("ratelimit:{}:{}", account_id, model);
+        // let key = format!("ratelimit:{account_id}:{model}");
         // let count: i64 = redis.get(&key)?;
         // ...
 

@@ -318,7 +318,7 @@ impl ClaudeOAuthProvider {
         let mut request = self
             .http_client
             .get(url)
-            .header("Cookie", format!("sessionKey={}", session_key));
+            .header("Cookie", format!("sessionKey={session_key}"));
 
         if let Some(proxy) = proxy_url {
             request = request.header("X-Proxy-URL", proxy);
@@ -367,7 +367,7 @@ impl ClaudeOAuthProvider {
         let mut request = self
             .http_client
             .get(&url)
-            .header("Cookie", format!("sessionKey={}", session_key));
+            .header("Cookie", format!("sessionKey={session_key}"));
 
         if let Some(proxy) = proxy_url {
             request = request.header("X-Proxy-URL", proxy);

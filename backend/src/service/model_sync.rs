@@ -315,7 +315,7 @@ impl ModelSyncService {
         let response = self
             .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await
             .context("Failed to call OpenAI API")?;
@@ -371,7 +371,7 @@ impl ModelSyncService {
                     // 更新模型信息
                     if let Err(e) = self.update_model_info(existing, model).await {
                         warn!("Failed to update model {}: {}", model_name, e);
-                        errors.push(format!("Update failed for {}: {}", model_name, e));
+                        errors.push(format!("Update failed for {model_name}: {e}"));
                     }
                 }
             } else {
@@ -382,7 +382,7 @@ impl ModelSyncService {
                     Ok(_) => info!("Added new OpenAI model: {}", model_name),
                     Err(e) => {
                         warn!("Failed to add model {}: {}", model_name, e);
-                        errors.push(format!("Failed to add {}: {}", model_name, e));
+                        errors.push(format!("Failed to add {model_name}: {e}"));
                     }
                 }
             }
@@ -640,7 +640,7 @@ impl ModelSyncService {
                     Ok(_) => info!("Added new Gemini model: {}", model_name),
                     Err(e) => {
                         warn!("Failed to add model {}: {}", model_name, e);
-                        errors.push(format!("Failed to add {}: {}", model_name, e));
+                        errors.push(format!("Failed to add {model_name}: {e}"));
                     }
                 }
             }
@@ -682,7 +682,7 @@ impl ModelSyncService {
         let response = self
             .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await
             .context("Failed to call DeepSeek API")?;
@@ -808,7 +808,7 @@ impl ModelSyncService {
         let response = self
             .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await
             .context("Failed to call Mistral API")?;
@@ -894,7 +894,7 @@ impl ModelSyncService {
                     Ok(_) => info!("Added new Mistral model: {}", model_name),
                     Err(e) => {
                         warn!("Failed to add model {}: {}", model_name, e);
-                        errors.push(format!("Failed to add {}: {}", model_name, e));
+                        errors.push(format!("Failed to add {model_name}: {e}"));
                     }
                 }
             }
@@ -937,7 +937,7 @@ impl ModelSyncService {
         let response = self
             .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await
             .context("Failed to call Cohere API")?;
@@ -1022,7 +1022,7 @@ impl ModelSyncService {
                     Ok(_) => info!("Added new Cohere model: {}", model_name),
                     Err(e) => {
                         warn!("Failed to add model {}: {}", model_name, e);
-                        errors.push(format!("Failed to add {}: {}", model_name, e));
+                        errors.push(format!("Failed to add {model_name}: {e}"));
                     }
                 }
             }

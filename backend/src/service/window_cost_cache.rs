@@ -251,7 +251,7 @@ impl WindowCostCache {
         // 写入 Redis 缓存
         if let Some(redis) = &self.redis_pool {
             for (account_id, data) in &result_map {
-                let key = format!("window_cost:{}", account_id);
+                let key = format!("window_cost:{account_id}");
                 let value = format!(
                     "{}|{}|{}",
                     data.cost,
@@ -276,7 +276,7 @@ impl WindowCostCache {
         redis: &RedisPool,
         account_id: i64,
     ) -> Result<Option<WindowCostData>> {
-        let key = format!("window_cost:{}", account_id);
+        let key = format!("window_cost:{account_id}");
 
         if let Some(value) = redis.get(&key).await? {
             // 解析格式：cost|tokens|requests
@@ -317,7 +317,7 @@ impl WindowCostCache {
         // 1. 尝试从缓存获取
         if let Some(redis) = &self.redis_pool {
             for &account_id in account_ids {
-                let key = format!("window_cost:{}", account_id);
+                let key = format!("window_cost:{account_id}");
                 if let Ok(Some(value)) = redis.get(&key).await {
                     if let Some(data) = parse_window_cost(account_id, &value) {
                         WINDOW_REDIS_HITS.inc();

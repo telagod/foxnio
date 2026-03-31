@@ -23,7 +23,7 @@ pub struct ConnectionId(String);
 
 impl ConnectionId {
     pub fn new(account_id: i64, seq: u64) -> Self {
-        Self(format!("ws_{}_{}", account_id, seq))
+        Self(format!("ws_{account_id}_{seq}"))
     }
 
     pub fn as_str(&self) -> &str {

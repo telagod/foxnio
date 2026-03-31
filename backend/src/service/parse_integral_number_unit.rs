@@ -53,7 +53,7 @@ pub fn parse_integral_number_unit(s: &str) -> Result<u64, String> {
     };
 
     let base_num = u64::from_str(num_str.trim())
-        .map_err(|e| format!("Invalid number '{}': {}", num_str, e))?;
+        .map_err(|e| format!("Invalid number '{num_str}': {e}"))?;
 
     Ok(base_num * unit.multiplier())
 }
@@ -77,7 +77,7 @@ pub fn parse_number_unit_f64(s: &str) -> Result<f64, String> {
     };
 
     let base_num = f64::from_str(num_str.trim())
-        .map_err(|e| format!("Invalid number '{}': {}", num_str, e))?;
+        .map_err(|e| format!("Invalid number '{num_str}': {e}"))?;
 
     Ok(base_num * unit.multiplier() as f64)
 }

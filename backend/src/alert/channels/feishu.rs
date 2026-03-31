@@ -63,7 +63,7 @@ impl FeishuChannel {
             let tags: Vec<String> = alert
                 .labels
                 .iter()
-                .map(|(k, v)| format!("{}: {}", k, v))
+                .map(|(k, v)| format!("{k}: {v}"))
                 .collect();
             format!(
                 r#",{{
@@ -185,7 +185,7 @@ impl FeishuChannel {
             let labels: Vec<String> = alert
                 .labels
                 .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| format!("{k}={v}"))
                 .collect();
             content_lines.push(vec![
                 serde_json::json!({ "tag": "text", "text": format!("标签: {}", labels.join(", ")) }),
@@ -270,11 +270,11 @@ impl AlertChannel for FeishuChannel {
                 }
                 Err(e) => AlertSendResult::failure(
                     AlertChannelType::Feishu,
-                    format!("Failed to parse response: {}", e),
+                    format!("Failed to parse response: {e}"),
                 ),
             },
             Err(e) => {
-                AlertSendResult::failure(AlertChannelType::Feishu, format!("Request failed: {}", e))
+                AlertSendResult::failure(AlertChannelType::Feishu, format!("Request failed: {e}"))
             }
         }
     }

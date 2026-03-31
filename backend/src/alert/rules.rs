@@ -69,31 +69,31 @@ impl AlertCondition {
     pub fn description(&self) -> String {
         match self {
             Self::ErrorRateAbove { threshold } => {
-                format!("错误率 > {}%", threshold)
+                format!("错误率 > {threshold}%")
             }
             Self::LatencyAbove { threshold_ms } => {
-                format!("延迟 > {}ms", threshold_ms)
+                format!("延迟 > {threshold_ms}ms")
             }
             Self::ConnectionCountBelow { threshold } => {
-                format!("连接数 < {}", threshold)
+                format!("连接数 < {threshold}")
             }
             Self::AccountBalanceBelow { threshold } => {
                 format!("余额 < ¥{:.2}", *threshold as f64 / 100.0)
             }
             Self::CpuUsageAbove { threshold } => {
-                format!("CPU 使用率 > {}%", threshold)
+                format!("CPU 使用率 > {threshold}%")
             }
             Self::MemoryUsageAbove { threshold } => {
-                format!("内存使用率 > {}%", threshold)
+                format!("内存使用率 > {threshold}%")
             }
             Self::DiskUsageAbove { threshold } => {
-                format!("磁盘使用率 > {}%", threshold)
+                format!("磁盘使用率 > {threshold}%")
             }
             Self::RequestRateAbove { threshold } => {
-                format!("请求频率 > {}/s", threshold)
+                format!("请求频率 > {threshold}/s")
             }
             Self::Custom { expression } => {
-                format!("自定义: {}", expression)
+                format!("自定义: {expression}")
             }
         }
     }

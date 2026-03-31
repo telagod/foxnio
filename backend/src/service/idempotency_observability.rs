@@ -257,8 +257,8 @@ mod tests {
             service
                 .record_event(
                     EventType::RequestStart,
-                    format!("scope{}", i),
-                    format!("hash{}", i),
+                    format!("scope{i}"),
+                    format!("hash{i}"),
                     "processing".to_string(),
                     None,
                     None,

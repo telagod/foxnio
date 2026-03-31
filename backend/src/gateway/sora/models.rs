@@ -123,7 +123,7 @@ pub fn get_sora_model_configs() -> HashMap<&'static str, SoraModelConfig> {
     // Sora 2 标准模型 (sy_8)
     for duration in [10, 15, 25] {
         for orientation in ["landscape", "portrait"] {
-            let model_id = format!("sora2-{}-{}s", orientation, duration);
+            let model_id = format!("sora2-{orientation}-{duration}s");
             let frames = duration * 30;
             let require_pro = duration == 25;
 
@@ -148,7 +148,7 @@ pub fn get_sora_model_configs() -> HashMap<&'static str, SoraModelConfig> {
     // Sora 2 Pro 模型 (sy_ore)
     for duration in [10, 15, 25] {
         for orientation in ["landscape", "portrait"] {
-            let model_id = format!("sora2pro-{}-{}s", orientation, duration);
+            let model_id = format!("sora2pro-{orientation}-{duration}s");
             let frames = duration * 30;
 
             configs.insert(
@@ -172,7 +172,7 @@ pub fn get_sora_model_configs() -> HashMap<&'static str, SoraModelConfig> {
     // Sora 2 Pro HD 模型 (sy_ore + large)
     for duration in [10, 15] {
         for orientation in ["landscape", "portrait"] {
-            let model_id = format!("sora2pro-hd-{}-{}s", orientation, duration);
+            let model_id = format!("sora2pro-hd-{orientation}-{duration}s");
             let frames = duration * 30;
 
             configs.insert(
@@ -196,7 +196,7 @@ pub fn get_sora_model_configs() -> HashMap<&'static str, SoraModelConfig> {
     // Prompt Enhance 模型
     for expansion_level in ["short", "medium", "long"] {
         for duration in [10, 15, 20] {
-            let model_id = format!("prompt-enhance-{}-{}s", expansion_level, duration);
+            let model_id = format!("prompt-enhance-{expansion_level}-{duration}s");
 
             configs.insert(
                 Box::leak(model_id.into_boxed_str()),

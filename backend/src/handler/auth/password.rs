@@ -54,7 +54,7 @@ pub async fn request_reset(
     let email_sender = SmtpEmailSender::new(email_config).map_err(|e| {
         ApiError(
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to initialize email sender: {}", e),
+            format!("Failed to initialize email sender: {e}"),
         )
     })?;
 
@@ -92,7 +92,7 @@ pub async fn verify_token(
         .map_err(|e| {
             ApiError(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to initialize email sender: {}", e),
+                format!("Failed to initialize email sender: {e}"),
             )
         })?;
 
@@ -128,7 +128,7 @@ pub async fn reset_password(
         .map_err(|e| {
             ApiError(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to initialize email sender: {}", e),
+                format!("Failed to initialize email sender: {e}"),
             )
         })?;
 

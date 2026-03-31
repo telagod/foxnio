@@ -666,7 +666,7 @@ impl UserService {
         expires_at: chrono::DateTime<Utc>,
     ) -> Result<()> {
         if let Some(ref redis) = self.redis {
-            let key = format!("{}:{}", TOKEN_BLACKLIST_PREFIX, jti);
+            let key = format!("{TOKEN_BLACKLIST_PREFIX}:{jti}");
             let ttl = (expires_at - Utc::now()).num_seconds().max(0);
 
             if ttl > 0 {
@@ -681,7 +681,7 @@ impl UserService {
     /// 检查 Access Token 是否在黑名单中
     pub async fn is_token_blacklisted(&self, _user_id: &str, jti: &str) -> Result<bool> {
         if let Some(ref redis) = self.redis {
-            let key = format!("{}:{}", TOKEN_BLACKLIST_PREFIX, jti);
+            let key = format!("{TOKEN_BLACKLIST_PREFIX}:{jti}");
             return Ok(redis.exists(&key).await.unwrap_or(false));
         }
         Ok(false)
@@ -694,7 +694,7 @@ impl UserService {
         expires_at: chrono::DateTime<Utc>,
     ) -> Result<()> {
         if let Some(ref redis) = self.redis {
-            let key = format!("{}:{}", REFRESH_TOKEN_BLACKLIST_PREFIX, jti);
+            let key = format!("{REFRESH_TOKEN_BLACKLIST_PREFIX}:{jti}");
             let ttl = (expires_at - Utc::now()).num_seconds().max(0);
 
             if ttl > 0 {
@@ -709,7 +709,7 @@ impl UserService {
     /// 检查 Refresh Token 是否在黑名单中
     async fn is_refresh_token_blacklisted(&self, jti: &str) -> Result<bool> {
         if let Some(ref redis) = self.redis {
-            let key = format!("{}:{}", REFRESH_TOKEN_BLACKLIST_PREFIX, jti);
+            let key = format!("{REFRESH_TOKEN_BLACKLIST_PREFIX}:{jti}");
             return Ok(redis.exists(&key).await.unwrap_or(false));
         }
         Ok(false)
@@ -1049,7 +1049,7 @@ impl UserService {
     /// 存储备用码（哈希后存储到 Redis）
     async fn store_backup_codes(&self, user_id: Uuid, codes: &[String]) -> Result<()> {
         if let Some(ref redis) = self.redis {
-            let key = format!("totp_backup_codes:{}", user_id);
+            let key = format!("totp_backup_codes:{user_id}");
             let hashes: Vec<String> = codes
                 .iter()
                 .map(|c| TotpService::hash_backup_code(c))
@@ -1070,7 +1070,7 @@ impl UserService {
     /// 获取备用码（哈希值）
     async fn get_backup_codes(&self, user_id: Uuid) -> Result<Vec<String>> {
         if let Some(ref redis) = self.redis {
-            let key = format!("totp_backup_codes:{}", user_id);
+            let key = format!("totp_backup_codes:{user_id}");
             if let Some(value) = redis.get(&key).await? {
                 return Ok(serde_json::from_str(&value).unwrap_or_default());
             }
@@ -1081,7 +1081,7 @@ impl UserService {
     /// 移除已使用的备用码
     async fn remove_backup_code(&self, user_id: Uuid, code_hash: &str) -> Result<()> {
         if let Some(ref redis) = self.redis {
-            let key = format!("totp_backup_codes:{}", user_id);
+            let key = format!("totp_backup_codes:{user_id}");
             if let Some(value) = redis.get(&key).await? {
                 let mut hashes: Vec<String> = serde_json::from_str(&value).unwrap_or_default();
                 hashes.retain(|h| h != code_hash);
@@ -1101,7 +1101,7 @@ impl UserService {
     /// 清除所有备用码
     async fn clear_backup_codes(&self, user_id: Uuid) -> Result<()> {
         if let Some(ref redis) = self.redis {
-            let key = format!("totp_backup_codes:{}", user_id);
+            let key = format!("totp_backup_codes:{user_id}");
             let _ = redis.del(&key).await;
         }
         Ok(())

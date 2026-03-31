@@ -22,7 +22,7 @@ pub async fn check_permission(claims: &Claims, permission: Permission) -> Result
     let service = get_permission_service();
 
     if !service.has_permission(&claims.role, permission).await {
-        return Err(format!("Permission '{}' is required", permission));
+        return Err(format!("Permission '{permission}' is required"));
     }
 
     Ok(())

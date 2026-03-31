@@ -209,7 +209,7 @@ pub async fn logout_all(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(LogoutResponse {
-        message: format!("Successfully logged out from {} devices", count),
+        message: format!("Successfully logged out from {count} devices"),
     }))
 }
 

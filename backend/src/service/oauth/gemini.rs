@@ -466,7 +466,7 @@ impl GeminiOAuthProvider {
             3 => "=",
             _ => "",
         };
-        format!("{}{}", s, padding)
+        format!("{s}{padding}")
     }
 
     /// 获取用户信息

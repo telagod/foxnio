@@ -48,13 +48,13 @@ impl GeminicliCodeassist {
         // Add context if available
         if let Some(ctx) = context {
             if let Some(code) = &ctx.surrounding_code {
-                prompt = format!("Context:\n{}\n\nRequest: {}", code, prompt);
+                prompt = format!("Context:\n{code}\n\nRequest: {prompt}");
             }
         }
 
         // Add language hint
         if let Some(lang) = &request.language {
-            let _prompt = format!("Language: {}\n\n{}", lang, prompt);
+            let _prompt = format!("Language: {lang}\n\n{prompt}");
         }
 
         // In real implementation, this would call Gemini API

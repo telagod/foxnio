@@ -96,7 +96,7 @@ impl SoraGatewayService {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -161,7 +161,7 @@ impl SoraGatewayService {
         let response = self
             .http_client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await?;
 
@@ -250,7 +250,7 @@ impl SoraGatewayService {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await?;
 

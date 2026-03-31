@@ -159,7 +159,7 @@ impl GatewayRequestService {
             if let Err(e) = serde_json::from_slice::<JsonValue>(&parsed.body) {
                 return ValidationResult {
                     is_valid: false,
-                    error: Some(format!("Invalid JSON: {}", e)),
+                    error: Some(format!("Invalid JSON: {e}")),
                     warnings,
                 };
             }
@@ -244,7 +244,7 @@ impl GatewayRequestService {
         ];
 
         for (alias, target) in mappings {
-            if model == alias || model.starts_with(&format!("{}-", alias)) {
+            if model == alias || model.starts_with(&format!("{alias}-")) {
                 return target.to_string();
             }
         }
@@ -304,7 +304,7 @@ impl GatewayRequestService {
             return self
                 .allowed_origins
                 .iter()
-                .any(|o| o == "*" || o == origin || origin.ends_with(&format!(".{}", o)));
+                .any(|o| o == "*" || o == origin || origin.ends_with(&format!(".{o}")));
         }
 
         false

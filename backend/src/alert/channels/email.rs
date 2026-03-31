@@ -41,7 +41,7 @@ impl EmailChannel {
                 self.config
                     .from_address
                     .parse()
-                    .map_err(|e| format!("Invalid from address: {}", e))?,
+                    .map_err(|e| format!("Invalid from address: {e}"))?,
             )
             .subject(subject);
 
@@ -49,7 +49,7 @@ impl EmailChannel {
         for recipient in &self.config.recipients {
             message = message.to(recipient
                 .parse()
-                .map_err(|e| format!("Invalid recipient {}: {}", recipient, e))?);
+                .map_err(|e| format!("Invalid recipient {recipient}: {e}"))?);
         }
 
         message
@@ -66,7 +66,7 @@ impl EmailChannel {
                             .body(html_body),
                     ),
             )
-            .map_err(|e| format!("Failed to build message: {}", e))
+            .map_err(|e| format!("Failed to build message: {e}"))
     }
 
     /// 格式化 HTML 邮件
@@ -84,7 +84,7 @@ impl EmailChannel {
             let labels = alert
                 .labels
                 .iter()
-                .map(|(k, v)| format!("<li><strong>{}:</strong> {}</li>", k, v))
+                .map(|(k, v)| format!("<li><strong>{k}:</strong> {v}</li>"))
                 .collect::<Vec<_>>()
                 .join("\n");
             format!(
@@ -166,7 +166,7 @@ impl AlertChannel for EmailChannel {
                         .port(self.config.smtp_port)
                         .build()
                     })
-                    .map_err(|e| format!("SMTP relay error: {}", e))
+                    .map_err(|e| format!("SMTP relay error: {e}"))
             } else {
                 Ok(
                     AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.config.smtp_host)
@@ -187,9 +187,7 @@ impl AlertChannel for EmailChannel {
         // 发送邮件
         match transport.send(message).await {
             Ok(_) => AlertSendResult::success(AlertChannelType::Email),
-            Err(e) => {
-                AlertSendResult::failure(AlertChannelType::Email, format!("Send error: {}", e))
-            }
+            Err(e) => AlertSendResult::failure(AlertChannelType::Email, format!("Send error: {e}")),
         }
     }
 

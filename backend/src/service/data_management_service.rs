@@ -79,7 +79,7 @@ impl DataManagementService {
         let stores = self.stores.read().await;
         let data = stores
             .get(key)
-            .ok_or_else(|| format!("Data not found: {}", key))?;
+            .ok_or_else(|| format!("Data not found: {key}"))?;
 
         match options.format {
             ExportFormat::Json => Ok(data.clone()),
@@ -124,7 +124,7 @@ impl DataManagementService {
         stores
             .remove(key)
             .map(|_| ())
-            .ok_or_else(|| format!("Data not found: {}", key))
+            .ok_or_else(|| format!("Data not found: {key}"))
     }
 
     /// List all data keys

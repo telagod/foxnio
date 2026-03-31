@@ -971,7 +971,7 @@ impl CostOptimizerService {
                 recommendations.push(OptimizationRecommendation {
                     recommendation_id: format!("model-switch-{}", model_usage.model_name),
                     category: RecommendationCategory::ModelSelection,
-                    title: format!("考虑切换到更经济的模型: {}", alternative),
+                    title: format!("考虑切换到更经济的模型: {alternative}"),
                     description: format!(
                         "您正在使用 {} 模型，上月花费 ${:.2}。对于简单任务，可以切换到 {}，预计每月可节省约 ${:.2}",
                         model_usage.model_name,
@@ -988,7 +988,7 @@ impl CostOptimizerService {
                     },
                     action_items: vec![
                         ActionItem {
-                            action: format!("评估 {} 的适用场景", alternative),
+                            action: format!("评估 {alternative} 的适用场景"),
                             estimated_impact: potential_savings * 0.3,
                             implementation_time: std::time::Duration::from_hours(1),
                         },

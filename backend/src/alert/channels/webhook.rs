@@ -77,10 +77,9 @@ impl AlertChannel for WebhookChannel {
                     )
                 }
             }
-            Err(e) => AlertSendResult::failure(
-                AlertChannelType::Webhook,
-                format!("Request failed: {}", e),
-            ),
+            Err(e) => {
+                AlertSendResult::failure(AlertChannelType::Webhook, format!("Request failed: {e}"))
+            }
         }
     }
 

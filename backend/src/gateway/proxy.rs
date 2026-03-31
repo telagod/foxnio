@@ -79,7 +79,7 @@ impl ProxyClient {
         let path = uri.path();
 
         // 构建上游 URL
-        let upstream_uri = format!("{}{}", upstream_url, path);
+        let upstream_uri = format!("{upstream_url}{path}");
 
         // 选择客户端 (基于配置和上游 URL)
         let client = self.select_client(upstream_url);
@@ -113,7 +113,7 @@ impl ProxyClient {
         // 添加上游 API Key
         if let Some(key) = api_key {
             req_builder = req_builder.header("x-api-key", key);
-            req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+            req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
         }
 
         // 添加请求体

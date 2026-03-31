@@ -96,7 +96,7 @@ impl TotpService {
     /// 生成 QR 码 URL（Data URL 格式）
     pub fn generate_qr_code_data_url(&self, email: &str, secret: &str) -> Result<String> {
         let base64_svg = self.generate_qr_code_base64(email, secret)?;
-        Ok(format!("data:image/svg+xml;base64,{}", base64_svg))
+        Ok(format!("data:image/svg+xml;base64,{base64_svg}"))
     }
 
     /// 验证 TOTP 代码

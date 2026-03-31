@@ -124,7 +124,7 @@ impl AwsSignatureV4 {
         );
 
         // 创建待签字符串
-        let credential_scope = format!("{}/bedrock/aws4_request", date_stamp);
+        let credential_scope = format!("{date_stamp}/bedrock/aws4_request");
 
         let canonical_request_hash = Self::hash(&canonical_request);
 
@@ -197,7 +197,7 @@ impl AwsSignatureV4 {
         region: &str,
         service: &str,
     ) -> Result<Vec<u8>> {
-        let k_date = Self::hmac_sha256(format!("AWS4{}", key).as_bytes(), date_stamp)?;
+        let k_date = Self::hmac_sha256(format!("AWS4{key}").as_bytes(), date_stamp)?;
         let k_region = Self::hmac_sha256(&k_date, region)?;
         let k_service = Self::hmac_sha256(&k_region, service)?;
         let k_signing = Self::hmac_sha256(&k_service, "aws4_request")?;
@@ -236,8 +236,8 @@ impl BedrockClient {
         body: &serde_json::Value,
     ) -> Result<serde_json::Value> {
         let endpoint = self.config.runtime_endpoint();
-        let uri = format!("/model/{}/invoke", model_id);
-        let url = format!("{}{}", endpoint, uri);
+        let uri = format!("/model/{model_id}/invoke");
+        let url = format!("{endpoint}{uri}");
 
         let body_str = serde_json::to_string(body)?;
         let payload_hash = AwsSignatureV4::hash(&body_str);
@@ -288,8 +288,8 @@ impl BedrockClient {
         body: &serde_json::Value,
     ) -> Result<reqwest::Response> {
         let endpoint = self.config.runtime_endpoint();
-        let uri = format!("/model/{}/invoke-with-response-stream", model_id);
-        let url = format!("{}{}", endpoint, uri);
+        let uri = format!("/model/{model_id}/invoke-with-response-stream");
+        let url = format!("{endpoint}{uri}");
 
         let body_str = serde_json::to_string(body)?;
         let payload_hash = AwsSignatureV4::hash(&body_str);
@@ -342,7 +342,7 @@ impl BedrockClient {
 
         for p in &["us.", "eu.", "apac.", "jp.", "au.", "us-gov.", "global."] {
             if model_id.starts_with(p) {
-                if *p == format!("{}.", prefix) {
+                if *p == format!("{prefix}.") {
                     return model_id.to_string();
                 }
                 return format!("{}.{}", prefix, model_id.strip_prefix(p).unwrap());

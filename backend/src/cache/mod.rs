@@ -449,13 +449,13 @@ mod tests {
 
         let handle1 = thread::spawn(move || {
             for i in 0..50 {
-                cache_clone.put(format!("key{}", i), i);
+                cache_clone.put(format!("key{i}"), i);
             }
         });
 
         let handle2 = thread::spawn(move || {
             for i in 50..100 {
-                cache_clone2.put(format!("key{}", i), i);
+                cache_clone2.put(format!("key{i}"), i);
             }
         });
 
@@ -494,14 +494,14 @@ mod tests {
         // 写线程
         let write_handle = thread::spawn(move || {
             for i in 0..50 {
-                cache_clone1.put(format!("key{}", i), i);
+                cache_clone1.put(format!("key{i}"), i);
             }
         });
 
         // 读线程
         let read_handle = thread::spawn(move || {
             for i in 0..50 {
-                let _ = cache_clone2.get(&format!("key{}", i));
+                let _ = cache_clone2.get(&format!("key{i}"));
             }
         });
 

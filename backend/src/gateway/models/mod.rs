@@ -94,7 +94,7 @@ impl FromStr for ModelProvider {
             "deepseek" => Ok(ModelProvider::DeepSeek),
             "mistral" => Ok(ModelProvider::Mistral),
             "cohere" => Ok(ModelProvider::Cohere),
-            _ => Err(format!("Unknown provider: {}", s)),
+            _ => Err(format!("Unknown provider: {s}")),
         }
     }
 }
@@ -382,7 +382,7 @@ impl FromStr for Model {
             "command-r-plus" | "commandrplus" => Model::CommandRPlus,
             "command-r" | "commandr" => Model::CommandR,
 
-            _ => return Err(format!("Unknown model: {}", s)),
+            _ => return Err(format!("Unknown model: {s}")),
         };
 
         Ok(model)

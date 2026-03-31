@@ -51,6 +51,11 @@ pub struct GatewayHandler {
 }
 
 impl GatewayHandler {
+    /// Creates a new GatewayHandler instance.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the HTTP client fails to build.
     pub fn new(
         account_service: AccountService,
         scheduler_service: SchedulerService,
@@ -96,13 +101,13 @@ impl GatewayHandler {
         let (base_url, credential) = self.get_upstream_config(&account).await?;
 
         // 3. 构建请求
-        let url = format!("{}/v1/chat/completions", base_url);
+        let url = format!("{base_url}/v1/chat/completions");
 
         let mut req = self
             .http_client
             .post(&url)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", credential));
+            .header("Authorization", format!("Bearer {credential}"));
 
         // 如果是流式请求
         if ctx.stream {
@@ -144,7 +149,7 @@ impl GatewayHandler {
 
         let (base_url, credential) = self.get_upstream_config(&account).await?;
 
-        let url = format!("{}/v1/messages", base_url);
+        let url = format!("{base_url}/v1/messages");
 
         let mut req = self
             .http_client
@@ -374,12 +379,12 @@ impl GatewayHandler {
 
         // 构建请求 URL
         let url = match route_result.provider {
-            ModelProvider::Anthropic => format!("{}/v1/messages", base_url),
+            ModelProvider::Anthropic => format!("{base_url}/v1/messages"),
             ModelProvider::Google => format!(
                 "{}{}:generateContent?key={}",
                 base_url, route_result.config.api_name, credential
             ),
-            _ => format!("{}/v1/chat/completions", base_url),
+            _ => format!("{base_url}/v1/chat/completions"),
         };
 
         // 构建请求
@@ -394,7 +399,7 @@ impl GatewayHandler {
                 .header("x-api-key", &credential)
                 .header("anthropic-version", "2023-06-01"),
             ModelProvider::Google => req, // Gemini 使用 URL 参数
-            _ => req.header("Authorization", format!("Bearer {}", credential)),
+            _ => req.header("Authorization", format!("Bearer {credential}")),
         };
 
         // 流式请求特殊处理

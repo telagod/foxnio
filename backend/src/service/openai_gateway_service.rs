@@ -95,7 +95,7 @@ impl OpenAIGatewayService {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -155,7 +155,7 @@ impl OpenAIGatewayService {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -197,7 +197,7 @@ impl OpenAIGatewayService {
         let response = self
             .http_client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await?;
 
@@ -211,7 +211,7 @@ impl OpenAIGatewayService {
         let response = self
             .http_client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .send()
             .await?;
 

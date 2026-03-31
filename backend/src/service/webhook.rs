@@ -440,7 +440,7 @@ impl WebhookService {
             .post(&endpoint.url)
             .header("Content-Type", "application/json")
             .header("X-Webhook-Timestamp", timestamp.to_string())
-            .header("X-Webhook-Signature", format!("sha256={}", signature))
+            .header("X-Webhook-Signature", format!("sha256={signature}"))
             .header("X-Webhook-Event", payload["event"].as_str().unwrap_or(""))
             .timeout(Duration::from_millis(endpoint.timeout_ms as u64))
             .body(payload_str);

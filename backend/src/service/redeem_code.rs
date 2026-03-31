@@ -256,13 +256,13 @@ impl RedeemCodeService {
         days: i32,
     ) -> Result<String> {
         // TODO: 创建订阅
-        Ok(format!("Added {} days subscription", days))
+        Ok(format!("Added {days} days subscription"))
     }
 
     /// 兑换配额
     async fn redeem_quota(&self, _user_id: &Uuid, quota: i64) -> Result<String> {
         // TODO: 增加用户配额
-        Ok(format!("Added {} tokens quota", quota))
+        Ok(format!("Added {quota} tokens quota"))
     }
 
     /// 获取用户兑换历史

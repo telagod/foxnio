@@ -51,14 +51,14 @@ impl IntoResponse for ApiKeyAuthError {
             ApiKeyAuthError::Expired => (StatusCode::UNAUTHORIZED, "API key has expired"),
             ApiKeyAuthError::Disabled => (StatusCode::UNAUTHORIZED, "API key is disabled"),
             ApiKeyAuthError::IpNotAllowed(ref ip) => {
-                let msg = format!("IP {} is not allowed", ip);
+                let msg = format!("IP {ip} is not allowed");
                 (
                     StatusCode::FORBIDDEN,
                     Box::leak(msg.into_boxed_str()) as &str,
                 )
             }
             ApiKeyAuthError::ModelNotAllowed(ref model) => {
-                let msg = format!("Model {} is not allowed", model);
+                let msg = format!("Model {model} is not allowed");
                 (
                     StatusCode::FORBIDDEN,
                     Box::leak(msg.into_boxed_str()) as &str,

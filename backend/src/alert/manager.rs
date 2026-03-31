@@ -352,7 +352,7 @@ impl AlertManager {
         } else {
             AlertSendResult::failure(
                 AlertChannelType::Email,
-                format!("Channel {} not found", channel_id),
+                format!("Channel {channel_id} not found"),
             )
         }
     }
@@ -552,7 +552,7 @@ mod tests {
 
         // 发送一些告警
         for i in 0..3 {
-            let alert = Alert::new(AlertLevel::Warning, format!("告警 {}", i), "测试");
+            let alert = Alert::new(AlertLevel::Warning, format!("告警 {i}"), "测试");
             manager
                 .send_alert(alert, Some(rule_id.clone()), Some(rule_name.clone()))
                 .await;

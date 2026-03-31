@@ -88,7 +88,7 @@ pub async fn create_webhook(
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<WebhookResponse>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     // 验证 URL 格式
     if !req.url.starts_with("https://") {
@@ -153,7 +153,7 @@ pub async fn list_webhooks(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<WebhookResponse>>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let webhook_service = WebhookService::new(state.db.clone());
 
@@ -212,7 +212,7 @@ pub async fn get_webhook(
     Path(id): Path<i64>,
 ) -> Result<Json<WebhookResponse>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let webhook_service = WebhookService::new(state.db.clone());
 
@@ -269,7 +269,7 @@ pub async fn update_webhook(
     Json(req): Json<UpdateWebhookRequest>,
 ) -> Result<Json<WebhookResponse>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     // 验证 URL 格式（如果提供）
     if let Some(ref url) = req.url {
@@ -343,7 +343,7 @@ pub async fn delete_webhook(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let webhook_service = WebhookService::new(state.db.clone());
 
@@ -384,7 +384,7 @@ pub async fn test_webhook(
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let webhook_service = WebhookService::new(state.db.clone());
 
@@ -428,7 +428,7 @@ pub async fn list_deliveries(
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<DeliveryResponse>>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let webhook_service = WebhookService::new(state.db.clone());
 

@@ -94,7 +94,7 @@ impl OpenAIPrivacyService {
         let request = self
             .http_client
             .patch(url)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Origin", "https://chatgpt.com")
             .header("Referer", "https://chatgpt.com/")
             .query(&[("feature", "training_allowed"), ("value", "false")]);
@@ -168,7 +168,7 @@ impl OpenAIPrivacyService {
         let request = self
             .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Origin", "https://chatgpt.com")
             .header("Referer", "https://chatgpt.com/")
             .header("Accept", "application/json");

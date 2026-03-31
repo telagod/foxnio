@@ -397,7 +397,7 @@ impl HealthCheck for PostgresHealthCheck {
             Ok(Err(e)) => {
                 error!("PostgreSQL health check failed: {}", e);
                 Ok(HealthStatus::unhealthy(
-                    format!("PostgreSQL error: {}", e),
+                    format!("PostgreSQL error: {e}"),
                     latency,
                 ))
             }
@@ -480,7 +480,7 @@ impl HealthCheck for RedisHealthCheck {
             Ok(Err(e)) => {
                 error!("Redis health check failed: {}", e);
                 Ok(HealthStatus::unhealthy(
-                    format!("Redis error: {}", e),
+                    format!("Redis error: {e}"),
                     latency,
                 ))
             }

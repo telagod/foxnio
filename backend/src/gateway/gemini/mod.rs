@@ -152,7 +152,7 @@ pub async fn generate_content(
         Err(e) => {
             let error = client::build_error_response(
                 404,
-                &format!("Invalid model action: {}", e),
+                &format!("Invalid model action: {e}"),
                 "NOT_FOUND",
             );
             return (StatusCode::NOT_FOUND, Json(error)).into_response();
@@ -168,7 +168,7 @@ pub async fn generate_content(
         Err(e) => {
             let error = client::build_error_response(
                 400,
-                &format!("Invalid request body: {}", e),
+                &format!("Invalid request body: {e}"),
                 "INVALID_ARGUMENT",
             );
             return (StatusCode::BAD_REQUEST, Json(error)).into_response();
@@ -207,7 +207,7 @@ pub async fn generate_content(
             Err(e) => {
                 let error = client::build_error_response(
                     502,
-                    &format!("Upstream error: {}", e),
+                    &format!("Upstream error: {e}"),
                     "UNAVAILABLE",
                 );
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
@@ -223,7 +223,7 @@ pub async fn generate_content(
             Err(e) => {
                 let error = client::build_error_response(
                     502,
-                    &format!("Upstream error: {}", e),
+                    &format!("Upstream error: {e}"),
                     "UNAVAILABLE",
                 );
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
@@ -256,7 +256,7 @@ pub async fn count_tokens(
         Err(e) => {
             let error = client::build_error_response(
                 400,
-                &format!("Invalid request body: {}", e),
+                &format!("Invalid request body: {e}"),
                 "INVALID_ARGUMENT",
             );
             return (StatusCode::BAD_REQUEST, Json(error)).into_response();
@@ -276,7 +276,7 @@ pub async fn count_tokens(
         Ok(response) => Json(response).into_response(),
         Err(e) => {
             let error =
-                client::build_error_response(502, &format!("Upstream error: {}", e), "UNAVAILABLE");
+                client::build_error_response(502, &format!("Upstream error: {e}"), "UNAVAILABLE");
             (StatusCode::BAD_GATEWAY, Json(error)).into_response()
         }
     }
@@ -296,7 +296,7 @@ pub async fn embed_content(
         Err(e) => {
             let error = client::build_error_response(
                 400,
-                &format!("Invalid request body: {}", e),
+                &format!("Invalid request body: {e}"),
                 "INVALID_ARGUMENT",
             );
             return (StatusCode::BAD_REQUEST, Json(error)).into_response();
@@ -316,7 +316,7 @@ pub async fn embed_content(
         Ok(response) => Json(response).into_response(),
         Err(e) => {
             let error =
-                client::build_error_response(502, &format!("Upstream error: {}", e), "UNAVAILABLE");
+                client::build_error_response(502, &format!("Upstream error: {e}"), "UNAVAILABLE");
             (StatusCode::BAD_GATEWAY, Json(error)).into_response()
         }
     }

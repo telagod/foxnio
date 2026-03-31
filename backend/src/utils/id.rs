@@ -50,7 +50,7 @@ pub fn api_key(prefix: &str) -> String {
         })
         .collect();
 
-    format!("{}-{}", prefix, random_part)
+    format!("{prefix}-{random_part}")
 }
 
 /// 生成 API Key (别名)
@@ -73,7 +73,7 @@ pub fn secret_key() -> String {
 /// 掩码字符串
 pub fn mask_string(s: &str, visible_len: usize) -> String {
     if s.len() <= visible_len {
-        return format!("{}...", s);
+        return format!("{s}...");
     }
     format!("{}...", &s[..visible_len])
 }

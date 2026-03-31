@@ -30,14 +30,14 @@ pub async fn handle_responses(
 ) -> Result<Response, ApiError> {
     // 1. 解析 Responses 请求
     let req: ResponsesRequest = serde_json::from_slice(&body)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid request: {}", e)))?;
+        .map_err(|e| ApiError::BadRequest(format!("Invalid request: {e}")))?;
 
     let client_stream = req.stream;
     let original_model = req.model.clone();
 
     // 2. 转换 Responses → Anthropic
     let anthropic_req = responses_to_anthropic(&req)
-        .map_err(|e| ApiError::BadRequest(format!("Conversion failed: {}", e)))?;
+        .map_err(|e| ApiError::BadRequest(format!("Conversion failed: {e}")))?;
 
     // 3. 强制使用流式（Anthropic 最佳实践）
     let mut anthropic_req = anthropic_req;
@@ -53,7 +53,7 @@ pub async fn handle_responses(
     let account = scheduler
         .select_account(&original_model, None, 5)
         .await
-        .map_err(|e| ApiError::ServiceUnavailable(format!("Failed to select account: {}", e)))?
+        .map_err(|e| ApiError::ServiceUnavailable(format!("Failed to select account: {e}")))?
         .ok_or_else(|| ApiError::ServiceUnavailable("No available account".to_string()))?;
 
     // 5. 获取上游配置
@@ -63,10 +63,10 @@ pub async fn handle_responses(
     let http_client = Client::builder()
         .timeout(std::time::Duration::from_secs(300))
         .build()
-        .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {e}")))?;
 
     // 7. 发送到 Anthropic 上游
-    let url = format!("{}/v1/messages", base_url);
+    let url = format!("{base_url}/v1/messages");
 
     let response = http_client
         .post(&url)
@@ -77,7 +77,7 @@ pub async fn handle_responses(
         .json(&anthropic_req)
         .send()
         .await
-        .map_err(|e| ApiError::UpstreamError(format!("Request failed: {}", e)))?;
+        .map_err(|e| ApiError::UpstreamError(format!("Request failed: {e}")))?;
 
     // 8. 处理响应
     if client_stream {
@@ -127,7 +127,7 @@ async fn handle_streaming_response(
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(Err(format!("Stream error: {}", e))).await;
+                    let _ = tx.send(Err(format!("Stream error: {e}"))).await;
                     break;
                 }
             }

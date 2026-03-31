@@ -80,7 +80,7 @@ impl SlackChannel {
             let labels: Vec<String> = alert
                 .labels
                 .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| format!("{k}={v}"))
                 .collect();
             fields.push(serde_json::json!({
                 "type": "mrkdwn",
@@ -192,7 +192,7 @@ impl SlackChannel {
             let labels: Vec<String> = alert
                 .labels
                 .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| format!("{k}={v}"))
                 .collect();
             fields.push(serde_json::json!({
                 "title": "标签",
@@ -256,11 +256,11 @@ impl AlertChannel for SlackChannel {
                         }
                         Ok(text) => AlertSendResult::failure(
                             AlertChannelType::Slack,
-                            format!("Unexpected response: {}", text),
+                            format!("Unexpected response: {text}"),
                         ),
                         Err(e) => AlertSendResult::failure(
                             AlertChannelType::Slack,
-                            format!("Failed to read response: {}", e),
+                            format!("Failed to read response: {e}"),
                         ),
                     }
                 } else {
@@ -275,7 +275,7 @@ impl AlertChannel for SlackChannel {
                 }
             }
             Err(e) => {
-                AlertSendResult::failure(AlertChannelType::Slack, format!("Request failed: {}", e))
+                AlertSendResult::failure(AlertChannelType::Slack, format!("Request failed: {e}"))
             }
         }
     }

@@ -62,7 +62,7 @@ pub async fn update_user_info(
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let user_service = UserService::new(
         state.db.clone(),
@@ -119,7 +119,7 @@ pub async fn change_password(
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     // 验证新密码长度
     if req.new_password.len() < 8 {

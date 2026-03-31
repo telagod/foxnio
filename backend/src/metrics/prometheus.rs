@@ -35,10 +35,10 @@ impl PrometheusRegistry {
     /// 注册计数器
     pub fn register_counter(&self, name: &str, help: &str) -> Result<Counter, String> {
         let counter =
-            Counter::new(name, help).map_err(|e| format!("Failed to create counter: {}", e))?;
+            Counter::new(name, help).map_err(|e| format!("Failed to create counter: {e}"))?;
         self.registry
             .register(Box::new(counter.clone()))
-            .map_err(|e| format!("Failed to register counter: {}", e))?;
+            .map_err(|e| format!("Failed to register counter: {e}"))?;
         Ok(counter)
     }
 
@@ -50,20 +50,20 @@ impl PrometheusRegistry {
         labels: &[&str],
     ) -> Result<CounterVec, String> {
         let counter = CounterVec::new(Opts::new(name, help), labels)
-            .map_err(|e| format!("Failed to create counter vec: {}", e))?;
+            .map_err(|e| format!("Failed to create counter vec: {e}"))?;
         self.registry
             .register(Box::new(counter.clone()))
-            .map_err(|e| format!("Failed to register counter vec: {}", e))?;
+            .map_err(|e| format!("Failed to register counter vec: {e}"))?;
         Ok(counter)
     }
 
     /// 注册整数计数器
     pub fn register_int_counter(&self, name: &str, help: &str) -> Result<IntCounter, String> {
         let counter = IntCounter::new(name, help)
-            .map_err(|e| format!("Failed to create int counter: {}", e))?;
+            .map_err(|e| format!("Failed to create int counter: {e}"))?;
         self.registry
             .register(Box::new(counter.clone()))
-            .map_err(|e| format!("Failed to register int counter: {}", e))?;
+            .map_err(|e| format!("Failed to register int counter: {e}"))?;
         Ok(counter)
     }
 
@@ -75,19 +75,19 @@ impl PrometheusRegistry {
         labels: &[&str],
     ) -> Result<IntCounterVec, String> {
         let counter = IntCounterVec::new(Opts::new(name, help), labels)
-            .map_err(|e| format!("Failed to create int counter vec: {}", e))?;
+            .map_err(|e| format!("Failed to create int counter vec: {e}"))?;
         self.registry
             .register(Box::new(counter.clone()))
-            .map_err(|e| format!("Failed to register int counter vec: {}", e))?;
+            .map_err(|e| format!("Failed to register int counter vec: {e}"))?;
         Ok(counter)
     }
 
     /// 注册计量器
     pub fn register_gauge(&self, name: &str, help: &str) -> Result<Gauge, String> {
-        let gauge = Gauge::new(name, help).map_err(|e| format!("Failed to create gauge: {}", e))?;
+        let gauge = Gauge::new(name, help).map_err(|e| format!("Failed to create gauge: {e}"))?;
         self.registry
             .register(Box::new(gauge.clone()))
-            .map_err(|e| format!("Failed to register gauge: {}", e))?;
+            .map_err(|e| format!("Failed to register gauge: {e}"))?;
         Ok(gauge)
     }
 
@@ -99,20 +99,20 @@ impl PrometheusRegistry {
         labels: &[&str],
     ) -> Result<GaugeVec, String> {
         let gauge = GaugeVec::new(Opts::new(name, help), labels)
-            .map_err(|e| format!("Failed to create gauge vec: {}", e))?;
+            .map_err(|e| format!("Failed to create gauge vec: {e}"))?;
         self.registry
             .register(Box::new(gauge.clone()))
-            .map_err(|e| format!("Failed to register gauge vec: {}", e))?;
+            .map_err(|e| format!("Failed to register gauge vec: {e}"))?;
         Ok(gauge)
     }
 
     /// 注册整数计量器
     pub fn register_int_gauge(&self, name: &str, help: &str) -> Result<IntGauge, String> {
         let gauge =
-            IntGauge::new(name, help).map_err(|e| format!("Failed to create int gauge: {}", e))?;
+            IntGauge::new(name, help).map_err(|e| format!("Failed to create int gauge: {e}"))?;
         self.registry
             .register(Box::new(gauge.clone()))
-            .map_err(|e| format!("Failed to register int gauge: {}", e))?;
+            .map_err(|e| format!("Failed to register int gauge: {e}"))?;
         Ok(gauge)
     }
 
@@ -124,10 +124,10 @@ impl PrometheusRegistry {
         labels: &[&str],
     ) -> Result<IntGaugeVec, String> {
         let gauge = IntGaugeVec::new(Opts::new(name, help), labels)
-            .map_err(|e| format!("Failed to create int gauge vec: {}", e))?;
+            .map_err(|e| format!("Failed to create int gauge vec: {e}"))?;
         self.registry
             .register(Box::new(gauge.clone()))
-            .map_err(|e| format!("Failed to register int gauge vec: {}", e))?;
+            .map_err(|e| format!("Failed to register int gauge vec: {e}"))?;
         Ok(gauge)
     }
 
@@ -139,10 +139,10 @@ impl PrometheusRegistry {
         buckets: Vec<f64>,
     ) -> Result<Histogram, String> {
         let histogram = Histogram::with_opts(HistogramOpts::new(name, help).buckets(buckets))
-            .map_err(|e| format!("Failed to create histogram: {}", e))?;
+            .map_err(|e| format!("Failed to create histogram: {e}"))?;
         self.registry
             .register(Box::new(histogram.clone()))
-            .map_err(|e| format!("Failed to register histogram: {}", e))?;
+            .map_err(|e| format!("Failed to register histogram: {e}"))?;
         Ok(histogram)
     }
 
@@ -155,10 +155,10 @@ impl PrometheusRegistry {
         buckets: Vec<f64>,
     ) -> Result<HistogramVec, String> {
         let histogram = HistogramVec::new(HistogramOpts::new(name, help).buckets(buckets), labels)
-            .map_err(|e| format!("Failed to create histogram vec: {}", e))?;
+            .map_err(|e| format!("Failed to create histogram vec: {e}"))?;
         self.registry
             .register(Box::new(histogram.clone()))
-            .map_err(|e| format!("Failed to register histogram vec: {}", e))?;
+            .map_err(|e| format!("Failed to register histogram vec: {e}"))?;
         Ok(histogram)
     }
 
@@ -277,7 +277,7 @@ impl MetricsFormatter {
     /// 格式化计数器
     pub fn format_counter(name: &str, value: u64, labels: &[(&str, &str)]) -> String {
         if labels.is_empty() {
-            format!("{} {}\n", name, value)
+            format!("{name} {value}\n")
         } else {
             let label_str = labels
                 .iter()
@@ -291,7 +291,7 @@ impl MetricsFormatter {
     /// 格式化计量器
     pub fn format_gauge(name: &str, value: f64, labels: &[(&str, &str)]) -> String {
         if labels.is_empty() {
-            format!("{} {}\n", name, value)
+            format!("{name} {value}\n")
         } else {
             let label_str = labels
                 .iter()
@@ -321,20 +321,20 @@ impl MetricsFormatter {
             ));
         }
         output.push_str(&format!("{}_bucket{{le=\"+Inf\"}} {}\n", name, count));
-        output.push_str(&format!("{}_sum {}\n", name, sum));
-        output.push_str(&format!("{}_count {}\n", name, count));
+        output.push_str(&format!("{name}_sum {sum}\n"));
+        output.push_str(&format!("{name}_count {count}\n"));
 
         output
     }
 
     /// 添加 HELP 注释
     pub fn add_help(name: &str, help: &str) -> String {
-        format!("# HELP {} {}\n", name, help)
+        format!("# HELP {name} {help}\n")
     }
 
     /// 添加 TYPE 注释
     pub fn add_type(name: &str, metric_type: &str) -> String {
-        format!("# TYPE {} {}\n", name, metric_type)
+        format!("# TYPE {name} {metric_type}\n")
     }
 }
 

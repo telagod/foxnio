@@ -309,7 +309,7 @@ pub fn normalize_model_name(model: &str) -> String {
     if model.starts_with("models/") {
         model.to_string()
     } else {
-        format!("models/{}", model)
+        format!("models/{model}")
     }
 }
 

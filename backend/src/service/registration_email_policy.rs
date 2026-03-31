@@ -48,12 +48,12 @@ impl EmailPolicy {
 
         // Check blocked domains
         if self.blocked_domains.contains(&domain) {
-            return Err(format!("Domain '{}' is blocked", domain));
+            return Err(format!("Domain '{domain}' is blocked"));
         }
 
         // Check allowed domains (if configured)
         if !self.allowed_domains.is_empty() && !self.allowed_domains.contains(&domain) {
-            return Err(format!("Domain '{}' is not in allowed list", domain));
+            return Err(format!("Domain '{domain}' is not in allowed list"));
         }
 
         Ok(())

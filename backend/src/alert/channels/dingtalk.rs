@@ -54,7 +54,7 @@ impl DingTalkChannel {
     fn generate_sign(&self, timestamp: i64) -> Option<String> {
         let secret = self.config.secret.as_ref()?;
 
-        let string_to_sign = format!("{}\n{}", timestamp, secret);
+        let string_to_sign = format!("{timestamp}\n{secret}");
 
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).ok()?;
         mac.update(string_to_sign.as_bytes());
@@ -99,7 +99,7 @@ impl DingTalkChannel {
         if !alert.labels.is_empty() {
             content.push_str("\n**标签:**\n");
             for (key, value) in &alert.labels {
-                content.push_str(&format!("- {}: {}\n", key, value));
+                content.push_str(&format!("- {key}: {value}\n"));
             }
         }
 
@@ -133,7 +133,7 @@ impl DingTalkChannel {
             text.push_str("\n@所有人");
         } else if !self.config.at_mobiles.is_empty() {
             for mobile in &self.config.at_mobiles {
-                text.push_str(&format!("@{} ", mobile));
+                text.push_str(&format!("@{mobile} "));
             }
         }
 
@@ -173,13 +173,12 @@ impl AlertChannel for DingTalkChannel {
                 }
                 Err(e) => AlertSendResult::failure(
                     AlertChannelType::DingTalk,
-                    format!("Failed to parse response: {}", e),
+                    format!("Failed to parse response: {e}"),
                 ),
             },
-            Err(e) => AlertSendResult::failure(
-                AlertChannelType::DingTalk,
-                format!("Request failed: {}", e),
-            ),
+            Err(e) => {
+                AlertSendResult::failure(AlertChannelType::DingTalk, format!("Request failed: {e}"))
+            }
         }
     }
 

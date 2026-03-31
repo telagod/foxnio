@@ -11,9 +11,9 @@ mod tests {
         // Use UUID to generate random part
         let random = Uuid::new_v4().simple().to_string();
         // Repeat to get 48 chars
-        let random_48 = format!("{}{}", random, random).into_bytes();
+        let random_48 = format!("{random}{random}").into_bytes();
         let random_48: String = String::from_utf8(random_48[..48].to_vec()).unwrap();
-        format!("{}{}", prefix, random_48)
+        format!("{prefix}{random_48}")
     }
 
     #[test]

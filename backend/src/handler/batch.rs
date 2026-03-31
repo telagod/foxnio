@@ -98,7 +98,7 @@ pub async fn batch_update_accounts(
 
     let updates: std::collections::HashMap<String, serde_json::Value> =
         serde_json::from_value(req.updates.clone())
-            .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid updates: {}", e)))?;
+            .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid updates: {e}")))?;
 
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
@@ -137,7 +137,7 @@ pub async fn batch_import_users(
     while let Some(field) = form.next_field().await.map_err(|e| {
         ApiError(
             StatusCode::BAD_REQUEST,
-            format!("Failed to parse multipart: {}", e),
+            format!("Failed to parse multipart: {e}"),
         )
     })? {
         let name = field.name().unwrap_or("").to_string();
@@ -146,7 +146,7 @@ pub async fn batch_import_users(
             csv_content = field.text().await.map_err(|e| {
                 ApiError(
                     StatusCode::BAD_REQUEST,
-                    format!("Failed to read file content: {}", e),
+                    format!("Failed to read file content: {e}"),
                 )
             })?;
         }

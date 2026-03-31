@@ -86,7 +86,7 @@ fn test_otpauth_url() {
         "URL should start with otpauth://totp/"
     );
     assert!(
-        url.contains(&format!("secret={}", secret)),
+        url.contains(&format!("secret={secret}")),
         "URL should contain secret parameter"
     );
     assert!(

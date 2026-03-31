@@ -37,7 +37,7 @@ mod tests {
             account_errors: vec![],
         };
         
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("3 attempts"));
         assert!(display.contains("500"));
         assert!(display.contains("Internal Server Error"));

@@ -43,7 +43,7 @@ pub async fn get_user_quota(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let service = QuotaService::new(state.db.clone());
 
@@ -79,7 +79,7 @@ pub async fn update_user_quota(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let service = QuotaService::new(state.db.clone());
 

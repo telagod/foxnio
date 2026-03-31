@@ -930,7 +930,7 @@ mod tests {
 
         // 添加多个账号
         for i in 0..3 {
-            let account = create_test_account(Uuid::new_v4(), &format!("account-{}", i), i);
+            let account = create_test_account(Uuid::new_v4(), &format!("account-{i}"), i);
             scheduler.add_account(account).await;
         }
 

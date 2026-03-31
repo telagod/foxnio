@@ -68,12 +68,12 @@ impl WireService {
 
     /// Serialize message to bytes
     pub fn serialize_message(&self, msg: &WireMessage) -> Result<Vec<u8>, String> {
-        bincode::serialize(msg).map_err(|e| format!("Failed to serialize: {}", e))
+        bincode::serialize(msg).map_err(|e| format!("Failed to serialize: {e}"))
     }
 
     /// Deserialize message from bytes
     pub fn deserialize_message(&self, data: &[u8]) -> Result<WireMessage, String> {
-        bincode::deserialize(data).map_err(|e| format!("Failed to deserialize: {}", e))
+        bincode::deserialize(data).map_err(|e| format!("Failed to deserialize: {e}"))
     }
 
     /// Create handshake message

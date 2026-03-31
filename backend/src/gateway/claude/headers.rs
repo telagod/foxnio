@@ -126,7 +126,7 @@ impl ClaudeHeaders {
         // 12. authorization
         headers.insert(
             "authorization",
-            format!("Bearer {}", auth_token).parse().unwrap(),
+            format!("Bearer {auth_token}").parse().unwrap(),
         );
 
         // 13. x-app (全小写，不是 X-App)
@@ -176,7 +176,7 @@ impl ClaudeHeaders {
                 "true".to_string(),
             ),
             ("anthropic-version", self.anthropic_version.clone()),
-            ("authorization", format!("Bearer {}", auth_token)),
+            ("authorization", format!("Bearer {auth_token}")),
             ("x-app", self.x_app.clone()),
             ("User-Agent", self.user_agent.clone()),
             ("content-type", "application/json".to_string()),

@@ -141,7 +141,7 @@ pub async fn get_model(
     let model = registry
         .resolve(&id)
         .await
-        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, format!("Model not found: {}", id)))?;
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, format!("Model not found: {id}")))?;
 
     Ok(Json(json!(ModelInfoResponse {
         id: model.name.clone(),

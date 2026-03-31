@@ -85,7 +85,7 @@ mod integration_tests {
         // Configure API keys for all providers
         let providers = vec!["openai", "anthropic", "google", "deepseek", "mistral", "cohere"];
         for provider in &providers {
-            sync_service.set_api_key(provider, format!("test-key-{}", provider)).await;
+            sync_service.set_api_key(provider, format!("test-key-{provider}")).await;
         }
         
         // Perform full sync

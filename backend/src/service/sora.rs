@@ -43,7 +43,7 @@ impl SoraConfig {
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
 
         let media_url =
-            std::env::var("SORA_MEDIA_URL").unwrap_or_else(|_| format!("{}/media", base_url));
+            std::env::var("SORA_MEDIA_URL").unwrap_or_else(|_| format!("{base_url}/media"));
 
         Ok(Self {
             api_key,
@@ -301,11 +301,11 @@ impl SoraClient {
         let mut params = Vec::new();
 
         if let Some(limit) = limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
 
         if let Some(after) = after {
-            params.push(format!("after={}", after));
+            params.push(format!("after={after}"));
         }
 
         if !params.is_empty() {

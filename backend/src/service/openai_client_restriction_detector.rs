@@ -127,7 +127,7 @@ impl OpenAIClientRestrictionDetector {
                 return Ok(RestrictionResult {
                     is_allowed: false,
                     violation: Some(ViolationType::RestrictedRegion),
-                    reason: Some(format!("Region {} is restricted", region)),
+                    reason: Some(format!("Region {region} is restricted")),
                     remaining_quota: None,
                 });
             }

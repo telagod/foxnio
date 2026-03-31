@@ -77,11 +77,11 @@ impl TokenCacheKey {
         );
 
         if let Some(scope) = &self.scope {
-            key.push_str(&format!(":{}", scope));
+            key.push_str(&format!(":{scope}"));
         }
 
         if let Some(context) = &self.context {
-            key.push_str(&format!(":{}", context));
+            key.push_str(&format!(":{context}"));
         }
 
         key

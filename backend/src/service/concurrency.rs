@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn test_concurrency_error_display() {
         let error = ConcurrencyError::User;
-        let display = format!("{}", error);
+        let display = format!("{error}");
 
         assert!(display.contains("User concurrency limit"));
     }

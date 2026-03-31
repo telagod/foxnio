@@ -32,7 +32,7 @@ impl TryFrom<String> for UserRole {
         match s.to_lowercase().as_str() {
             "admin" => Ok(UserRole::Admin),
             "user" => Ok(UserRole::User),
-            _ => Err(format!("Invalid UserRole: {}", s)),
+            _ => Err(format!("Invalid UserRole: {s}")),
         }
     }
 }
@@ -68,7 +68,7 @@ impl TryFrom<String> for UserStatus {
             "active" => Ok(UserStatus::Active),
             "inactive" => Ok(UserStatus::Inactive),
             "banned" => Ok(UserStatus::Banned),
-            _ => Err(format!("Invalid UserStatus: {}", s)),
+            _ => Err(format!("Invalid UserStatus: {s}")),
         }
     }
 }

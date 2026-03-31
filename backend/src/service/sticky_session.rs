@@ -449,7 +449,7 @@ mod tests {
         // 创建多个会话
         for i in 0..5 {
             manager
-                .bind_account(format!("session-{}", i), Uuid::new_v4(), None)
+                .bind_account(format!("session-{i}"), Uuid::new_v4(), None)
                 .await
                 .unwrap();
         }

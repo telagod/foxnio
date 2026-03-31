@@ -215,8 +215,9 @@ impl CompressionLayer {
 
             // 当质量相同时，优先选择 brotli
             if can_use {
+                let quality_matches = (quality - best_quality).abs() < f32::EPSILON;
                 let should_select =
-                    quality > best_quality || (quality == best_quality && encoding > best_encoding);
+                    quality > best_quality || (quality_matches && encoding > best_encoding);
                 if should_select {
                     best_quality = quality;
                     best_encoding = encoding;
@@ -724,7 +725,7 @@ pub async fn decompression_middleware(req: Request<Body>, next: Next) -> Respons
         Err(e) => {
             return Response::builder()
                 .status(400)
-                .body(Body::from(format!("Decompression failed: {}", e)))
+                .body(Body::from(format!("Decompression failed: {e}")))
                 .unwrap()
         }
     };

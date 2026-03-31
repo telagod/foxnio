@@ -106,7 +106,7 @@ pub async fn list_user_subscriptions(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let service = SubscriptionService::new(SubscriptionConfig::default());
 
@@ -163,12 +163,12 @@ pub async fn get_subscription_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let _subscription_id = Uuid::parse_str(&id).map_err(|e| {
         ApiError(
             StatusCode::BAD_REQUEST,
-            format!("Invalid subscription ID: {}", e),
+            format!("Invalid subscription ID: {e}"),
         )
     })?;
 

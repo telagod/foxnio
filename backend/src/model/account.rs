@@ -36,7 +36,7 @@ impl TryFrom<String> for AccountProvider {
             "openai" => Ok(AccountProvider::OpenAI),
             "gemini" => Ok(AccountProvider::Gemini),
             "antigravity" => Ok(AccountProvider::Antigravity),
-            _ => Err(format!("Invalid AccountProvider: {}", s)),
+            _ => Err(format!("Invalid AccountProvider: {s}")),
         }
     }
 }
@@ -64,7 +64,7 @@ impl TryFrom<String> for AccountStatus {
             "active" => Ok(AccountStatus::Active),
             "inactive" => Ok(AccountStatus::Inactive),
             "error" => Ok(AccountStatus::Error),
-            _ => Err(format!("Invalid AccountStatus: {}", s)),
+            _ => Err(format!("Invalid AccountStatus: {s}")),
         }
     }
 }

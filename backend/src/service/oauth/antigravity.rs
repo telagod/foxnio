@@ -451,7 +451,7 @@ impl AntigravityOAuthProvider {
         let urls = self.get_available_urls();
 
         for url in &urls {
-            let full_url = format!("{}{}", url, endpoint);
+            let full_url = format!("{url}{endpoint}");
 
             let mut request = self.http_client.post(&full_url);
             request = request

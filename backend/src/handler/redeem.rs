@@ -40,7 +40,7 @@ pub async fn get_redemption_history(
     let redeem_service = RedeemCodeService::new(state.db.clone());
 
     let user_id = uuid::Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {}", e)))?;
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid user ID: {e}")))?;
 
     let redemptions = redeem_service
         .get_user_redemptions(user_id)
