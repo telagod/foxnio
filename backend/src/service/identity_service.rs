@@ -40,7 +40,7 @@ impl std::fmt::Display for IdentityProvider {
             IdentityProvider::GitHub => write!(f, "github"),
             IdentityProvider::WeChat => write!(f, "wechat"),
             IdentityProvider::Apple => write!(f, "apple"),
-            IdentityProvider::Custom(name) => write!(f, "{}", name),
+            IdentityProvider::Custom(name) => write!(f, "{name}"),
         }
     }
 }

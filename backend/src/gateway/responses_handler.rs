@@ -300,10 +300,10 @@ fn get_upstream_config(account: &accounts::Model) -> Result<(String, String), Ap
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
-            Self::ServiceUnavailable(msg) => write!(f, "ServiceUnavailable: {}", msg),
-            Self::UpstreamError(msg) => write!(f, "UpstreamError: {}", msg),
-            Self::Internal(msg) => write!(f, "Internal: {}", msg),
+            Self::BadRequest(msg) => write!(f, "BadRequest: {msg}"),
+            Self::ServiceUnavailable(msg) => write!(f, "ServiceUnavailable: {msg}"),
+            Self::UpstreamError(msg) => write!(f, "UpstreamError: {msg}"),
+            Self::Internal(msg) => write!(f, "Internal: {msg}"),
         }
     }
 }

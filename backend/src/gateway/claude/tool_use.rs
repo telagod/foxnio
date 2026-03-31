@@ -263,12 +263,12 @@ pub enum ToolUseError {
 impl std::fmt::Display for ToolUseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ToolUseError::ToolNotFound(name) => write!(f, "Tool not found: {}", name),
+            ToolUseError::ToolNotFound(name) => write!(f, "Tool not found: {name}"),
             ToolUseError::MissingRequiredField(tool, field) => {
-                write!(f, "Missing required field '{}' for tool '{}'", field, tool)
+                write!(f, "Missing required field '{field}' for tool '{tool}'")
             }
-            ToolUseError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-            ToolUseError::ExecutionError(msg) => write!(f, "Execution error: {}", msg),
+            ToolUseError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
+            ToolUseError::ExecutionError(msg) => write!(f, "Execution error: {msg}"),
         }
     }
 }

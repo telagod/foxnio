@@ -275,7 +275,7 @@ impl std::fmt::Display for QueueError {
                 queue_size,
                 max_size,
             } => {
-                write!(f, "Queue is full: {} / {}", queue_size, max_size)
+                write!(f, "Queue is full: {queue_size} / {max_size}")
             }
             Self::Timeout {
                 waited_ms,
