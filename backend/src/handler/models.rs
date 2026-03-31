@@ -10,7 +10,6 @@ use axum::{
 };
 use serde_json::json;
 use std::sync::Arc;
-use utoipa::OpenApi;
 
 use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse, UpdateModelRequest};
 use crate::gateway::middleware::permission::check_permission;

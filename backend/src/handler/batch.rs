@@ -3,11 +3,11 @@
 //! 提供批量创建、更新、删除等 API 端点
 
 use axum::{
-    extract::{Multipart, State},
+    extract::Multipart,
     http::StatusCode,
     Extension, Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::batch::{
-    BatchOperationService, BatchResult, CreateApiKeyRequest, CreateUserCsvRecord, CreateUserRequest,
+    BatchOperationService, CreateApiKeyRequest, CreateUserRequest,
 };
 use crate::service::permission::Permission;
 use crate::service::user::Claims;

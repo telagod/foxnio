@@ -5,16 +5,14 @@
 ///
 /// 此模块提供 TLS 指纹配置，使请求看起来像来自 Node.js 24.x
 /// 注意：这是一个高级功能，可能需要特殊的 TLS 库支持
-
 #[cfg(feature = "tls-custom")]
-pub fn build_tls_config() -> anyhow::Result<reqwest::tls::Config> {
+pub fn build_tls_config() -> anyhow::Result<rustls::ClientConfig> {
     // TODO: 实现 TLS 指纹配置
-    // 这需要使用自定义 TLS 库，如：
-    // - rustls 配置
-    // - 或使用 native-tls 配置
-
     // 当前返回默认配置
-    Ok(reqwest::tls::Config::default())
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(rustls::RootCertStore::empty())
+        .with_no_client_auth();
+    Ok(config)
 }
 
 /// Node.js 24.x TLS 密码套件

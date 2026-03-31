@@ -28,7 +28,6 @@ use axum::{
     Extension, Json,
 };
 use serde::{Deserialize, Serialize};
-use utoipa::OpenApi;
 use utoipa::ToSchema;
 
 /// 用户注册请求

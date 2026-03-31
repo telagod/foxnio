@@ -13,7 +13,6 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
-use utoipa_swagger_ui::SwaggerUi;
 
 use super::{
     middleware,
@@ -28,7 +27,6 @@ use crate::service::{
     LegacyApiKeyService as ApiKeyService, LegacyBillingService as BillingService,
 };
 use crate::state::AppState;
-use utoipa::OpenApi;
 
 pub fn build_app(state: AppState, _health_checker: Arc<HealthChecker>) -> Router<()> {
     let _shared_state = Arc::new(state);

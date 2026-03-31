@@ -135,7 +135,7 @@ impl BatchOperationService {
         _stop_on_error: bool,
     ) -> Result<BatchResult<ApiKeyInfo>> {
         let mut results = Vec::new();
-        let mut success = 0;
+        let success = 0;
         let mut failed = 0;
 
         for (index, _req) in requests.into_iter().enumerate() {
@@ -168,7 +168,7 @@ impl BatchOperationService {
         _stop_on_error: bool,
     ) -> Result<BatchResult<UserInfo>> {
         let mut results = Vec::new();
-        let mut success = 0;
+        let success = 0;
         let mut failed = 0;
 
         for (index, _req) in requests.into_iter().enumerate() {
@@ -196,7 +196,7 @@ impl BatchOperationService {
     /// 从 CSV 文件批量导入用户
     pub async fn batch_import_users_csv(&self, csv_content: &str) -> Result<BatchResult<UserInfo>> {
         let mut results = Vec::new();
-        let mut success = 0;
+        let success = 0;
         let mut failed = 0;
 
         let mut reader = ReaderBuilder::new()
@@ -248,7 +248,7 @@ impl BatchOperationService {
         request: BatchUpdateRequest,
     ) -> Result<BatchResult<AccountInfo>> {
         let mut results = Vec::new();
-        let mut success = 0;
+        let success = 0;
         let mut failed = 0;
 
         for (index, _id) in request.ids.iter().enumerate() {
@@ -280,7 +280,7 @@ impl BatchOperationService {
         _stop_on_error: bool,
     ) -> Result<BatchResult<()>> {
         let mut results = Vec::new();
-        let mut success = 0;
+        let success = 0;
         let mut failed = 0;
 
         for (index, _id) in ids.into_iter().enumerate() {

@@ -12,8 +12,8 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use chrono::{DateTime, Duration, Timelike, Utc};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::info;

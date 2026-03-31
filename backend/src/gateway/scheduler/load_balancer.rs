@@ -11,10 +11,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
-use super::metrics::AccountMetrics;
-use super::{AccountInfo, AccountStatus, ScheduleContext, ScheduleResult};
+use super::{AccountInfo, ScheduleContext, ScheduleResult};
 use crate::utils::uuid_conv::uuid_to_i64;
 
 /// 账号负载信息

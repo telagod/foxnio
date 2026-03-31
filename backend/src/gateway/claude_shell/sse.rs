@@ -1,6 +1,5 @@
 // SSE (Server-Sent Events) 流式解析
 
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 /// SSE 事件

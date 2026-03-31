@@ -9,8 +9,6 @@ pub mod sse;
 pub mod tls;
 
 use anyhow::Result;
-use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 
 // 重导出常用类型
 pub use error::{AnthropicError, ErrorDetail};
