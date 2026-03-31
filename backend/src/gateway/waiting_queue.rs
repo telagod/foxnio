@@ -935,7 +935,6 @@ mod tests {
         let stats = queue.stats().await;
         // Stats should reflect the queue state
         assert!(stats.active_requests <= 10);
-        assert!(stats.total_enqueued >= 0);
 
         queue.release(slot).await;
 
