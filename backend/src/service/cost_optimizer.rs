@@ -1523,7 +1523,7 @@ mod tests {
 
     #[test]
     fn test_severity_ordering() {
-        let severities = vec![
+        let severities = [
             Severity::Critical,
             Severity::High,
             Severity::Medium,
@@ -1541,7 +1541,7 @@ mod tests {
 
     #[test]
     fn test_priority_ordering() {
-        let priorities = vec![
+        let priorities = [
             Priority::Urgent,
             Priority::High,
             Priority::Medium,

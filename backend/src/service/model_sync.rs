@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use super::model_registry::{ModelRegistry, RuntimeModelConfig};
-use crate::entity::model_configs::{CreateModelRequest, ModelInfoResponse};
+use crate::entity::model_configs::CreateModelRequest;
 
 /// 最大重试次数
 const MAX_RETRIES: u32 = 3;
@@ -358,7 +358,7 @@ impl ModelSyncService {
         // 检测新模型和更新模型
         let mut new_models = Vec::new();
         let mut updated_models = Vec::new();
-        let mut price_changes = Vec::new();
+        let price_changes = Vec::new();
         let mut errors = Vec::new();
 
         for model in &chat_models {
