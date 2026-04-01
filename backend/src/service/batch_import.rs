@@ -15,7 +15,6 @@ use sea_orm::{
     TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -291,7 +290,7 @@ impl BatchImportService {
             .map(|(index, item)| {
                 let name_len = item.name.len();
                 let cred_len = item.credential.len();
-                let cred_type = item.credential_type.clone();
+                let _cred_type = item.credential_type.clone(); // Reserved for future validation
                 async move {
                     // 简单验证逻辑
                     let valid = !name_len == 0 && !cred_len == 0;
@@ -475,7 +474,7 @@ impl BatchImportService {
             .collect();
 
         // 批量插入
-        let inserted = accounts::Entity::insert_many(models)
+        let _inserted = accounts::Entity::insert_many(models)
             .exec(&txn)
             .await?;
 
@@ -561,10 +560,10 @@ impl AccountValidator {
         accounts: &[(Uuid, String, String, String)], // (id, provider, credential_type, credential)
         concurrency: usize,
     ) -> Vec<(Uuid, bool, Option<String>)> {
-        use futures::future::join_all;
+        
 
         let results: Vec<(Uuid, bool, Option<String>)> = stream::iter(accounts.iter())
-            .map(|(id, provider, cred_type, cred)| async move {
+            .map(|(id, _provider, _cred_type, cred)| async move {
                 // TODO: 实际调用 API 验证
                 // 这里简化为格式验证
                 let valid = !cred.is_empty();

@@ -3,7 +3,7 @@
 //! 使用角色权限系统进行访问控制
 
 #![allow(dead_code)]
-use axum::{extract::Path, http::StatusCode, Extension, Json};
+use axum::{extract::Path, extract::Query, http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use utoipa::ToSchema;
@@ -344,10 +344,53 @@ pub async fn update_user_balance(
 
 // ============ 账号管理 API ============
 
+/// 账号列表查询参数
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ListAccountsQuery {
+    /// 页码（从 1 开始）
+    #[serde(default = "default_page")]
+    pub page: Option<u64>,
+    /// 每页数量（最大 200）
+    #[serde(default = "default_per_page")]
+    pub per_page: Option<u64>,
+    /// 状态过滤
+    pub status: Option<String>,
+    /// Provider 过滤
+    pub provider: Option<String>,
+    /// 名称搜索
+    pub search: Option<String>,
+}
+
+fn default_page() -> Option<u64> { Some(1) }
+fn default_per_page() -> Option<u64> { Some(50) }
+
 /// 列出账号 - 需要 AccountRead 权限
+///
+/// 支持分页、过滤和搜索
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/accounts",
+    params(
+        ("page" = Option<u64>, Query, description = "页码（从 1 开始）"),
+        ("per_page" = Option<u64>, Query, description = "每页数量（最大 200）"),
+        ("status" = Option<String>, Query, description = "状态过滤"),
+        ("provider" = Option<String>, Query, description = "Provider 过滤"),
+        ("search" = Option<String>, Query, description = "名称搜索"),
+    ),
+    responses(
+        (status = 200, description = "账号列表"),
+        (status = 401, description = "未授权"),
+        (status = 403, description = "权限不足")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "管理员-账号"
+)]
 pub async fn list_accounts(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<ListAccountsQuery>,
 ) -> Result<Json<Value>, ApiError> {
     // 权限检查
     check_permission(&claims, Permission::AccountRead)
@@ -356,10 +399,22 @@ pub async fn list_accounts(
 
     let account_service = AccountService::new(state.db.clone());
 
-    let accounts = account_service
-        .list_all()
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(50);
+
+    // 使用分页查询
+    let (accounts, total) = account_service
+        .list_paged(
+            page,
+            per_page,
+            query.status.as_deref(),
+            query.provider.as_deref(),
+            query.search.as_deref(),
+        )
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let total_pages = (total + per_page - 1) / per_page;
 
     Ok(Json(json!({
         "object": "list",
@@ -372,7 +427,14 @@ pub async fn list_accounts(
             "priority": a.priority,
             "last_error": a.last_error,
             "created_at": a.created_at.to_rfc3339(),
-        })).collect::<Vec<_>>()
+        })).collect::<Vec<_>>(),
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": total_pages,
+            "has_more": page < total_pages,
+        }
     })))
 }
 

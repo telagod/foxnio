@@ -11,8 +11,6 @@ pub mod tls;
 use anyhow::Result;
 
 // 重导出常用类型
-pub use error::{AnthropicError, ErrorDetail};
-pub use sse::{parse_sse_line, parse_sse_stream, SseEvent};
 
 /// Claude Code Shell 配置
 #[derive(Debug, Clone)]

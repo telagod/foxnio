@@ -24,12 +24,10 @@ pub mod service;
 
 // 重导出主要类型
 pub use models::{
-    build_sora_model_families, default_sora_models, get_model_config, get_sora_model_configs,
-    get_sora_model_ids, SoraModel, SoraModelConfig, SoraModelFamily, SoraModelType,
+    build_sora_model_families, get_model_config, SoraModelType,
 };
 pub use service::{
-    create_sora_model_list, SoraErrorInfo, SoraGenerateRequest, SoraGenerateResponse,
-    SoraPricingConfig, SoraRouterService, SoraService,
+    create_sora_model_list, SoraGenerateRequest, SoraService,
 };
 
 /// Sora 模块版本

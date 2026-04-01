@@ -28,6 +28,7 @@ mod m20240330_000024_add_api_key_permissions;
 mod m20240330_000026_create_webhook_endpoints;
 mod m20240330_000027_create_webhook_deliveries;
 mod m20240401_000028_add_performance_indexes;
+mod m20240402_000029_add_scheduler_indexes;
 
 pub struct Migrator;
 
@@ -63,6 +64,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240330_000026_create_webhook_endpoints::Migration),
             Box::new(m20240330_000027_create_webhook_deliveries::Migration),
             Box::new(m20240401_000028_add_performance_indexes::Migration),
+            Box::new(m20240402_000029_add_scheduler_indexes::Migration),
         ]
     }
 }

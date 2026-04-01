@@ -18,8 +18,7 @@ pub mod metrics;
 
 // 重导出等待队列模块
 pub use crate::gateway::waiting_queue::{
-    AllocationSlot, GlobalQueueStats, ModelWaitingQueue, QueueError, QueueMetrics,
-    QueueMetricsSnapshot, QueueStats, WaitingQueue, WaitingQueueConfig, WaitingRequest,
+    AllocationSlot, GlobalQueueStats, ModelWaitingQueue, QueueError, QueueStats, WaitingQueue, WaitingQueueConfig,
     WaitingRequestInfo,
 };
 
@@ -29,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -198,6 +198,14 @@ pub struct Scheduler {
     waiting_queue: Arc<WaitingQueue>,
     /// 按模型的等待队列
     model_waiting_queue: Arc<ModelWaitingQueue>,
+    
+    // ===== 性能优化缓存 =====
+    /// 按 Provider 分组的活跃账号缓存（避免每次遍历）
+    accounts_by_provider: RwLock<HashMap<String, Vec<AccountInfo>>>,
+    /// 预计算的候选账号列表（只包含活跃账号）
+    candidate_cache: RwLock<Vec<AccountInfo>>,
+    /// 缓存最后更新时间
+    cache_updated_at: RwLock<Option<Instant>>,
 }
 
 impl Scheduler {
@@ -218,6 +226,9 @@ impl Scheduler {
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
             model_waiting_queue,
+            accounts_by_provider: RwLock::new(HashMap::new()),
+            candidate_cache: RwLock::new(Vec::new()),
+            cache_updated_at: RwLock::new(None),
         }
     }
 
@@ -238,6 +249,9 @@ impl Scheduler {
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
             model_waiting_queue,
+            accounts_by_provider: RwLock::new(HashMap::new()),
+            candidate_cache: RwLock::new(Vec::new()),
+            cache_updated_at: RwLock::new(None),
         }
     }
 
@@ -260,25 +274,102 @@ impl Scheduler {
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
             model_waiting_queue,
+            accounts_by_provider: RwLock::new(HashMap::new()),
+            candidate_cache: RwLock::new(Vec::new()),
+            cache_updated_at: RwLock::new(None),
+        }
+    }
+    
+    /// 刷新候选账号缓存（后台任务定期调用）
+    /// 
+    /// 性能优化：将账号按 Provider 分组，避免每次请求都遍历所有账号
+    pub async fn refresh_candidate_cache(&self) {
+        let accounts = self.accounts.read().await;
+        
+        // 1. 按 Provider 分组
+        let mut by_provider: HashMap<String, Vec<AccountInfo>> = HashMap::new();
+        let mut candidates: Vec<AccountInfo> = Vec::new();
+        
+        for account in accounts.iter() {
+            // 只缓存活跃账号
+            if account.status.is_available() {
+                candidates.push(account.clone());
+                
+                by_provider
+                    .entry(account.provider.clone())
+                    .or_default()
+                    .push(account.clone());
+            }
+        }
+        
+        // 2. 更新缓存
+        *self.accounts_by_provider.write().await = by_provider;
+        *self.candidate_cache.write().await = candidates;
+        *self.cache_updated_at.write().await = Some(Instant::now());
+    }
+    
+    /// 快速选择账号 - 使用缓存，O(1) 复杂度
+    /// 
+    /// 适用场景：高并发下需要快速选择账号，不需要精确的负载均衡
+    pub async fn select_fast(&self, provider: &str) -> Option<AccountInfo> {
+        // 优先从缓存选择
+        let by_provider = self.accounts_by_provider.read().await;
+        if let Some(candidates) = by_provider.get(provider) {
+            if !candidates.is_empty() {
+                let index = self.round_robin_index.fetch_add(1, Ordering::SeqCst);
+                return Some(candidates[index % candidates.len()].clone());
+            }
+        }
+        
+        // 缓存未命中，回退到标准选择
+        drop(by_provider);
+        let ctx = ScheduleContext {
+            model: provider.to_string(),
+            ..Default::default()
+        };
+        self.select(&ctx).await.map(|r| r.account)
+    }
+    
+    /// 获取缓存统计信息
+    pub async fn get_cache_stats(&self) -> CacheStats {
+        let by_provider = self.accounts_by_provider.read().await;
+        let candidates = self.candidate_cache.read().await;
+        let updated_at = self.cache_updated_at.read().await;
+        
+        CacheStats {
+            providers_count: by_provider.len(),
+            total_candidates: candidates.len(),
+            accounts_per_provider: by_provider.iter().map(|(k, v)| (k.clone(), v.len())).collect(),
+            cache_age_secs: updated_at.map(|t| t.elapsed().as_secs()).unwrap_or(0),
         }
     }
 
     /// 添加账号
     pub async fn add_account(&self, account: AccountInfo) {
-        let mut accounts = self.accounts.write().await;
+        {
+            let mut accounts = self.accounts.write().await;
 
-        // 检查是否已存在
-        if let Some(existing) = accounts.iter_mut().find(|a| a.id == account.id) {
-            *existing = account;
-        } else {
-            accounts.push(account);
+            // 检查是否已存在
+            if let Some(existing) = accounts.iter_mut().find(|a| a.id == account.id) {
+                *existing = account;
+            } else {
+                accounts.push(account);
+            }
         }
+        
+        // 自动刷新缓存
+        self.refresh_candidate_cache().await;
     }
 
     /// 移除账号
     pub async fn remove_account(&self, account_id: Uuid) {
-        let mut accounts = self.accounts.write().await;
-        accounts.retain(|a| a.id != account_id);
+        {
+            let mut accounts = self.accounts.write().await;
+            accounts.retain(|a| a.id != account_id);
+        }
+        
+        // 自动刷新缓存
+        self.refresh_candidate_cache().await;
     }
 
     /// 更新账号
@@ -880,6 +971,19 @@ pub struct SchedulerStats {
     pub current_strategy: ScheduleStrategy,
     /// 队列统计
     pub queue: Option<QueueStats>,
+}
+
+/// 缓存统计信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheStats {
+    /// Provider 数量
+    pub providers_count: usize,
+    /// 候选账号总数
+    pub total_candidates: usize,
+    /// 每个 Provider 的账号数量
+    pub accounts_per_provider: HashMap<String, usize>,
+    /// 缓存年龄（秒）
+    pub cache_age_secs: u64,
 }
 
 #[cfg(test)]

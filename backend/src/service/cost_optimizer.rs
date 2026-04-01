@@ -205,13 +205,13 @@ struct UsageRecord {
 
 /// 模型配置缓存
 #[derive(Debug, Clone)]
-struct ModelConfigCache {
-    name: String,
-    provider: String,
-    input_price: f64,
-    output_price: f64,
-    context_window: i32,
-    capabilities: Vec<String>,
+pub(crate) struct ModelConfigCache {
+    pub(crate) name: String,
+    pub(crate) provider: String,
+    pub(crate) input_price: f64,
+    pub(crate) output_price: f64,
+    pub(crate) context_window: i32,
+    pub(crate) capabilities: Vec<String>,
 }
 
 impl CostOptimizerService {

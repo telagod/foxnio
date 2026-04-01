@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["FoxNIO Team"]
 description = "AI API Gateway - Subscription quota distribution management"
 license = "MIT"
-rust-version = "1.91"
+# rust-version = "1.94"  # 注释掉，使用当前 stable 1.94.1
 
 [dependencies]
 # Web framework
@@ -59,9 +59,10 @@ tungstenite = "0.21"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
+time = "0.3.36"  # 固定版本避免需要 rustc 1.88+
 
 # Utils
-uuid = { version = "1.7", features = ["v4", "serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }  # 固定版本避免需要 rustc 1.85+
 thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"

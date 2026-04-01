@@ -5,8 +5,9 @@ use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, PaginatorTrait, Set,
 };
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::entity::accounts;
@@ -21,6 +22,16 @@ pub struct AccountInfo {
     pub priority: i32,
     pub last_error: Option<String>,
     pub created_at: chrono::DateTime<Utc>,
+}
+
+/// Provider 统计信息
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProviderStats {
+    pub provider: String,
+    pub total: u64,
+    pub active: u64,
+    pub inactive: u64,
+    pub error: u64,
 }
 
 pub struct AccountService {
@@ -125,7 +136,7 @@ impl AccountService {
         Ok(())
     }
 
-    /// 列出所有账号
+    /// 列出所有账号（保留兼容性，但建议使用 list_paged）
     pub async fn list_all(&self) -> Result<Vec<AccountInfo>> {
         let accounts = accounts::Entity::find()
             .order_by_desc(accounts::Column::Priority)
@@ -145,6 +156,108 @@ impl AccountService {
                 created_at: a.created_at,
             })
             .collect())
+    }
+
+    /// 分页查询账号 - 性能优化版本
+    ///
+    /// # 参数
+    /// - `page`: 页码（从 1 开始）
+    /// - `per_page`: 每页数量（最大 200）
+    /// - `status`: 状态过滤（可选）
+    /// - `provider`: Provider 过滤（可选）
+    /// - `search`: 名称搜索（可选）
+    ///
+    /// # 返回
+    /// (账号列表, 总数)
+    pub async fn list_paged(
+        &self,
+        page: u64,
+        per_page: u64,
+        status: Option<&str>,
+        provider: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<(Vec<AccountInfo>, u64)> {
+        // 限制每页最大数量
+        let per_page = per_page.min(200).max(1);
+        let offset = (page.saturating_sub(1)) * per_page;
+
+        let mut query = accounts::Entity::find();
+
+        // 应用过滤条件
+        if let Some(s) = status {
+            query = query.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(p) = provider {
+            query = query.filter(accounts::Column::Provider.eq(p));
+        }
+        if let Some(s) = search {
+            query = query.filter(accounts::Column::Name.contains(s));
+        }
+
+        // 获取总数
+        let total = query.clone().count(&self.db).await?;
+
+        // 分页查询
+        let accounts = query
+            .order_by_desc(accounts::Column::Priority)
+            .offset(offset)
+            .limit(per_page)
+            .all(&self.db)
+            .await?;
+
+        let items: Vec<AccountInfo> = accounts
+            .into_iter()
+            .map(|a| AccountInfo {
+                id: a.id,
+                name: a.name,
+                provider: a.provider,
+                credential_type: a.credential_type,
+                status: a.status,
+                priority: a.priority,
+                last_error: a.last_error,
+                created_at: a.created_at,
+            })
+            .collect();
+
+        Ok((items, total))
+    }
+
+    /// 获取活跃账号数量（快速统计）
+    pub async fn count_active(&self) -> Result<u64> {
+        let count = accounts::Entity::find()
+            .filter(accounts::Column::Status.eq("active"))
+            .count(&self.db)
+            .await?;
+        Ok(count)
+    }
+
+    /// 获取按 Provider 分组的账号统计
+    pub async fn stats_by_provider(&self) -> Result<HashMap<String, ProviderStats>> {
+        let accounts = accounts::Entity::find()
+            .all(&self.db)
+            .await?;
+
+        let mut stats: HashMap<String, ProviderStats> = HashMap::new();
+
+        for account in accounts {
+            let entry = stats.entry(account.provider.clone()).or_insert(ProviderStats {
+                provider: account.provider.clone(),
+                total: 0,
+                active: 0,
+                inactive: 0,
+                error: 0,
+            });
+
+            entry.total += 1;
+            match account.status.as_str() {
+                "active" => entry.active += 1,
+                "inactive" => entry.inactive += 1,
+                "error" => entry.error += 1,
+                _ => {}
+            }
+        }
+
+        Ok(stats)
     }
 
     /// 删除账号

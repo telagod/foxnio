@@ -28,7 +28,6 @@ pub use routes::build_app;
 pub use stream::SseEvent;
 
 // 重导出 Gemini 模块
-pub use gemini::{GeminiClient, GeminiClientConfig, GeminiHandler};
 
 // 重导出统一的 AppState
 pub use crate::state::SharedState;
