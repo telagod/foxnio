@@ -202,8 +202,7 @@ impl Model {
         }
 
         // 处理 * 通配符（仅支持末尾通配符）
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             return model.starts_with(prefix);
         }
 

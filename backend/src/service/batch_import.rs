@@ -547,6 +547,12 @@ pub struct AccountValidator {
     providers: Vec<&'static str>,
 }
 
+impl Default for AccountValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AccountValidator {
     pub fn new() -> Self {
         Self {

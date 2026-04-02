@@ -178,7 +178,7 @@ impl AccountService {
         search: Option<&str>,
     ) -> Result<(Vec<AccountInfo>, u64)> {
         // 限制每页最大数量
-        let per_page = per_page.min(200).max(1);
+        let per_page = per_page.clamp(1, 200);
         let offset = (page.saturating_sub(1)) * per_page;
 
         let mut query = accounts::Entity::find();

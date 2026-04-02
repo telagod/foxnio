@@ -122,7 +122,7 @@ pub fn parse_sse_line(line: &str) -> Option<SseEvent> {
 pub fn parse_sse_stream(stream: &str) -> Vec<SseEvent> {
     stream
         .lines()
-        .filter_map(|line| parse_sse_line(line))
+        .filter_map(parse_sse_line)
         .collect()
 }
 

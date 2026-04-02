@@ -93,7 +93,7 @@ impl LinuxDoOAuthProvider {
         }
 
         if config.client_secret.is_none()
-            || config.client_secret.as_ref().map_or(true, |s| s.is_empty())
+            || config.client_secret.as_ref().is_none_or(|s| s.is_empty())
         {
             config.client_secret = Some(
                 std::env::var("LINUXDO_CLIENT_SECRET")

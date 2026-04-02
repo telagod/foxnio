@@ -1010,7 +1010,7 @@ impl CostOptimizerService {
     /// 查找更便宜的替代模型
     ///
     /// 从 model_configs 表查询相似能力但更便宜的模型
-    pub async fn find_cheaper_alternative(
+    pub(crate) async fn find_cheaper_alternative(
         &self,
         model_name: &str,
         model_configs: &[ModelConfigCache],

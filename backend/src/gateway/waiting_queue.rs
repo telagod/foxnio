@@ -472,20 +472,20 @@ impl WaitingQueue {
                         slots.push(slot.clone());
                     }
 
-                    return Ok(slot);
+                    Ok(slot)
                 } else {
                     // 可能被其他方式移除
-                    return Err(QueueError::Closed);
+                    Err(QueueError::Closed)
                 }
             }
             Err(_) => {
                 // 超时
                 self.remove_from_queue(&request.id).await;
                 self.metrics.record_timeout();
-                return Err(QueueError::Timeout {
+                Err(QueueError::Timeout {
                     waited_ms: request.wait_time_ms(),
                     timeout_ms,
-                });
+                })
             }
         }
     }

@@ -62,7 +62,7 @@ pub fn build_headers_with_beta(
 
 /// User-Agent 配置
 pub fn get_user_agent() -> String {
-    format!("claude-code-shell/0.1.0 (FoxNIO)")
+    "claude-code-shell/0.1.0 (FoxNIO)".to_string()
 }
 
 #[cfg(test)]
