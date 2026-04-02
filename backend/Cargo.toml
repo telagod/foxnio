@@ -24,12 +24,12 @@ rustls = "0.23"
 http = "1.0"
 
 # Database
-sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
-sea-orm-migration = "0.12"
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "macros"] }
+sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
+sea-orm-migration = "1.1"
+sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "macros"] }
 
 # Redis
-redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.1", features = ["tokio-comp", "connection-manager"] }
 lru = "0.12"
 
 # Serialization
@@ -51,15 +51,12 @@ reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "http2
 async-trait = "0.1"
 futures = "0.3"
 tokio-stream = "0.1"
-futures-util = "0.3"
 
 # WebSocket
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-tungstenite = "0.21"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
-time = "0.3.36"  # 固定版本避免需要 rustc 1.88+
 
 # Utils
 uuid = { version = "1.11", features = ["v4", "serde"] }  # 固定版本避免需要 rustc 1.85+
@@ -92,7 +89,6 @@ url = "2.5"
 flate2 = "1.0"
 brotli = "3.3"
 bytes = "1.5"
-pin-project-lite = "0.2"
 
 # Configuration
 dotenvy = "0.15"
@@ -109,7 +105,6 @@ nix = { version = "0.27", features = ["fs"] }
 
 # Metrics
 prometheus = "0.13"
-lazy_static = "1.4"
 
 [features]
 default = []
