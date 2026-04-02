@@ -363,6 +363,7 @@ pub async fn reset_account_quota(
 }
 
 /// GET /api/v1/admin/accounts/data - 导出账号数据
+#[allow(deprecated)]
 pub async fn export_accounts_data(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,

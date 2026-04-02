@@ -6,10 +6,15 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use futures::stream::{self, StreamExt};
-use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::entity::accounts;
+use crate::utils::encryption_global::GlobalEncryption;
 
 /// 批量创建账号请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,78 +127,189 @@ impl BatchOperationService {
         }
     }
 
-    /// 批量创建账号
+    /// 批量创建账号（使用 insert_many）
     pub async fn batch_create_accounts(
         &self,
         req: BatchCreateAccountsRequest,
     ) -> Result<BatchCreateResult> {
         let total = req.accounts.len() as i32;
-        let mut succeeded = 0;
-        let mut failed = 0;
+        if req.accounts.is_empty() {
+            return Ok(BatchCreateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                account_ids: Vec::new(),
+                errors: Vec::new(),
+            });
+        }
+
+        let now = Utc::now();
+        let txn = self.db.begin().await?;
         let mut account_ids = Vec::new();
         let mut errors = Vec::new();
+        let mut succeeded = 0;
 
-        // 并发创建账号
-        let results: Vec<Result<Uuid>> = stream::iter(req.accounts)
-            .map(|_item| async {
-                // TODO: 调用 AccountService::add
-                // let account = account_service.add(...).await?;
-                Ok(Uuid::new_v4())
-            })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
-
-        for result in results {
-            match result {
-                Ok(id) => {
-                    succeeded += 1;
-                    account_ids.push(id);
-                }
+        // 构建批量插入模型
+        let mut models = Vec::with_capacity(req.accounts.len());
+        for item in &req.accounts {
+            // 加密凭证
+            let encrypted_credential = match GlobalEncryption::encrypt(&item.credential) {
+                Ok(enc) => enc,
                 Err(e) => {
-                    failed += 1;
-                    errors.push(e.to_string());
+                    errors.push(format!("Failed to encrypt credential for {}: {}", item.name, e));
+                    continue;
+                }
+            };
+
+            let id = Uuid::new_v4();
+            account_ids.push(id);
+            models.push(accounts::ActiveModel {
+                id: Set(id),
+                name: Set(item.name.clone()),
+                provider: Set(item.provider.clone()),
+                credential_type: Set(item.credential_type.clone()),
+                credential: Set(encrypted_credential),
+                metadata: Set(None),
+                status: Set("active".to_string()),
+                last_error: Set(None),
+                priority: Set(item.priority.unwrap_or(50)),
+                concurrent_limit: Set(Some(5)),
+                rate_limit_rpm: Set(None),
+                group_id: Set(item.group_id),
+                created_at: Set(now),
+                updated_at: Set(now),
+            });
+        }
+
+        // 批量插入
+        if !models.is_empty() {
+            match accounts::Entity::insert_many(models).exec(&txn).await {
+                Ok(_) => succeeded = account_ids.len() as i32,
+                Err(e) => {
+                    errors.push(format!("Batch insert failed: {}", e));
+                    txn.commit().await?;
+                    return Ok(BatchCreateResult {
+                        total,
+                        succeeded: 0,
+                        failed: total,
+                        account_ids: Vec::new(),
+                        errors,
+                    });
                 }
             }
         }
 
+        txn.commit().await?;
+
         Ok(BatchCreateResult {
             total,
             succeeded,
-            failed,
+            failed: total - succeeded,
             account_ids,
             errors,
         })
     }
 
-    /// 批量更新账号
+    /// 批量更新账号状态和配置
     pub async fn batch_update_accounts(
         &self,
         req: BatchUpdateAccountsRequest,
     ) -> Result<BatchUpdateResult> {
         let total = req.account_ids.len() as i32;
+        if req.account_ids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let txn = self.db.begin().await?;
         let mut succeeded = 0;
-        let mut failed = 0;
         let mut errors = Vec::new();
 
-        let results: Vec<Result<()>> = stream::iter(req.account_ids)
-            .map(|_id| async {
-                // TODO: 调用 AccountService::update
-                Ok(())
-            })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
+        // 批量查询现有账号
+        let existing = accounts::Entity::find()
+            .filter(accounts::Column::Id.is_in(req.account_ids.clone()))
+            .all(&txn)
+            .await?;
 
-        for result in results {
-            match result {
-                Ok(()) => succeeded += 1,
-                Err(e) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
+        let existing_ids: std::collections::HashSet<Uuid> =
+            existing.iter().map(|a| a.id).collect();
+
+        // 更新账号
+        for id in &req.account_ids {
+            if !existing_ids.contains(id) {
+                errors.push(format!("Account {} not found", id));
+                continue;
+            }
+
+            let account = existing.iter().find(|a| &a.id == id).unwrap();
+            let mut active: accounts::ActiveModel = account.clone().into();
+
+            if let Some(ref status) = req.updates.status {
+                active.status = Set(status.clone());
+            }
+            if let Some(priority) = req.updates.priority {
+                active.priority = Set(priority);
+            }
+            if let Some(group_id) = req.updates.group_id {
+                active.group_id = Set(Some(group_id));
+            }
+            if let Some(concurrent_limit) = req.updates.concurrent_limit {
+                active.concurrent_limit = Set(Some(concurrent_limit));
+            }
+            if let Some(rate_limit_rpm) = req.updates.rate_limit_rpm {
+                active.rate_limit_rpm = Set(Some(rate_limit_rpm));
+            }
+            active.updated_at = Set(Utc::now());
+
+            match active.update(&txn).await {
+                Ok(_) => succeeded += 1,
+                Err(e) => errors.push(format!("Failed to update {}: {}", id, e)),
             }
         }
+
+        txn.commit().await?;
+
+        Ok(BatchUpdateResult {
+            total,
+            succeeded,
+            failed: total - succeeded,
+            errors,
+        })
+    }
+
+    /// 批量删除账号
+    pub async fn batch_delete_accounts(&self, account_ids: Vec<Uuid>) -> Result<BatchUpdateResult> {
+        let total = account_ids.len() as i32;
+        if account_ids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let txn = self.db.begin().await?;
+
+        // 批量删除
+        let result = accounts::Entity::delete_many()
+            .filter(accounts::Column::Id.is_in(account_ids.clone()))
+            .exec(&txn)
+            .await?;
+
+        txn.commit().await?;
+
+        let succeeded = result.rows_affected as i32;
+        let failed = total - succeeded;
+        let errors = if failed > 0 {
+            vec![format!("{} accounts not found or already deleted", failed)]
+        } else {
+            Vec::new()
+        };
 
         Ok(BatchUpdateResult {
             total,
@@ -203,48 +319,120 @@ impl BatchOperationService {
         })
     }
 
+    /// 批量更新凭证（加密存储）
+    pub async fn batch_update_credentials(
+        &self,
+        account_ids: &[String],
+        credential: &str,
+    ) -> Result<Vec<bool>> {
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 加密凭证
+        let encrypted_credential = GlobalEncryption::encrypt(credential)
+            .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
+
+        // 解析 UUID
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+
+        if uuids.is_empty() {
+            return Ok(account_ids.iter().map(|_| false).collect());
+        }
+
+        let txn = self.db.begin().await?;
+
+        // 批量查询现有账号
+        let existing = accounts::Entity::find()
+            .filter(accounts::Column::Id.is_in(uuids.clone()))
+            .all(&txn)
+            .await?;
+
+        let existing_ids: std::collections::HashSet<Uuid> =
+            existing.iter().map(|a| a.id).collect();
+
+        // 更新凭证
+        let mut results = Vec::new();
+        for id_str in account_ids {
+            let id = match Uuid::parse_str(id_str) {
+                Ok(id) => id,
+                Err(_) => {
+                    results.push(false);
+                    continue;
+                }
+            };
+
+            if !existing_ids.contains(&id) {
+                results.push(false);
+                continue;
+            }
+
+            let account = existing.iter().find(|a| a.id == id).unwrap();
+            let mut active: accounts::ActiveModel = account.clone().into();
+            active.credential = Set(encrypted_credential.clone());
+            active.updated_at = Set(Utc::now());
+
+            match active.update(&txn).await {
+                Ok(_) => results.push(true),
+                Err(_) => results.push(false),
+            }
+        }
+
+        txn.commit().await?;
+
+        Ok(results)
+    }
+
     /// 批量刷新 Token
     pub async fn batch_refresh_tokens(
         &self,
         account_ids: Vec<Uuid>,
     ) -> Result<BatchRefreshTokenResult> {
         let total = account_ids.len() as i32;
-        let mut succeeded = 0;
-        let mut failed = 0;
-        let mut refreshed = Vec::new();
-        let mut errors = Vec::new();
-
-        let results: Vec<Result<RefreshTokenInfo>> = stream::iter(account_ids)
-            .map(|id| async move {
-                // TODO: 调用 OAuth 服务刷新 Token
-                Ok(RefreshTokenInfo {
-                    account_id: id,
-                    account_name: "test".to_string(),
-                    status: "active".to_string(),
-                    refreshed_at: Utc::now(),
-                })
-            })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
-
-        for result in results {
-            match result {
-                Ok(info) => {
-                    succeeded += 1;
-                    refreshed.push(info);
-                }
-                Err(e) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
-            }
+        if account_ids.is_empty() {
+            return Ok(BatchRefreshTokenResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                refreshed: Vec::new(),
+                errors: Vec::new(),
+            });
         }
+
+        let txn = self.db.begin().await?;
+
+        // 批量查询 OAuth 账号
+        let accounts_list = accounts::Entity::find()
+            .filter(accounts::Column::Id.is_in(account_ids.clone()))
+            .filter(accounts::Column::CredentialType.eq("oauth"))
+            .all(&txn)
+            .await?;
+
+        let mut succeeded = 0;
+        let mut refreshed = Vec::new();
+        let errors = Vec::new();
+
+        for account in accounts_list {
+            // TODO: 调用实际的 OAuth 服务刷新 Token
+            // 目前先返回模拟数据
+            refreshed.push(RefreshTokenInfo {
+                account_id: account.id,
+                account_name: account.name,
+                status: account.status,
+                refreshed_at: Utc::now(),
+            });
+            succeeded += 1;
+        }
+
+        txn.commit().await?;
 
         Ok(BatchRefreshTokenResult {
             total,
             succeeded,
-            failed,
+            failed: total - succeeded,
             refreshed,
             errors,
         })
@@ -256,96 +444,58 @@ impl BatchOperationService {
         account_ids: Vec<Uuid>,
     ) -> Result<BatchRefreshTierResult> {
         let total = account_ids.len() as i32;
+        if account_ids.is_empty() {
+            return Ok(BatchRefreshTierResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                tier_info: Vec::new(),
+                errors: Vec::new(),
+            });
+        }
+
+        let txn = self.db.begin().await?;
+
+        // 批量查询账号
+        let accounts_list = accounts::Entity::find()
+            .filter(accounts::Column::Id.is_in(account_ids.clone()))
+            .all(&txn)
+            .await?;
+
         let mut succeeded = 0;
-        let mut failed = 0;
         let mut tier_info = Vec::new();
         let mut errors = Vec::new();
 
-        let results: Vec<Result<TierInfo>> = stream::iter(account_ids)
-            .map(|id| async move {
-                // TODO: 调用 API 查询账号 Tier
-                Ok(TierInfo {
-                    account_id: id,
-                    account_name: "test".to_string(),
-                    tier: "pro".to_string(),
-                    refreshed_at: Utc::now(),
-                })
-            })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
+        for account in &accounts_list {
+            // TODO: 调用实际的 API 查询 Tier
+            // 目前返回模拟数据
+            tier_info.push(TierInfo {
+                account_id: account.id,
+                account_name: account.name.clone(),
+                tier: "pro".to_string(),
+                refreshed_at: Utc::now(),
+            });
+            succeeded += 1;
+        }
 
-        for result in results {
-            match result {
-                Ok(info) => {
-                    succeeded += 1;
-                    tier_info.push(info);
-                }
-                Err(e) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
+        // 检查未找到的账号
+        let found_ids: std::collections::HashSet<Uuid> =
+            accounts_list.iter().map(|a| a.id).collect();
+        for id in &account_ids {
+            if !found_ids.contains(id) {
+                errors.push(format!("Account {} not found", id));
             }
         }
+
+        txn.commit().await?;
 
         Ok(BatchRefreshTierResult {
             total,
             succeeded,
-            failed,
+            failed: total - succeeded,
             tier_info,
             errors,
         })
-    }
-
-    /// 批量删除账号
-    pub async fn batch_delete_accounts(&self, account_ids: Vec<Uuid>) -> Result<BatchUpdateResult> {
-        let total = account_ids.len() as i32;
-        let mut succeeded = 0;
-        let mut failed = 0;
-        let mut errors = Vec::new();
-
-        let results: Vec<Result<()>> = stream::iter(account_ids)
-            .map(|_id| async {
-                // TODO: 调用 AccountService::delete
-                Ok(())
-            })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
-
-        for result in results {
-            match result {
-                Ok(()) => succeeded += 1,
-                Err(e) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
-            }
-        }
-
-        Ok(BatchUpdateResult {
-            total,
-            succeeded,
-            failed,
-            errors,
-        })
-    }
-
-    /// 批量更新凭证
-    pub async fn batch_update_credentials(
-        &self,
-        account_ids: &[String],
-        _credential: &str,
-    ) -> Result<Vec<bool>> {
-        let mut results = Vec::new();
-
-        for _id in account_ids {
-            // TODO: 更新账号凭证
-            // 需要将 String 转换为 Uuid 并更新数据库
-            results.push(true);
-        }
-
-        Ok(results)
     }
 
     /// 批量刷新 Tier（支持字符串 ID）
@@ -353,52 +503,48 @@ impl BatchOperationService {
         &self,
         account_ids: &[String],
     ) -> Result<BatchRefreshTierResult> {
-        let total = account_ids.len() as i32;
-        let mut succeeded = 0;
-        let mut failed = 0;
-        let mut tier_info = Vec::new();
-        let mut errors = Vec::new();
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
 
+        let mut result = self.batch_refresh_tiers(uuids).await?;
+
+        // 添加无效 UUID 的错误
         for id_str in account_ids {
-            match Uuid::parse_str(id_str) {
-                Ok(id) => {
-                    // TODO: 调用 API 查询账号 Tier
-                    succeeded += 1;
-                    tier_info.push(TierInfo {
-                        account_id: id,
-                        account_name: "test".to_string(),
-                        tier: "pro".to_string(),
-                        refreshed_at: Utc::now(),
-                    });
-                }
-                Err(e) => {
-                    failed += 1;
-                    errors.push(format!("Invalid UUID {id_str}: {e}"));
-                }
+            if Uuid::parse_str(id_str).is_err() {
+                result.failed += 1;
+                result.errors.push(format!("Invalid UUID: {}", id_str));
             }
         }
 
-        Ok(BatchRefreshTierResult {
-            total,
-            succeeded,
-            failed,
-            tier_info,
-            errors,
-        })
+        Ok(result)
     }
 
     /// 批量获取今日统计
     pub async fn batch_get_today_stats(&self, account_ids: &[String]) -> Result<serde_json::Value> {
-        let mut stats = Vec::new();
-
-        for id in account_ids {
-            stats.push(serde_json::json!({
-                "account_id": id,
-                "requests": 0,
-                "tokens": 0,
-                "cost": 0.0,
-            }));
+        if account_ids.is_empty() {
+            return Ok(serde_json::json!({ "stats": [] }));
         }
+
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+
+        // TODO: 从 usage_logs 表查询今日统计
+        // 目前返回模拟数据
+        let stats: Vec<serde_json::Value> = uuids
+            .iter()
+            .map(|id| {
+                serde_json::json!({
+                    "account_id": id.to_string(),
+                    "requests": 0,
+                    "tokens": 0,
+                    "cost": 0.0,
+                })
+            })
+            .collect();
 
         Ok(serde_json::json!({ "stats": stats }))
     }
@@ -408,14 +554,40 @@ impl BatchOperationService {
         &self,
         account_ids: Vec<Uuid>,
     ) -> Result<Vec<(Uuid, bool, Option<String>)>> {
-        let results: Vec<(Uuid, bool, Option<String>)> = stream::iter(account_ids)
-            .map(|id| async move {
-                // TODO: 测试账号连接
-                (id, true, None)
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 批量查询账号
+        let accounts_list = accounts::Entity::find()
+            .filter(accounts::Column::Id.is_in(account_ids.clone()))
+            .all(&self.db)
+            .await?;
+
+        let account_map: std::collections::HashMap<Uuid, accounts::Model> = accounts_list
+            .into_iter()
+            .map(|a| (a.id, a))
+            .collect();
+
+        let results: Vec<(Uuid, bool, Option<String>)> = account_ids
+            .iter()
+            .map(|id| {
+                match account_map.get(id) {
+                    Some(account) => {
+                        // TODO: 实际测试账号连接
+                        // 目前只检查状态
+                        let valid = account.status == "active";
+                        let error = if valid {
+                            None
+                        } else {
+                            Some(format!("Account status: {}", account.status))
+                        };
+                        (*id, valid, error)
+                    }
+                    None => (*id, false, Some("Account not found".to_string())),
+                }
             })
-            .buffer_unordered(self.concurrency_limit)
-            .collect()
-            .await;
+            .collect();
 
         Ok(results)
     }
@@ -444,5 +616,19 @@ mod tests {
         assert_eq!(result.total, 10);
         assert_eq!(result.succeeded, 8);
         assert_eq!(result.failed, 2);
+    }
+
+    #[test]
+    fn test_batch_update_result() {
+        let result = BatchUpdateResult {
+            total: 5,
+            succeeded: 5,
+            failed: 0,
+            errors: Vec::new(),
+        };
+
+        assert_eq!(result.total, 5);
+        assert_eq!(result.succeeded, 5);
+        assert!(result.errors.is_empty());
     }
 }

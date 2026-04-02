@@ -1,6 +1,10 @@
 //! 业务服务层
 
 pub mod account;
+#[deprecated(
+    since = "0.3.0",
+    note = "Use `account::AccountService` instead. This module will be removed in a future version."
+)]
 pub mod account_service;
 pub mod announcement;
 pub mod api_key;
@@ -224,7 +228,13 @@ pub mod email_queue_service;
 pub mod anthropic_session;
 
 // Re-exports
+#[deprecated(since = "0.3.0", note = "Use AccountService directly")]
 pub use account::AccountService as LegacyAccountService;
+#[allow(unused_imports)]
+pub use account::{
+    AccountConcurrency, AccountInfo, AccountService, AccountWithScheduling, CreateAccountRequest,
+    ProviderStats,
+};
 pub use api_key::ApiKeyService as LegacyApiKeyService;
 pub use audit::{AuditEntry, AuditFilter, AuditService};
 pub use billing::BillingService as LegacyBillingService;

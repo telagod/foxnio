@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::entity::accounts;
+use crate::utils::encryption_global::GlobalEncryption;
 
 /// 批量导入配置
 #[derive(Debug, Clone)]
@@ -449,29 +450,31 @@ impl BatchImportService {
         let txn = self.db.begin().await?;
         let now = Utc::now();
 
-        // 构建批量插入模型
-        let models: Vec<accounts::ActiveModel> = items
-            .iter()
-            .map(|(_, item)| {
-                let id = Uuid::new_v4();
-                accounts::ActiveModel {
-                    id: Set(id),
-                    name: Set(item.name.clone()),
-                    provider: Set(item.provider.clone()),
-                    credential_type: Set(item.credential_type.clone()),
-                    credential: Set(item.credential.clone()), // TODO: 加密
-                    metadata: Set(None),
-                    status: Set("active".to_string()),
-                    last_error: Set(None),
-                    priority: Set(item.priority),
-                    concurrent_limit: Set(item.concurrent_limit),
-                    rate_limit_rpm: Set(item.rate_limit_rpm),
-                    group_id: Set(item.group_id),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                }
-            })
-            .collect();
+        // 构建批量插入模型（带凭证加密）
+        let mut models = Vec::with_capacity(items.len());
+        for (_, item) in items {
+            // 加密凭证
+            let encrypted_credential = GlobalEncryption::encrypt(&item.credential)
+                .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
+
+            let id = Uuid::new_v4();
+            models.push(accounts::ActiveModel {
+                id: Set(id),
+                name: Set(item.name.clone()),
+                provider: Set(item.provider.clone()),
+                credential_type: Set(item.credential_type.clone()),
+                credential: Set(encrypted_credential),
+                metadata: Set(None),
+                status: Set("active".to_string()),
+                last_error: Set(None),
+                priority: Set(item.priority),
+                concurrent_limit: Set(item.concurrent_limit),
+                rate_limit_rpm: Set(item.rate_limit_rpm),
+                group_id: Set(item.group_id),
+                created_at: Set(now),
+                updated_at: Set(now),
+            });
+        }
 
         // 批量插入
         let _inserted = accounts::Entity::insert_many(models)
@@ -497,27 +500,30 @@ impl BatchImportService {
         let txn = self.db.begin().await?;
         let now = Utc::now();
 
-        let models: Vec<accounts::ActiveModel> = items
-            .iter()
-            .map(|item| {
-                accounts::ActiveModel {
-                    id: Set(Uuid::new_v4()),
-                    name: Set(item.name.clone()),
-                    provider: Set(item.provider.clone()),
-                    credential_type: Set(item.credential_type.clone()),
-                    credential: Set(item.credential.clone()),
-                    metadata: Set(None),
-                    status: Set("active".to_string()),
-                    last_error: Set(None),
-                    priority: Set(item.priority),
-                    concurrent_limit: Set(item.concurrent_limit),
-                    rate_limit_rpm: Set(item.rate_limit_rpm),
-                    group_id: Set(item.group_id),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                }
-            })
-            .collect();
+        // 构建批量插入模型（带凭证加密）
+        let mut models = Vec::with_capacity(items.len());
+        for item in &items {
+            // 加密凭证
+            let encrypted_credential = GlobalEncryption::encrypt(&item.credential)
+                .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
+
+            models.push(accounts::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                name: Set(item.name.clone()),
+                provider: Set(item.provider.clone()),
+                credential_type: Set(item.credential_type.clone()),
+                credential: Set(encrypted_credential),
+                metadata: Set(None),
+                status: Set("active".to_string()),
+                last_error: Set(None),
+                priority: Set(item.priority),
+                concurrent_limit: Set(item.concurrent_limit),
+                rate_limit_rpm: Set(item.rate_limit_rpm),
+                group_id: Set(item.group_id),
+                created_at: Set(now),
+                updated_at: Set(now),
+            });
+        }
 
         // 分批插入避免超大批次
         let mut inserted = 0;
