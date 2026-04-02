@@ -1,30 +1,28 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 /// Domain constants for the application
 pub struct DomainConstants;
 
-lazy_static! {
-    /// Default page size for list queries
-    pub static ref DEFAULT_PAGE_SIZE: u32 = 20;
+/// Default page size for list queries
+pub static DEFAULT_PAGE_SIZE: Lazy<u32> = Lazy::new(|| 20);
 
-    /// Max page size for list queries
-    pub static ref MAX_PAGE_SIZE: u32 = 100;
+/// Max page size for list queries
+pub static MAX_PAGE_SIZE: Lazy<u32> = Lazy::new(|| 100);
 
-    /// Default token expiry in seconds
-    pub static ref DEFAULT_TOKEN_EXPIRY_SECONDS: u64 = 3600;
+/// Default token expiry in seconds
+pub static DEFAULT_TOKEN_EXPIRY_SECONDS: Lazy<u64> = Lazy::new(|| 3600);
 
-    /// Max token expiry in seconds
-    pub static ref MAX_TOKEN_EXPIRY_SECONDS: u64 = 86400;
+/// Max token expiry in seconds
+pub static MAX_TOKEN_EXPIRY_SECONDS: Lazy<u64> = Lazy::new(|| 86400);
 
-    /// Default cache TTL in seconds
-    pub static ref DEFAULT_CACHE_TTL_SECONDS: u64 = 300;
+/// Default cache TTL in seconds
+pub static DEFAULT_CACHE_TTL_SECONDS: Lazy<u64> = Lazy::new(|| 300);
 
-    /// Max retry attempts
-    pub static ref MAX_RETRY_ATTEMPTS: u32 = 5;
+/// Max retry attempts
+pub static MAX_RETRY_ATTEMPTS: Lazy<u32> = Lazy::new(|| 5);
 
-    /// Request timeout in seconds
-    pub static ref REQUEST_TIMEOUT_SECONDS: u64 = 30;
-}
+/// Request timeout in seconds
+pub static REQUEST_TIMEOUT_SECONDS: Lazy<u64> = Lazy::new(|| 30);
 
 impl DomainConstants {
     /// Get default page size

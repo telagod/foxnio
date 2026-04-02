@@ -5,6 +5,8 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use once_cell::sync::Lazy;
+use prometheus::{register_int_counter, register_int_gauge, opts};
 use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,49 +19,53 @@ use crate::entity::quota_usage_history;
 // Prometheus 监控指标
 // ============================================================================
 
-lazy_static::lazy_static! {
-    /// 缓存命中次数
-    static ref WINDOW_CACHE_HITS: prometheus::IntCounter =
-        prometheus::register_int_counter!(prometheus::opts!(
-            "foxnio_window_cache_hits_total",
-            "Window cost cache hits (memory + Redis)"
-        )).unwrap();
+/// 缓存命中次数
+static WINDOW_CACHE_HITS: Lazy<prometheus::IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
+        "foxnio_window_cache_hits_total",
+        "Window cost cache hits (memory + Redis)"
+    )).unwrap()
+});
 
-    /// 缓存未命中次数
-    static ref WINDOW_CACHE_MISSES: prometheus::IntCounter =
-        prometheus::register_int_counter!(prometheus::opts!(
-            "foxnio_window_cache_misses_total",
-            "Window cost cache misses"
-        )).unwrap();
+/// 缓存未命中次数
+static WINDOW_CACHE_MISSES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
+        "foxnio_window_cache_misses_total",
+        "Window cost cache misses"
+    )).unwrap()
+});
 
-    /// 批量查询次数
-    static ref WINDOW_BATCH_QUERIES: prometheus::IntCounter =
-        prometheus::register_int_counter!(prometheus::opts!(
-            "foxnio_window_batch_queries_total",
-            "Number of batch SQL queries for window cost"
-        )).unwrap();
+/// 批量查询次数
+static WINDOW_BATCH_QUERIES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
+        "foxnio_window_batch_queries_total",
+        "Number of batch SQL queries for window cost"
+    )).unwrap()
+});
 
-    /// Redis 缓存命中次数
-    static ref WINDOW_REDIS_HITS: prometheus::IntCounter =
-        prometheus::register_int_counter!(prometheus::opts!(
-            "foxnio_window_redis_hits_total",
-            "Window cost Redis cache hits"
-        )).unwrap();
+/// Redis 缓存命中次数
+static WINDOW_REDIS_HITS: Lazy<prometheus::IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
+        "foxnio_window_redis_hits_total",
+        "Window cost Redis cache hits"
+    )).unwrap()
+});
 
-    /// Redis 缓存未命中次数
-    static ref WINDOW_REDIS_MISSES: prometheus::IntCounter =
-        prometheus::register_int_counter!(prometheus::opts!(
-            "foxnio_window_redis_misses_total",
-            "Window cost Redis cache misses"
-        )).unwrap();
+/// Redis 缓存未命中次数
+static WINDOW_REDIS_MISSES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
+        "foxnio_window_redis_misses_total",
+        "Window cost Redis cache misses"
+    )).unwrap()
+});
 
-    /// 预取的账户数量
-    static ref WINDOW_PREFETCHED_ACCOUNTS: prometheus::IntGauge =
-        prometheus::register_int_gauge!(prometheus::opts!(
-            "foxnio_window_prefetched_accounts",
-            "Number of accounts prefetched in current batch"
-        )).unwrap();
-}
+/// 预取的账户数量
+static WINDOW_PREFETCHED_ACCOUNTS: Lazy<prometheus::IntGauge> = Lazy::new(|| {
+    register_int_gauge!(opts!(
+        "foxnio_window_prefetched_accounts",
+        "Number of accounts prefetched in current batch"
+    )).unwrap()
+});
 
 /// 窗口期费用缓存
 pub struct WindowCostCache {

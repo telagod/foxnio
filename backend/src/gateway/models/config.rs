@@ -4,7 +4,7 @@
 
 #![allow(dead_code)]
 use super::{Model, ModelProvider};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -126,8 +126,8 @@ impl From<&ModelConfig> for ModelInfo {
 }
 
 // 所有模型的配置
-lazy_static! {
-    pub static ref MODEL_CONFIGS: Vec<(Model, ModelConfig)> = vec![
+pub static MODEL_CONFIGS: Lazy<Vec<(Model, ModelConfig)>> = Lazy::new(|| {
+    vec![
     // ==================== OpenAI 模型 ====================
     (
         Model::GPT4Turbo,
@@ -571,8 +571,8 @@ lazy_static! {
             supports_vision: false,
         },
     ),
-    ];
-}
+    ]
+});
 
 impl ProviderConfig {
     /// 获取所有提供商配置

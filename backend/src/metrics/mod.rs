@@ -12,6 +12,8 @@ pub mod prometheus;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use once_cell::sync::Lazy;
+
 // Re-export prometheus types for convenience
 pub use ::prometheus::{
     opts, register_counter, register_counter_vec, register_gauge, register_gauge_vec,
@@ -24,362 +26,450 @@ pub use ::prometheus::{
 // Re-export business metrics
 pub use business::*;
 
-lazy_static::lazy_static! {
-    // ============================================================================
-    // 请求计数指标
-    // ============================================================================
+// ============================================================================
+// 请求计数指标
+// ============================================================================
 
-    /// 总请求数
-    pub static ref REQUESTS_TOTAL: IntCounter = register_int_counter!(opts!(
+/// 总请求数
+pub static REQUESTS_TOTAL: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_requests_total",
         "Total number of requests processed"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 成功请求数（按模型分类）
-    pub static ref REQUESTS_SUCCESS: IntCounterVec = register_int_counter_vec!(
+/// 成功请求数（按模型分类）
+pub static REQUESTS_SUCCESS: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_requests_success_total",
         "Total number of successful requests",
         &["model", "provider", "user"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 失败请求数（按模型分类）
-    pub static ref REQUESTS_FAILED: IntCounterVec = register_int_counter_vec!(
+/// 失败请求数（按模型分类）
+pub static REQUESTS_FAILED: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_requests_failed_total",
         "Total number of failed requests",
         &["model", "provider", "error_type"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 按状态码分类的请求数
-    pub static ref REQUESTS_BY_STATUS: IntCounterVec = register_int_counter_vec!(
+/// 按状态码分类的请求数
+pub static REQUESTS_BY_STATUS: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_requests_by_status",
         "Number of requests grouped by HTTP status code",
         &["status_code"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 请求延迟指标
-    // ============================================================================
+// ============================================================================
+// 请求延迟指标
+// ============================================================================
 
-    /// 请求延迟直方图（秒）
-    pub static ref REQUEST_DURATION: HistogramVec = register_histogram_vec!(
+/// 请求延迟直方图（秒）
+pub static REQUEST_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
         "foxnio_request_duration_seconds",
         "Request latency in seconds",
         &["model", "provider", "endpoint"],
         vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 上游 API 延迟
-    pub static ref UPSTREAM_REQUEST_DURATION: HistogramVec = register_histogram_vec!(
+/// 上游 API 延迟
+pub static UPSTREAM_REQUEST_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
         "foxnio_upstream_request_duration_seconds",
         "Upstream API request latency in seconds",
         &["provider", "model"],
         vec![0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 请求队列等待时间
-    pub static ref REQUEST_QUEUE_DURATION: Histogram = register_histogram!(
+/// 请求队列等待时间
+pub static REQUEST_QUEUE_DURATION: Lazy<Histogram> = Lazy::new(|| {
+    register_histogram!(
         "foxnio_request_queue_duration_seconds",
         "Time requests spend in queue before processing",
         vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 连接指标
-    // ============================================================================
+// ============================================================================
+// 连接指标
+// ============================================================================
 
-    /// 活跃连接数
-    pub static ref ACTIVE_CONNECTIONS: IntGauge = register_int_gauge!(
+/// 活跃连接数
+pub static ACTIVE_CONNECTIONS: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_active_connections",
         "Number of active connections"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// WebSocket 活跃连接数
-    pub static ref WEBSOCKET_CONNECTIONS: IntGauge = register_int_gauge!(
+/// WebSocket 活跃连接数
+pub static WEBSOCKET_CONNECTIONS: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_websocket_connections",
         "Number of active WebSocket connections"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 连接池状态
-    pub static ref CONNECTION_POOL_SIZE: IntGaugeVec = register_int_gauge_vec!(
+/// 连接池状态
+pub static CONNECTION_POOL_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
         "foxnio_connection_pool_size",
         "Connection pool size by provider",
         &["provider", "pool_type"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // Token 使用量指标
-    // ============================================================================
+// ============================================================================
+// Token 使用量指标
+// ============================================================================
 
-    /// 输入 Token 使用量
-    pub static ref TOKENS_INPUT: IntCounterVec = register_int_counter_vec!(
+/// 输入 Token 使用量
+pub static TOKENS_INPUT: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_tokens_input_total",
         "Total number of input tokens used",
         &["model", "provider", "user"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 输出 Token 使用量
-    pub static ref TOKENS_OUTPUT: IntCounterVec = register_int_counter_vec!(
+/// 输出 Token 使用量
+pub static TOKENS_OUTPUT: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_tokens_output_total",
         "Total number of output tokens generated",
         &["model", "provider", "user"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// Token 使用速率（每分钟）
-    pub static ref TOKENS_RATE: GaugeVec = register_gauge_vec!(
+/// Token 使用速率（每分钟）
+pub static TOKENS_RATE: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "foxnio_tokens_rate_per_minute",
         "Token usage rate per minute",
         &["model", "provider", "token_type"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 成本指标
-    // ============================================================================
+// ============================================================================
+// 成本指标
+// ============================================================================
 
-    /// 总成本（美元）
-    pub static ref COST_TOTAL: Counter = register_counter!(
+/// 总成本（美元）
+pub static COST_TOTAL: Lazy<Counter> = Lazy::new(|| {
+    register_counter!(
         "foxnio_cost_total_dollars",
         "Total cost in dollars"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 按模型分类的成本
-    pub static ref COST_BY_MODEL: CounterVec = register_counter_vec!(
+/// 按模型分类的成本
+pub static COST_BY_MODEL: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "foxnio_cost_by_model_dollars",
         "Cost in dollars grouped by model",
         &["model", "provider", "user"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 每日成本
-    pub static ref COST_DAILY: GaugeVec = register_gauge_vec!(
+/// 每日成本
+pub static COST_DAILY: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "foxnio_cost_daily_dollars",
         "Daily cost in dollars",
         &["date"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 账号配额指标
-    // ============================================================================
+// ============================================================================
+// 账号配额指标
+// ============================================================================
 
-    /// 账号配额使用率
-    pub static ref ACCOUNT_QUOTA_USAGE: GaugeVec = register_gauge_vec!(
+/// 账号配额使用率
+pub static ACCOUNT_QUOTA_USAGE: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "foxnio_account_quota_usage_ratio",
         "Account quota usage ratio (0-1)",
         &["account_id", "provider"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 账号剩余配额
-    pub static ref ACCOUNT_QUOTA_REMAINING: GaugeVec = register_gauge_vec!(
+/// 账号剩余配额
+pub static ACCOUNT_QUOTA_REMAINING: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "foxnio_account_quota_remaining",
         "Account remaining quota",
         &["account_id", "provider"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 账号请求速率
-    pub static ref ACCOUNT_REQUEST_RATE: GaugeVec = register_gauge_vec!(
+/// 账号请求速率
+pub static ACCOUNT_REQUEST_RATE: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "foxnio_account_request_rate_per_minute",
         "Account request rate per minute",
         &["account_id", "provider"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 账号使用率（活跃账号比例）
-    pub static ref ACTIVE_ACCOUNTS_RATIO: Gauge = register_gauge!(
+/// 账号使用率（活跃账号比例）
+pub static ACTIVE_ACCOUNTS_RATIO: Lazy<Gauge> = Lazy::new(|| {
+    register_gauge!(
         "foxnio_active_accounts_ratio",
         "Ratio of active accounts to total accounts"
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 错误和重试指标
-    // ============================================================================
+// ============================================================================
+// 错误和重试指标
+// ============================================================================
 
-    /// 错误计数（按错误类型）
-    pub static ref ERRORS_TOTAL: IntCounterVec = register_int_counter_vec!(
+/// 错误计数（按错误类型）
+pub static ERRORS_TOTAL: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_errors_total",
         "Total number of errors",
         &["error_type", "provider", "model"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 重试次数
-    pub static ref RETRIES_TOTAL: IntCounterVec = register_int_counter_vec!(
+/// 重试次数
+pub static RETRIES_TOTAL: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
         "foxnio_retries_total",
         "Total number of request retries",
         &["provider", "reason"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 熔断器状态
-    pub static ref CIRCUIT_BREAKER_STATE: IntGaugeVec = register_int_gauge_vec!(
+/// 熔断器状态
+pub static CIRCUIT_BREAKER_STATE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
         "foxnio_circuit_breaker_state",
         "Circuit breaker state (0=closed, 1=open, 2=half-open)",
         &["provider", "account_id"]
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 缓存指标
-    // ============================================================================
+// ============================================================================
+// 缓存指标
+// ============================================================================
 
-    /// 缓存命中次数
-    pub static ref CACHE_HITS: IntCounter = register_int_counter!(
+/// 缓存命中次数
+pub static CACHE_HITS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(
         "foxnio_cache_hits_total",
         "Total number of cache hits"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 缓存未命中次数
-    pub static ref CACHE_MISSES: IntCounter = register_int_counter!(
+/// 缓存未命中次数
+pub static CACHE_MISSES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(
         "foxnio_cache_misses_total",
         "Total number of cache misses"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 缓存大小
-    pub static ref CACHE_SIZE: IntGauge = register_int_gauge!(
+/// 缓存大小
+pub static CACHE_SIZE: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_cache_size_bytes",
         "Current cache size in bytes"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 缓存条目数
-    pub static ref CACHE_ENTRIES: IntGauge = register_int_gauge!(
+/// 缓存条目数
+pub static CACHE_ENTRIES: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_cache_entries",
         "Number of entries in cache"
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // 系统资源指标
-    // ============================================================================
+// ============================================================================
+// 系统资源指标
+// ============================================================================
 
-    /// 内存使用量
-    pub static ref MEMORY_USAGE: IntGauge = register_int_gauge!(
+/// 内存使用量
+pub static MEMORY_USAGE: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_memory_usage_bytes",
         "Current memory usage in bytes"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// CPU 使用率
-    pub static ref CPU_USAGE: Gauge = register_gauge!(
+/// CPU 使用率
+pub static CPU_USAGE: Lazy<Gauge> = Lazy::new(|| {
+    register_gauge!(
         "foxnio_cpu_usage_ratio",
         "CPU usage ratio (0-1)"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// Goroutine 数量（兼容性指标）
-    pub static ref GOROUTINE_COUNT: IntGauge = register_int_gauge!(
+/// Goroutine 数量（兼容性指标）
+pub static GOROUTINE_COUNT: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_goroutine_count",
         "Number of active tasks (for compatibility)"
-    ).unwrap();
+    ).unwrap()
+});
 
-    /// 文件描述符数量
-    pub static ref FILE_DESCRIPTORS: IntGauge = register_int_gauge!(
+/// 文件描述符数量
+pub static FILE_DESCRIPTORS: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(
         "foxnio_file_descriptors",
         "Number of open file descriptors"
-    ).unwrap();
+    ).unwrap()
+});
 
-    // ============================================================================
-    // Webhook 指标
-    // ============================================================================
+// ============================================================================
+// Webhook 指标
+// ============================================================================
 
-    /// 发送的 Webhook 事件总数
-    pub static ref WEBHOOK_EVENTS_SENT: IntCounter = register_int_counter!(opts!(
+/// 发送的 Webhook 事件总数
+pub static WEBHOOK_EVENTS_SENT: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_webhook_events_sent_total",
         "Total webhook events sent"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 成功的 Webhook 投递数
-    pub static ref WEBHOOK_DELIVERY_SUCCESS: IntCounter = register_int_counter!(opts!(
+/// 成功的 Webhook 投递数
+pub static WEBHOOK_DELIVERY_SUCCESS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_webhook_delivery_success_total",
         "Successful webhook deliveries"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 失败的 Webhook 投递数
-    pub static ref WEBHOOK_DELIVERY_FAILED: IntCounter = register_int_counter!(opts!(
+/// 失败的 Webhook 投递数
+pub static WEBHOOK_DELIVERY_FAILED: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_webhook_delivery_failed_total",
         "Failed webhook deliveries"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// Webhook 重试次数
-    pub static ref WEBHOOK_RETRY_COUNT: IntCounter = register_int_counter!(opts!(
+/// Webhook 重试次数
+pub static WEBHOOK_RETRY_COUNT: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_webhook_retry_total",
         "Webhook retry attempts"
-    )).unwrap();
+    )).unwrap()
+});
 
-    // ============================================================================
-    // 批量操作指标
-    // ============================================================================
+// ============================================================================
+// 批量操作指标
+// ============================================================================
 
-    /// 批量操作总数
-    pub static ref BATCH_OPERATIONS_TOTAL: IntCounter = register_int_counter!(opts!(
+/// 批量操作总数
+pub static BATCH_OPERATIONS_TOTAL: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_batch_operations_total",
         "Total batch operations"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 批量操作处理的条目总数
-    pub static ref BATCH_ITEMS_PROCESSED: IntCounter = register_int_counter!(opts!(
+/// 批量操作处理的条目总数
+pub static BATCH_ITEMS_PROCESSED: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_batch_items_processed_total",
         "Total items processed in batch operations"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 批量操作错误数
-    pub static ref BATCH_ERRORS: IntCounter = register_int_counter!(opts!(
+/// 批量操作错误数
+pub static BATCH_ERRORS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_batch_errors_total",
         "Batch operation errors"
-    )).unwrap();
+    )).unwrap()
+});
 
-    // ============================================================================
-    // API Key 权限指标
-    // ============================================================================
+// ============================================================================
+// API Key 权限指标
+// ============================================================================
 
-    /// API Key 认证检查次数
-    pub static ref API_KEY_AUTH_CHECKS: IntCounter = register_int_counter!(opts!(
+/// API Key 认证检查次数
+pub static API_KEY_AUTH_CHECKS: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_api_key_auth_checks_total",
         "API key authentication checks"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// API Key 配额超限次数
-    pub static ref API_KEY_QUOTA_EXCEEDED: IntCounter = register_int_counter!(opts!(
+/// API Key 配额超限次数
+pub static API_KEY_QUOTA_EXCEEDED: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_api_key_quota_exceeded_total",
         "API key quota exceeded events"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// API Key 模型访问拒绝次数
-    pub static ref API_KEY_MODEL_DENIED: IntCounter = register_int_counter!(opts!(
+/// API Key 模型访问拒绝次数
+pub static API_KEY_MODEL_DENIED: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_api_key_model_denied_total",
         "API key model access denied events"
-    )).unwrap();
+    )).unwrap()
+});
 
-    // ============================================================================
-    // 成本优化指标
-    // ============================================================================
+// ============================================================================
+// 成本优化指标
+// ============================================================================
 
-    /// 潜在成本节省金额
-    pub static ref COST_OPTIMIZATION_SAVINGS: Gauge = register_gauge!(opts!(
+/// 潜在成本节省金额
+pub static COST_OPTIMIZATION_SAVINGS: Lazy<Gauge> = Lazy::new(|| {
+    register_gauge!(opts!(
         "foxnio_cost_optimization_potential_savings",
         "Potential cost savings identified"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 成本优化建议生成数
-    pub static ref COST_RECOMMENDATIONS_GENERATED: IntCounter = register_int_counter!(opts!(
+/// 成本优化建议生成数
+pub static COST_RECOMMENDATIONS_GENERATED: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_cost_recommendations_total",
         "Cost optimization recommendations generated"
-    )).unwrap();
+    )).unwrap()
+});
 
-    // ============================================================================
-    // 模型同步指标
-    // ============================================================================
+// ============================================================================
+// 模型同步指标
+// ============================================================================
 
-    /// 模型同步耗时
-    pub static ref MODEL_SYNC_DURATION: Histogram = {
-        let opts = HistogramOpts::new(
-            "foxnio_model_sync_duration_seconds",
-            "Model sync duration"
-        );
-        register_histogram!(opts).unwrap()
-    };
+/// 模型同步耗时
+pub static MODEL_SYNC_DURATION: Lazy<Histogram> = Lazy::new(|| {
+    let opts = HistogramOpts::new(
+        "foxnio_model_sync_duration_seconds",
+        "Model sync duration"
+    );
+    register_histogram!(opts).unwrap()
+});
 
-    /// 已同步的模型数量
-    pub static ref MODELS_SYNCED: IntGauge = register_int_gauge!(opts!(
+/// 已同步的模型数量
+pub static MODELS_SYNCED: Lazy<IntGauge> = Lazy::new(|| {
+    register_int_gauge!(opts!(
         "foxnio_models_synced",
         "Number of models synced"
-    )).unwrap();
+    )).unwrap()
+});
 
-    /// 模型价格变化检测数
-    pub static ref MODEL_PRICE_CHANGES: IntCounter = register_int_counter!(opts!(
+/// 模型价格变化检测数
+pub static MODEL_PRICE_CHANGES: Lazy<IntCounter> = Lazy::new(|| {
+    register_int_counter!(opts!(
         "foxnio_model_price_changes_total",
         "Model price changes detected"
-    )).unwrap();
-}
+    )).unwrap()
+});
 
 /// 指标记录器 - 用于记录请求指标
 #[derive(Debug, Clone)]
@@ -689,17 +779,19 @@ pub struct CostSummary {
 
 /// 初始化指标系统
 pub fn init_metrics() {
-    // 触发 lazy_static 初始化
-    lazy_static::initialize(&REQUESTS_TOTAL);
-    lazy_static::initialize(&REQUESTS_SUCCESS);
-    lazy_static::initialize(&REQUEST_DURATION);
-    lazy_static::initialize(&ACTIVE_CONNECTIONS);
-    lazy_static::initialize(&TOKENS_INPUT);
-    lazy_static::initialize(&TOKENS_OUTPUT);
-    lazy_static::initialize(&COST_TOTAL);
+    // 触发 Lazy 初始化（访问即可）
+    let _ = REQUESTS_TOTAL.deref();
+    let _ = REQUESTS_SUCCESS.deref();
+    let _ = REQUEST_DURATION.deref();
+    let _ = ACTIVE_CONNECTIONS.deref();
+    let _ = TOKENS_INPUT.deref();
+    let _ = TOKENS_OUTPUT.deref();
+    let _ = COST_TOTAL.deref();
 
     tracing::info!("Prometheus metrics initialized");
 }
+
+use std::ops::Deref;
 
 #[cfg(test)]
 mod tests {
