@@ -28,8 +28,8 @@ use crate::service::{
 };
 use crate::state::AppState;
 
-pub fn build_app(state: AppState, _health_checker: Arc<HealthChecker>) -> Router<()> {
-    let _shared_state = Arc::new(state);
+pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<()> {
+    let shared_state = Arc::new(state);
 
     // 公开路由
     let public_routes = Router::new()
@@ -683,28 +683,24 @@ pub fn build_app(state: AppState, _health_checker: Arc<HealthChecker>) -> Router
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // Gemini Native API 路由（v1beta）
+    // 注意：axum 路由不支持 {model}:action 格式，改用查询参数区分
     let gemini_routes = Router::new()
         // 模型列表和详情
         .route("/v1beta/models", get(super::gemini::list_models))
         .route("/v1beta/models/{model}", get(super::gemini::get_model))
-        // 内容生成（支持动态 action: generateContent, streamGenerateContent 等）
+        // 内容生成（通过查询参数 ?action=generateContent 或 ?action=streamGenerateContent 区分）
         .route(
-            "/v1beta/models/{model_action}",
+            "/v1beta/models/{model}",
             post(super::gemini::generate_content),
-        )
-        // 流式生成（显式路由，支持 alt=sse 查询参数）
-        .route(
-            "/v1beta/models/{model}:streamGenerateContent",
-            post(super::gemini::stream_generate_content),
         )
         // Token 计数
         .route(
-            "/v1beta/models/{model}:countTokens",
+            "/v1beta/models/{model}/countTokens",
             post(super::gemini::count_tokens),
         )
         // 内容嵌入
         .route(
-            "/v1beta/models/{model}:embedContent",
+            "/v1beta/models/{model}/embedContent",
             post(super::gemini::embed_content),
         );
 
@@ -738,6 +734,9 @@ pub fn build_app(state: AppState, _health_checker: Arc<HealthChecker>) -> Router
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::request_log))
         .layer(axum::middleware::from_fn(middleware::request_id))
+        // 添加共享状态和健康检查器扩展
+        .layer(Extension(shared_state))
+        .layer(Extension(health_checker))
 }
 
 // ============ 网关端点 ============

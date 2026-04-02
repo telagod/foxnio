@@ -74,6 +74,9 @@ pub struct GeminiQueryParams {
     /// 流式响应格式
     #[serde(rename = "alt")]
     pub alt: Option<String>,
+    /// 动作类型（generateContent, streamGenerateContent 等）
+    #[serde(rename = "action")]
+    pub action: Option<String>,
 }
 
 // ============ 路由处理器 ============
@@ -139,28 +142,17 @@ pub async fn get_model(
     }
 }
 
-/// POST /v1beta/models/:model:generateContent - 生成内容（非流式）
+/// POST /v1beta/models/:model - 生成内容
+/// 通过查询参数 ?action=generateContent 或 ?action=streamGenerateContent 区分
+/// 或者通过 ?alt=sse 触发流式响应
 pub async fn generate_content(
     Extension(_state): Extension<SharedState>,
-    Path(model_action): Path<String>,
+    Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
 ) -> impl IntoResponse {
-    // 解析模型和动作
-    let (model_name, action) = match client::parse_model_action(&model_action) {
-        Ok(result) => result,
-        Err(e) => {
-            let error = client::build_error_response(
-                404,
-                &format!("Invalid model action: {e}"),
-                "NOT_FOUND",
-            );
-            return (StatusCode::NOT_FOUND, Json(error)).into_response();
-        }
-    };
-
-    // 检查是否为流式请求
-    let is_stream = action == "streamGenerateContent" || params.alt.as_deref() == Some("sse");
+    // 从路径获取模型名
+    let model_name = model.as_str();
 
     // 解析请求体
     let request: GenerateContentRequest = match serde_json::from_slice(&body) {
@@ -188,10 +180,14 @@ pub async fn generate_content(
     // TODO: 实现完整的账户选择和请求转发逻辑
     let client = GeminiClient::with_defaults();
 
+    // 检查是否为流式请求（通过查询参数 action 或 alt）
+    let is_stream = params.action.as_deref() == Some("streamGenerateContent") 
+        || params.alt.as_deref() == Some("sse");
+
     if is_stream {
         // 流式响应
         match client
-            .stream_generate_content(&model_name, &request, &api_key)
+            .stream_generate_content(model_name, &request, &api_key)
             .await
         {
             Ok(stream) => {
@@ -216,7 +212,7 @@ pub async fn generate_content(
     } else {
         // 非流式响应
         match client
-            .generate_content(&model_name, &request, &api_key)
+            .generate_content(model_name, &request, &api_key)
             .await
         {
             Ok(response) => Json(response).into_response(),
@@ -235,11 +231,11 @@ pub async fn generate_content(
 /// POST /v1beta/models/:model:streamGenerateContent - 流式生成内容
 pub async fn stream_generate_content(
     state: Extension<SharedState>,
-    Path(model_action): Path<String>,
+    Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
 ) -> impl IntoResponse {
-    generate_content(state, Path(model_action), Query(params), body).await
+    generate_content(state, Path(model), Query(params), body).await
 }
 
 /// POST /v1beta/models/:model:countTokens - 计算 Token 数量
