@@ -744,67 +744,205 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
 // ============ 网关端点 ============
 
 async fn handle_chat_completions(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<crate::service::user::Claims>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
+    use crate::service::chat_completions_forwarder::{ChatCompletionsForwarder, ChatCompletionsRequest};
+    
     // 解析请求体
-    let req: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+    let request: ChatCompletionsRequest = serde_json::from_slice(&body)
+        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid request: {}", e)))?;
 
-    let _model = req
-        .get("model")
-        .and_then(|m| m.as_str())
-        .ok_or(handler::ApiError(
-            StatusCode::BAD_REQUEST,
-            "Missing model".into(),
-        ))?;
-
-    let _stream = req.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
-
-    let _user_id = uuid::Uuid::parse_str(&_claims.sub)
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
         .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // TODO: 实现完整的请求转发
-    Err(handler::ApiError(
-        StatusCode::NOT_IMPLEMENTED,
-        "Chat completions forwarding not yet implemented".into(),
-    ))
+    // 创建转发器
+    let account_service = crate::service::AccountService::new(state.db.clone());
+    let scheduler = crate::service::SchedulerService::new(
+        state.db.clone(),
+        account_service.clone(),
+        crate::service::scheduler::SchedulingStrategy::RoundRobin,
+    );
+
+    let forwarder = ChatCompletionsForwarder::new(
+        state.db.clone(),
+        Arc::new(account_service),
+        scheduler,
+    );
+
+    // TODO: 从 API Key 中获取 api_key_id
+    let api_key_id = uuid::Uuid::nil();
+
+    // 转发请求
+    match forwarder.forward(request, user_id, api_key_id).await {
+        Ok(result) => {
+            // 返回成功响应
+            Ok(axum::Json(serde_json::json!({
+                "id": result.request_id,
+                "object": "chat.completion",
+                "created": chrono::Utc::now().timestamp() as u64,
+                "model": result.model,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Response from upstream"
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": result.usage.prompt_tokens,
+                    "completion_tokens": result.usage.completion_tokens,
+                    "total_tokens": result.usage.total_tokens
+                }
+            })))
+        }
+        Err(e) => {
+            tracing::error!("Chat completions forwarding failed: {}", e);
+            Err(handler::ApiError(
+                StatusCode::BAD_GATEWAY,
+                format!("Upstream error: {}", e),
+            ))
+        }
+    }
 }
 
 async fn handle_messages(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<crate::service::user::Claims>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    let req: serde_json::Value = serde_json::from_slice(&body)
+    use crate::service::anthropic_messages_forwarder::{AnthropicMessagesForwarder, AnthropicMessagesRequest};
+
+    let request: AnthropicMessagesRequest = serde_json::from_slice(&body)
         .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let _model = req
-        .get("model")
-        .and_then(|m| m.as_str())
-        .ok_or(handler::ApiError(
-            StatusCode::BAD_REQUEST,
-            "Missing model".into(),
-        ))?;
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // TODO: 实现完整的 Anthropic messages 转发
-    Err(handler::ApiError(
-        StatusCode::NOT_IMPLEMENTED,
-        "Messages forwarding not yet implemented".into(),
-    ))
+    // 创建转发器
+    let account_service = crate::service::AccountService::new(state.db.clone());
+    let scheduler = crate::service::SchedulerService::new(
+        state.db.clone(),
+        account_service.clone(),
+        crate::service::scheduler::SchedulingStrategy::RoundRobin,
+    );
+
+    let forwarder = AnthropicMessagesForwarder::new(
+        state.db.clone(),
+        Arc::new(account_service),
+        scheduler,
+    );
+
+    // TODO: 从 API Key 中获取 api_key_id
+    let api_key_id = uuid::Uuid::nil();
+
+    // 转发请求
+    match forwarder.forward(request, user_id, api_key_id).await {
+        Ok(result) => {
+            // 返回 Anthropic 格式的响应
+            Ok(axum::Json(serde_json::json!({
+                "id": result.request_id,
+                "type": "message",
+                "role": "assistant",
+                "content": [{
+                    "type": "text",
+                    "text": result.content
+                }],
+                "model": result.model,
+                "usage": {
+                    "input_tokens": result.usage.input_tokens,
+                    "output_tokens": result.usage.output_tokens
+                }
+            })))
+        }
+        Err(e) => {
+            tracing::error!("Messages forwarding error: {}", e);
+            Err(handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
 }
 
 async fn handle_completions(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-    _body: axum::body::Bytes,
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<crate::service::user::Claims>,
+    body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    // TODO: 实现旧的 completions 端点
-    Err(handler::ApiError(
-        StatusCode::NOT_IMPLEMENTED,
-        "Completions not yet implemented".into(),
-    ))
+    // 旧版 completions API - 转换为 chat/completions 格式
+    use crate::service::chat_completions_forwarder::{ChatCompletionsForwarder, ChatCompletionsRequest, Message, MessageContent};
+
+    let req: serde_json::Value = serde_json::from_slice(&body)
+        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 转换 completions 格式到 chat/completions 格式
+    let prompt = req.get("prompt")
+        .and_then(|p| p.as_str())
+        .ok_or(handler::ApiError(StatusCode::BAD_REQUEST, "Missing prompt".into()))?;
+
+    let model = req.get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("gpt-3.5-turbo-instruct");
+
+    // 构建 chat/completions 请求
+    let chat_request = ChatCompletionsRequest {
+        model: model.to_string(),
+        messages: vec![Message {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }],
+        temperature: req.get("temperature").and_then(|t| t.as_f64()).map(|v| v as f32),
+        max_tokens: req.get("max_tokens").and_then(|t| t.as_u64()).map(|v| v as u32),
+        stream: req.get("stream").and_then(|s| s.as_bool()).unwrap_or(false),
+        stream_options: None,
+        extra: req.clone(),
+    };
+
+    // 创建转发器
+    let account_service = crate::service::AccountService::new(state.db.clone());
+    let scheduler = crate::service::SchedulerService::new(
+        state.db.clone(),
+        account_service.clone(),
+        crate::service::scheduler::SchedulingStrategy::RoundRobin,
+    );
+
+    let forwarder = ChatCompletionsForwarder::new(
+        state.db.clone(),
+        Arc::new(account_service),
+        scheduler,
+    );
+
+    let api_key_id = uuid::Uuid::nil();
+
+    // 转发请求
+    match forwarder.forward(chat_request, user_id, api_key_id).await {
+        Ok(result) => {
+            // 转换响应回 completions 格式
+            Ok(axum::Json(serde_json::json!({
+                "id": result.request_id,
+                "object": "text_completion",
+                "created": chrono::Utc::now().timestamp() as u64,
+                "model": result.model,
+                "choices": [{
+                    "text": "",  // 需要从实际响应中提取
+                    "index": 0,
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": result.usage.prompt_tokens,
+                    "completion_tokens": result.usage.completion_tokens,
+                    "total_tokens": result.usage.total_tokens
+                }
+            })))
+        }
+        Err(e) => {
+            tracing::error!("Completions forwarding error: {}", e);
+            Err(handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
 }
 
 // ============ 用户端点 ============

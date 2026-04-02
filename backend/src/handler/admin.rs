@@ -35,6 +35,7 @@ pub struct UpdateUserRequest {
     pub email: Option<String>,
     pub role: Option<String>,
     pub status: Option<String>,
+    pub balance: Option<i64>,
 }
 
 /// 余额更新请求
@@ -256,31 +257,53 @@ pub async fn get_user(
     tag = "管理员-用户"
 )]
 pub async fn update_user(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
-    Json(_req): Json<UpdateUserRequest>,
+    Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<Value>, ApiError> {
     // 权限检查
     check_permission(&claims, Permission::UserWrite)
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let _user_id =
+    let user_id =
         Uuid::parse_str(&id).map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    // TODO: 实现用户更新逻辑
-    // 需要在 UserService 中添加 update 方法
+    let user_service = UserService::new(
+        state.db.clone(),
+        state.config.jwt.secret.clone(),
+        state.config.jwt.expire_hours,
+    );
+
+    let updated = user_service
+        .update_user(
+            user_id,
+            req.email.as_deref(),
+            req.role.as_deref(),
+            req.status.as_deref(),
+            req.balance,
+        )
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
         "success": true,
-        "message": "User update not yet implemented"
+        "user": {
+            "id": updated.id.to_string(),
+            "email": updated.email,
+            "role": updated.role,
+            "status": updated.status,
+            "balance": updated.balance,
+            "balance_yuan": updated.balance as f64 / 100.0,
+            "updated_at": updated.created_at.to_rfc3339(),
+        }
     })))
 }
 
 /// 删除用户 - 需要 UserDelete 权限
 pub async fn delete_user(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
@@ -289,7 +312,7 @@ pub async fn delete_user(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let _user_id =
+    let user_id =
         Uuid::parse_str(&id).map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // 不能删除自己
@@ -300,12 +323,20 @@ pub async fn delete_user(
         ));
     }
 
-    // TODO: 实现用户删除逻辑
-    // 需要在 UserService 中添加 delete 方法
+    let user_service = UserService::new(
+        state.db.clone(),
+        state.config.jwt.secret.clone(),
+        state.config.jwt.expire_hours,
+    );
+
+    user_service
+        .delete_user(user_id)
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
         "success": true,
-        "message": "User deletion not yet implemented"
+        "message": "User deleted successfully"
     })))
 }
 

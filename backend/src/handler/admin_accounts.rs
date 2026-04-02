@@ -5,11 +5,14 @@
 #![allow(dead_code)]
 
 use axum::{extract::Path, http::StatusCode, Extension, Json};
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::ApiError;
+use crate::entity::accounts;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
 use crate::service::account::AccountService;
@@ -145,7 +148,7 @@ pub async fn recover_account_state(
 
 /// POST /api/v1/admin/accounts/:id/set-privacy - 设置账号隐私
 pub async fn set_account_privacy(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
     Json(body): Json<Value>,
@@ -154,7 +157,7 @@ pub async fn set_account_privacy(
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let _account_id = Uuid::parse_str(&id)
+    let account_id = Uuid::parse_str(&id)
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
 
     let privacy_enabled = body
@@ -162,8 +165,30 @@ pub async fn set_account_privacy(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    // TODO: 实现隐私设置
-    // let account_service = AccountService::new(state.db.clone());
+    // 获取账号
+    let account = accounts::Entity::find_by_id(account_id)
+        .one(&state.db)
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Account not found".into()))?;
+
+    // 更新 metadata 中的 privacy_enabled
+    let mut metadata = account.metadata.clone().unwrap_or(serde_json::json!({}));
+    if let Some(obj) = metadata.as_object_mut() {
+        obj.insert("privacy_enabled".to_string(), serde_json::json!(privacy_enabled));
+    }
+
+    let mut account: accounts::ActiveModel = account.into();
+    account.metadata = Set(Some(metadata));
+    account.updated_at = Set(Utc::now());
+    let _updated = account.update(&state.db).await
+        .map_err(|e: sea_orm::DbErr| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tracing::info!(
+        account_id = %account_id,
+        privacy_enabled = privacy_enabled,
+        "Account privacy setting updated"
+    );
 
     Ok(Json(json!({
         "success": true,
@@ -311,7 +336,7 @@ pub async fn batch_get_today_stats(
 
 /// POST /api/v1/admin/accounts/:id/clear-rate-limit - 清除账号限流
 pub async fn clear_account_rate_limit(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
@@ -323,16 +348,41 @@ pub async fn clear_account_rate_limit(
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
 
     // 清除 Redis 中的限流键
-    // 使用 scan 替代 keys 以避免阻塞
-    let pattern = format!("rate_limit:*:{account_id}*");
+    // 常见的限流键模式：
+    // - rate_limit:{account_id}
+    // - ratelimit:{account_id}
+    // - account_rate_limit:{account_id}
+    let keys_to_delete = vec![
+        format!("rate_limit:{}", account_id),
+        format!("ratelimit:{}", account_id),
+        format!("account_rate_limit:{}", account_id),
+        format!("account:{account_id}:rate_limit"),
+        format!("account:{account_id}:rpm"),
+    ];
 
-    // 简化实现：直接返回成功
-    // TODO: 实现实际的 Redis 键扫描和删除
-    tracing::info!("Clearing rate limit keys matching pattern: {}", pattern);
+    let mut deleted_count = 0;
+    for key in &keys_to_delete {
+        match state.redis.del(key).await {
+            Ok(_) => {
+                deleted_count += 1;
+                tracing::debug!("Deleted rate limit key: {}", key);
+            }
+            Err(e) => {
+                tracing::debug!("Failed to delete key {}: {}", key, e);
+            }
+        }
+    }
+
+    tracing::info!(
+        account_id = %account_id,
+        deleted_keys = deleted_count,
+        "Rate limits cleared for account"
+    );
 
     Ok(Json(json!({
         "success": true,
         "account_id": id,
+        "deleted_keys": deleted_count,
         "message": "Rate limits cleared",
     })))
 }

@@ -4,7 +4,7 @@
 
 #![allow(dead_code)]
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -108,25 +108,96 @@ impl QuotaService {
     }
 
     /// 设置配额
-    pub async fn set_quota(&self, _api_key_id: Uuid, _limit: f64) -> Result<()> {
-        // TODO: 更新数据库
+    pub async fn set_quota(&self, api_key_id: Uuid, limit: f64) -> Result<()> {
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        let mut active: api_keys::ActiveModel = key.into();
+        active.daily_quota = Set(Some(limit as i64));
+        active.daily_used_quota = Set(Some(0));
+        active.quota_reset_at = Set(Some(Utc::now() + Duration::days(1)));
+        active.update(&self.db).await?;
+
+        // 清除缓存
+        self.usage_cache.write().await.remove(&api_key_id);
+
         Ok(())
     }
 
     /// 获取配额配置
-    pub async fn get_quota_config(&self, _api_key_id: Uuid) -> Result<Option<QuotaConfig>> {
-        // TODO: 从数据库查询
-        Ok(None)
+    pub async fn get_quota_config(&self, api_key_id: Uuid) -> Result<Option<QuotaConfig>> {
+        use crate::entity::api_keys;
+        use sea_orm::EntityTrait;
+
+        // 先检查缓存
+        if let Some(config) = self.usage_cache.read().await.get(&api_key_id) {
+            return Ok(Some(config.clone()));
+        }
+
+        // 从数据库查询
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?;
+
+        if let Some(key) = key {
+            let config = QuotaConfig {
+                api_key_id,
+                quota_limit: key.daily_quota.unwrap_or(0) as f64,
+                quota_used: key.daily_used_quota.unwrap_or(0) as f64,
+                rate_limits: HashMap::new(),
+                ip_whitelist: key.ip_whitelist
+                    .and_then(|v| serde_json::from_value(v).ok())
+                    .unwrap_or_default(),
+                ip_blacklist: vec![],
+                window_usage: HashMap::new(),
+            };
+
+            // 更新缓存
+            self.usage_cache.write().await.insert(api_key_id, config.clone());
+
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
     }
 
     /// 更新配额配置
     pub async fn update_quota(
         &self,
-        _api_key_id: Uuid,
-        _req: UpdateQuotaRequest,
+        api_key_id: Uuid,
+        req: UpdateQuotaRequest,
     ) -> Result<QuotaConfig> {
-        // TODO: 更新数据库
-        bail!("Not implemented")
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        let mut active: api_keys::ActiveModel = key.into();
+
+        if let Some(limit) = req.quota_limit {
+            active.daily_quota = Set(Some(limit as i64));
+        }
+
+        if let Some(ip_whitelist) = req.ip_whitelist {
+            active.ip_whitelist = Set(Some(serde_json::to_value(ip_whitelist)?));
+        }
+
+        active.update(&self.db).await?;
+
+        // 清除缓存
+        self.usage_cache.write().await.remove(&api_key_id);
+
+        self.get_quota_config(api_key_id)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to get updated config"))
     }
 
     /// 检查配额
@@ -171,14 +242,37 @@ impl QuotaService {
     /// 消费配额
     pub async fn consume_quota(
         &self,
-        _api_key_id: Uuid,
-        _amount: f64,
-        _model: &str,
-        _tokens: i64,
+        api_key_id: Uuid,
+        amount: f64,
+        model: &str,
+        tokens: i64,
     ) -> Result<()> {
-        // 1. 更新数据库中的配额
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        // 1. 更新 API Key 的配额使用量
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        let current_used = key.daily_used_quota.unwrap_or(0) as f64;
+        let new_used = current_used + amount;
+
+        let mut active: api_keys::ActiveModel = key.into();
+        active.daily_used_quota = Set(Some(new_used as i64));
+        active.last_used_at = Set(Some(Utc::now()));
+        active.update(&self.db).await?;
+
         // 2. 更新缓存
-        // 3. 记录使用历史
+        if let Some(config) = self.usage_cache.write().await.get_mut(&api_key_id) {
+            config.quota_used = new_used;
+        }
+
+        tracing::debug!(
+            "Consumed quota: api_key={}, amount={}, tokens={}, model={}",
+            api_key_id, amount, tokens, model
+        );
 
         Ok(())
     }
@@ -186,11 +280,26 @@ impl QuotaService {
     /// 设置速率限制
     pub async fn set_rate_limit(
         &self,
-        _api_key_id: Uuid,
-        _window: TimeWindow,
-        _limit: f64,
+        api_key_id: Uuid,
+        window: TimeWindow,
+        limit: f64,
     ) -> Result<()> {
-        // TODO: 更新数据库
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        // 更新 RPM 限制（简化实现，只支持每分钟限制）
+        if window == TimeWindow::FiveHours {
+            // 实际存储到 rate_limit_rpm
+            let mut active: api_keys::ActiveModel = key.into();
+            active.rate_limit_rpm = Set(Some(limit as i32));
+            active.update(&self.db).await?;
+        }
+
         Ok(())
     }
 
@@ -220,31 +329,70 @@ impl QuotaService {
     }
 
     /// 获取窗口使用量
-    async fn get_window_usage(&self, _api_key_id: Uuid, window: TimeWindow) -> Result<WindowUsage> {
+    async fn get_window_usage(&self, api_key_id: Uuid, window: TimeWindow) -> Result<WindowUsage> {
+        use crate::entity::usages;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
         let now = Utc::now();
         let window_start = now - window.duration();
 
-        // TODO: 从数据库查询该时间窗口内的使用量
+        // 从数据库查询该时间窗口内的使用量
+        let usages = usages::Entity::find()
+            .filter(usages::Column::ApiKeyId.eq(api_key_id))
+            .filter(usages::Column::CreatedAt.gte(window_start))
+            .filter(usages::Column::CreatedAt.lte(now))
+            .all(&self.db)
+            .await?;
+
+        let total_tokens: i64 = usages.iter().map(|u| u.input_tokens + u.output_tokens).sum();
+        let _total_cost: i64 = usages.iter().map(|u| u.cost).sum();
+
+        // 根据窗口类型设置限制
+        let limit = match window {
+            TimeWindow::FiveHours => 100000.0,   // 10万 tokens
+            TimeWindow::OneDay => 500000.0,      // 50万 tokens
+            TimeWindow::SevenDays => 3000000.0,  // 300万 tokens
+        };
+
         Ok(WindowUsage {
             window_type: window,
-            usage: 0.0,
-            limit: f64::MAX,
+            usage: total_tokens as f64,
+            limit,
             window_start,
             window_end: now,
         })
     }
 
     /// 设置 IP 白名单
-    pub async fn set_ip_whitelist(&self, _api_key_id: Uuid, ips: Vec<String>) -> Result<()> {
+    pub async fn set_ip_whitelist(&self, api_key_id: Uuid, ips: Vec<String>) -> Result<()> {
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
         self.validate_ip_list(&ips)?;
-        // TODO: 更新数据库
+
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        let mut active: api_keys::ActiveModel = key.into();
+        active.ip_whitelist = Set(Some(serde_json::to_value(ips)?));
+        active.update(&self.db).await?;
+
+        // 清除缓存
+        self.usage_cache.write().await.remove(&api_key_id);
+
         Ok(())
     }
 
     /// 设置 IP 黑名单
-    pub async fn set_ip_blacklist(&self, _api_key_id: Uuid, ips: Vec<String>) -> Result<()> {
+    pub async fn set_ip_blacklist(&self, api_key_id: Uuid, ips: Vec<String>) -> Result<()> {
         self.validate_ip_list(&ips)?;
-        // TODO: 更新数据库
+
+        // 注意：当前 api_keys 表没有 ip_blacklist 字段
+        // 这里简化实现，实际需要扩展数据库或使用其他存储
+        tracing::warn!("IP blacklist set for api_key {}: {:?}", api_key_id, ips);
+
         Ok(())
     }
 
@@ -280,24 +428,69 @@ impl QuotaService {
     /// 获取使用历史
     pub async fn get_usage_history(
         &self,
-        _api_key_id: Uuid,
-        _start_time: DateTime<Utc>,
-        _end_time: DateTime<Utc>,
+        api_key_id: Uuid,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
     ) -> Result<Vec<QuotaUsageRecord>> {
-        // TODO: 从数据库查询
-        Ok(vec![])
+        use crate::entity::usages;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+        let records = usages::Entity::find()
+            .filter(usages::Column::ApiKeyId.eq(api_key_id))
+            .filter(usages::Column::CreatedAt.gte(start_time))
+            .filter(usages::Column::CreatedAt.lte(end_time))
+            .order_by_desc(usages::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+
+        Ok(records
+            .into_iter()
+            .map(|r| QuotaUsageRecord {
+                id: r.id,
+                api_key_id: r.api_key_id,
+                amount: r.cost as f64 / 100.0, // 转换为元
+                model: r.model,
+                tokens_used: r.input_tokens + r.output_tokens,
+                timestamp: r.created_at,
+            })
+            .collect())
     }
 
     /// 重置配额
-    pub async fn reset_quota(&self, _api_key_id: Uuid) -> Result<()> {
-        // TODO: 重置配额为 0
+    pub async fn reset_quota(&self, api_key_id: Uuid) -> Result<()> {
+        use crate::entity::api_keys;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        let key = api_keys::Entity::find_by_id(api_key_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow!("API key not found"))?;
+
+        let mut active: api_keys::ActiveModel = key.into();
+        active.daily_used_quota = Set(Some(0));
+        active.quota_reset_at = Set(Some(Utc::now() + Duration::days(1)));
+        active.update(&self.db).await?;
+
+        // 清除缓存
+        self.usage_cache.write().await.remove(&api_key_id);
+
         Ok(())
     }
 
     /// 清理过期窗口数据
     pub async fn cleanup_expired_windows(&self) -> Result<i64> {
-        // TODO: 删除过期的窗口数据
-        Ok(0)
+        use crate::entity::usages;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        // 删除 30 天前的使用记录
+        let cutoff = Utc::now() - Duration::days(30);
+
+        let result = usages::Entity::delete_many()
+            .filter(usages::Column::CreatedAt.lt(cutoff))
+            .exec(&self.db)
+            .await?;
+
+        Ok(result.rows_affected as i64)
     }
 }
 

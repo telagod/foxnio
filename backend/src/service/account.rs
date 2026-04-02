@@ -93,6 +93,7 @@ enum CacheKey {
 }
 
 /// 账号服务
+#[derive(Clone)]
 pub struct AccountService {
     db: DatabaseConnection,
     cache: Arc<RwLock<LruCache<CacheKey, Vec<AccountInfo>>>>,

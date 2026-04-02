@@ -43,6 +43,55 @@ export interface Usage {
   created_at: string;
 }
 
+export interface Model {
+  id: string;
+  name: string;
+  provider: string;
+  owned_by?: string;
+}
+
+export interface HealthStatus {
+  status: string;
+  checks?: Record<string, { status: string }>;
+  timestamp?: string;
+}
+
+export interface DashboardStats {
+  total_users: number;
+  total_accounts: number;
+  total_requests_today: number;
+  total_revenue: number;
+  active_users: number;
+  active_accounts: number;
+}
+
+export interface UsageStats {
+  total_requests: number;
+  total_tokens: number;
+  total_cost: number;
+  by_model?: Record<string, { requests: number; tokens: number }>;
+}
+
+export interface ChatCompletionRequest {
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+  stream?: boolean;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface ChatCompletionResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: { role: string; content: string };
+    finish_reason: string;
+  }>;
+}
+
 // 分页参数接口
 export interface PaginationParams {
   page?: number;
@@ -368,6 +417,36 @@ class ApiClient {
   // Alert stats
   async getAlertStats(): Promise<AlertStats> {
     return this.request('/api/v1/admin/alerts/stats');
+  }
+
+  // === 新增 P2 方法 ===
+
+  // 管理员统计数据
+  async getAdminStats(): Promise<DashboardStats> {
+    return this.request('/api/v1/admin/stats');
+  }
+
+  // 获取模型列表
+  async getModels(): Promise<{ data: Model[] }> {
+    return this.request('/v1/models');
+  }
+
+  // Chat Completions
+  async chatCompletions(req: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+    return this.request('/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  // 健康检查
+  async getHealth(): Promise<HealthStatus> {
+    return this.request('/health');
+  }
+
+  // 用户使用量
+  async getUserUsage(): Promise<UsageStats> {
+    return this.request('/api/v1/user/usage');
   }
 }
 

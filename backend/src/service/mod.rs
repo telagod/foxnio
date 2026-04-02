@@ -152,6 +152,8 @@ pub mod wire;
 
 // P0 - 核心高级功能
 // Gateway Forwarding Services
+pub mod anthropic_messages_forwarder;
+pub mod chat_completions_forwarder;
 pub mod gateway_forward_as_chat_completions;
 pub mod gateway_forward_as_responses;
 pub mod gateway_request;

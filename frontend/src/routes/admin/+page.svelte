@@ -1,15 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-
-  interface DashboardStats {
-    total_users: number;
-    total_accounts: number;
-    total_requests_today: number;
-    total_revenue: number;
-    active_users: number;
-    active_accounts: number;
-  }
+  import { api, type DashboardStats } from '$lib/api';
 
   let stats: DashboardStats = {
     total_users: 0,
@@ -24,6 +16,10 @@
   let error: string | null = null;
 
   onMount(() => {
+    // 从 localStorage 恢复 token
+    const token = localStorage.getItem('token');
+    if (token) api.setToken(token);
+    
     loadStats();
     // 每 30 秒刷新一次
     const interval = setInterval(loadStats, 30000);
@@ -32,13 +28,8 @@
 
   async function loadStats() {
     try {
-      const response = await fetch('/api/v1/admin/stats');
-      if (response.ok) {
-        stats = await response.json();
-        error = null;
-      } else {
-        error = 'Failed to load statistics';
-      }
+      stats = await api.getAdminStats();
+      error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Network error';
       console.error('Failed to load stats:', e);

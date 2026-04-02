@@ -15,6 +15,7 @@ pub mod health;
 pub mod metrics;
 pub mod middleware;
 pub mod model;
+pub mod response;
 pub mod server;
 pub mod service;
 pub mod state;

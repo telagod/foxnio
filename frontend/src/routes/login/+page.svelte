@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { api } from '$lib/api';
   
   let email = $state('');
   let password = $state('');
@@ -15,22 +16,12 @@
     loading = true;
     
     try {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('token', data.token);
-        goto('/dashboard');
-      } else {
-        const data = await response.json();
-        error = data.error || '登录失败';
-      }
+      const data = await api.login(email, password);
+      localStorage.setItem('token', data.token);
+      api.setToken(data.token);
+      goto('/dashboard');
     } catch (e) {
-      error = '网络错误，请重试';
+      error = e instanceof Error ? e.message : '登录失败';
     } finally {
       loading = false;
     }

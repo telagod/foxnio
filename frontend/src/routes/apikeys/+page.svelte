@@ -1,15 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-
-  interface ApiKey {
-    id: string;
-    key: string;
-    name: string;
-    status: string;
-    created_at: string;
-    last_used_at: string | null;
-  }
+  import { api, type ApiKey } from '$lib/api';
 
   let apiKeys: ApiKey[] = [];
   let filteredKeys: ApiKey[] = [];
@@ -20,17 +12,18 @@
   let copyingId: string | null = null;
 
   onMount(async () => {
+    // 从 localStorage 恢复 token
+    const token = localStorage.getItem('token');
+    if (token) api.setToken(token);
+    
     await loadApiKeys();
   });
 
   async function loadApiKeys() {
     try {
-      const response = await fetch('/api/v1/user/apikeys');
-      if (response.ok) {
-        const data = await response.json();
-        apiKeys = data.data || [];
-        filterKeys();
-      }
+      const data = await api.listApiKeys();
+      apiKeys = data.data || [];
+      filterKeys();
     } catch (e) {
       console.error('Failed to load API keys:', e);
     } finally {
@@ -44,7 +37,7 @@
     } else {
       const term = searchTerm.toLowerCase();
       filteredKeys = apiKeys.filter(key => 
-        key.name.toLowerCase().includes(term) ||
+        (key.name || '').toLowerCase().includes(term) ||
         key.key.toLowerCase().includes(term)
       );
     }
@@ -56,17 +49,10 @@
     if (!newKeyName.trim()) return;
 
     try {
-      const response = await fetch('/api/v1/user/apikeys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newKeyName })
-      });
-
-      if (response.ok) {
-        await loadApiKeys();
-        showCreateModal = false;
-        newKeyName = '';
-      }
+      await api.createApiKey(newKeyName);
+      await loadApiKeys();
+      showCreateModal = false;
+      newKeyName = '';
     } catch (e) {
       console.error('Failed to create API key:', e);
     }
@@ -76,13 +62,8 @@
     if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) return;
 
     try {
-      const response = await fetch(`/api/v1/user/apikeys/${id}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        await loadApiKeys();
-      }
+      await api.deleteApiKey(id);
+      await loadApiKeys();
     } catch (e) {
       console.error('Failed to delete API key:', e);
     }

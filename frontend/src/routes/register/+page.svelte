@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { api } from '$lib/api';
   
   let email = $state('');
   let password = $state('');
@@ -19,20 +20,10 @@
     loading = true;
     
     try {
-      const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      if (response.ok) {
-        goto('/login?registered=true');
-      } else {
-        const data = await response.json();
-        error = data.error || '注册失败';
-      }
+      await api.register(email, password);
+      goto('/login?registered=true');
     } catch (e) {
-      error = '网络错误，请重试';
+      error = e instanceof Error ? e.message : '注册失败';
     } finally {
       loading = false;
     }

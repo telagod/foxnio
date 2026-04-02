@@ -3,6 +3,7 @@
 pub mod encrypted_field;
 mod test;
 
+pub mod account_credentials;
 pub mod account_groups;
 pub mod accounts;
 pub mod alert_channels;

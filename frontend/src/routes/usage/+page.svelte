@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { api } from '$lib/api';
 
   interface Usage {
     date: string;
@@ -14,16 +15,18 @@
   let selectedPeriod = '7d';
 
   onMount(async () => {
+    // 从 localStorage 恢复 token
+    const token = localStorage.getItem('token');
+    if (token) api.setToken(token);
+    
     await loadUsage();
   });
 
   async function loadUsage() {
     try {
-      const response = await fetch('/api/v1/user/usage');
-      if (response.ok) {
-        const data = await response.json();
-        usage = data.daily_usage || [];
-      }
+      const data = await api.getUserUsage();
+      // 适配数据格式
+      usage = (data as any).daily_usage || [];
     } catch (e) {
       console.error('Failed to load usage:', e);
     } finally {

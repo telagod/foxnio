@@ -1,17 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { api, type HealthStatus } from '$lib/api';
 
-  interface HealthCheck {
-    status: string;
-  }
-
-  interface HealthData {
-    status: string;
-    checks: Record<string, HealthCheck>;
-    timestamp: string;
-  }
-
-  let health: HealthData = {
+  let health: HealthStatus = {
     status: 'unknown',
     checks: {},
     timestamp: ''
@@ -28,8 +19,7 @@
 
   async function checkHealth() {
     try {
-      const response = await fetch('/health');
-      health = await response.json();
+      health = await api.getHealth();
       loading = false;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
@@ -79,7 +69,7 @@
       </div>
 
       <div class="mt-4 text-sm text-gray-500">
-        Last checked: {new Date(health.timestamp).toLocaleString()}
+        Last checked: {health.timestamp ? new Date(health.timestamp).toLocaleString() : 'N/A'}
       </div>
     </div>
   {/if}

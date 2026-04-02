@@ -93,6 +93,9 @@ bytes = "1.5"
 # Configuration
 dotenvy = "0.15"
 
+# Decimal support
+rust_decimal = "1.36"
+
 # CSV parsing
 csv = "1.3"
 

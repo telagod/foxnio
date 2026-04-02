@@ -28,23 +28,23 @@ pub mod user_groups;
 pub mod verify;
 pub mod webhook;
 
-use axum::Json;
+use axum::{http::StatusCode, Json};
 use serde_json::json;
 
-// ApiError 定义
+// 重新定义 ApiError（保持兼容性）
 #[derive(Debug)]
-pub struct ApiError(pub axum::http::StatusCode, pub String);
+pub struct ApiError(pub StatusCode, pub String);
 
 impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        let body = serde_json::json!({
+        let body = json!({
             "error": self.1,
         });
-        (self.0, axum::Json(body)).into_response()
+        (self.0, Json(body)).into_response()
     }
 }
 
-// 重新导出 auth 子模块
+// 重新导出 health 子模块
 
 pub use health::{
     app_info, health_database, health_detailed, health_live, health_ready, health_redis,

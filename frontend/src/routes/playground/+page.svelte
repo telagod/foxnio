@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { api, type Model } from '$lib/api';
 
-  let models: Array<{id: string, name: string, provider: string}> = [];
+  let models: Model[] = [];
   let selectedModel = 'gpt-4';
   let messages: Array<{role: string, content: string}> = [];
   let input = '';
@@ -19,15 +20,12 @@
 
   async function loadModels() {
     try {
-      const response = await fetch('/v1/models');
-      if (response.ok) {
-        const data = await response.json();
-        models = (data.data || []).map((m: any) => ({
-          id: m.id,
-          name: m.id,
-          provider: m.owned_by || 'unknown'
-        }));
-      }
+      const data = await api.getModels();
+      models = (data.data || []).map(m => ({
+        id: m.id,
+        name: m.id,
+        provider: m.owned_by || m.provider || 'unknown'
+      }));
     } catch (e) {
       console.error('Failed to load models:', e);
     }
@@ -40,26 +38,17 @@
     messages = [...messages, userMessage];
     input = '';
     loading = true;
+    
+    // 设置 token
+    api.setToken(apiKey);
 
     try {
-      const response = await fetch('/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: messages,
-          stream: false
-        })
+      const data = await api.chatCompletions({
+        model: selectedModel,
+        messages: messages,
+        stream: false
       });
 
-      if (!response.ok) {
-        throw new Error('Request failed');
-      }
-
-      const data = await response.json();
       const assistantMessage = {
         role: 'assistant',
         content: data.choices[0].message.content

@@ -16,7 +16,7 @@ use argon2::{
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
@@ -1197,6 +1197,169 @@ impl UserService {
         // 撤销所有 refresh token（强制重新登录）
         self.revoke_all_user_tokens(user_id, Some("Password changed".to_string()))
             .await?;
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // 用户管理（管理员操作）
+    // ========================================================================
+
+    /// 更新用户信息（管理员）
+    pub async fn update_user(
+        &self,
+        user_id: Uuid,
+        email: Option<&str>,
+        role: Option<&str>,
+        status: Option<&str>,
+        balance: Option<i64>,
+    ) -> Result<UserInfo> {
+        let user = users::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        let mut user: users::ActiveModel = user.into();
+
+        if let Some(e) = email {
+            // 检查邮箱是否已被使用
+            let existing = users::Entity::find()
+                .filter(users::Column::Email.eq(e))
+                .filter(users::Column::Id.ne(user_id))
+                .one(&self.db)
+                .await?;
+
+            if existing.is_some() {
+                bail!("Email already in use");
+            }
+            user.email = Set(e.to_string());
+        }
+
+        if let Some(r) = role {
+            // 验证角色
+            if !["user", "admin"].contains(&r) {
+                bail!("Invalid role: {}", r);
+            }
+            user.role = Set(r.to_string());
+        }
+
+        if let Some(s) = status {
+            // 验证状态
+            if !["active", "inactive", "suspended", "deleted"].contains(&s) {
+                bail!("Invalid status: {}", s);
+            }
+            user.status = Set(s.to_string());
+        }
+
+        if let Some(b) = balance {
+            if b < 0 {
+                bail!("Balance cannot be negative");
+            }
+            user.balance = Set(b);
+        }
+
+        user.updated_at = Set(Utc::now());
+        let updated = user.update(&self.db).await?;
+
+        tracing::info!(
+            user_id = %updated.id,
+            email = %updated.email,
+            role = %updated.role,
+            status = %updated.status,
+            "User updated by admin"
+        );
+
+        Ok(UserInfo {
+            id: updated.id,
+            email: updated.email,
+            role: updated.role,
+            status: updated.status,
+            balance: updated.balance,
+            totp_enabled: updated.totp_enabled,
+            created_at: updated.created_at,
+        })
+    }
+
+    /// 删除用户（软删除）
+    pub async fn delete_user(&self, user_id: Uuid) -> Result<()> {
+        let user = users::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        // 不能删除自己（应该在 handler 层检查，这里作为安全措施）
+        if user.role == "admin" {
+            // 检查是否是最后一个管理员
+            let admin_count = users::Entity::find()
+                .filter(users::Column::Role.eq("admin"))
+                .filter(users::Column::Status.ne("deleted"))
+                .count(&self.db)
+                .await?;
+
+            if admin_count <= 1 {
+                bail!("Cannot delete the last admin user");
+            }
+        }
+
+        // 软删除：设置 status = "deleted"
+        let mut user: users::ActiveModel = user.into();
+        user.status = Set("deleted".to_string());
+        user.updated_at = Set(Utc::now());
+        user.update(&self.db).await?;
+
+        // 撤销所有 refresh token
+        self.revoke_all_user_tokens(user_id, Some("User deleted".to_string()))
+            .await?;
+
+        tracing::info!(
+            user_id = %user_id,
+            "User soft deleted"
+        );
+
+        Ok(())
+    }
+
+    /// 硬删除用户（永久删除，谨慎使用）
+    pub async fn hard_delete_user(&self, user_id: Uuid) -> Result<()> {
+        let user = users::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        // 检查是否是最后一个管理员
+        if user.role == "admin" {
+            let admin_count = users::Entity::find()
+                .filter(users::Column::Role.eq("admin"))
+                .filter(users::Column::Status.ne("deleted"))
+                .count(&self.db)
+                .await?;
+
+            if admin_count <= 1 {
+                bail!("Cannot hard delete the last admin user");
+            }
+        }
+
+        // 删除关联数据（按外键依赖顺序）
+        // 1. 删除 refresh tokens
+        refresh_tokens::Entity::delete_many()
+            .filter(refresh_tokens::Column::UserId.eq(user_id))
+            .exec(&self.db)
+            .await?;
+
+        // 2. 删除 API keys
+        use crate::entity::api_keys;
+        api_keys::Entity::delete_many()
+            .filter(api_keys::Column::UserId.eq(user_id))
+            .exec(&self.db)
+            .await?;
+
+        // 3. 删除用户
+        user.delete(&self.db).await?;
+
+        tracing::info!(
+            user_id = %user_id,
+            "User permanently deleted"
+        );
 
         Ok(())
     }
