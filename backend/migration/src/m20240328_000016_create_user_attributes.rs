@@ -33,8 +33,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Options)
                             .json()
-                            .not_null()
-                            .default(Expr::value(Value::Json(None))),
+                            .null(),
                     )
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Required)
@@ -45,8 +44,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Validation)
                             .json()
-                            .not_null()
-                            .default(Expr::value(Value::Json(None))),
+                            .null(),
                     )
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Placeholder)
