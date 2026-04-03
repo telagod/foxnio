@@ -23,12 +23,8 @@ pub mod models;
 pub mod service;
 
 // 重导出主要类型
-pub use models::{
-    build_sora_model_families, get_model_config, SoraModelType,
-};
-pub use service::{
-    create_sora_model_list, SoraGenerateRequest, SoraService,
-};
+pub use models::{build_sora_model_families, get_model_config, SoraModelType};
+pub use service::{create_sora_model_list, SoraGenerateRequest, SoraService};
 
 /// Sora 模块版本
 pub const SORA_MODULE_VERSION: &str = "1.0.0";

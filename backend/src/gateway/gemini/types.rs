@@ -115,8 +115,7 @@ pub struct Content {
 }
 
 /// 部分（文本、图片等）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Part {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -472,7 +471,6 @@ pub fn user_message(text: &str) -> Content {
 pub fn model_message(text: &str) -> Content {
     text_content("model", text)
 }
-
 
 #[cfg(test)]
 mod tests {

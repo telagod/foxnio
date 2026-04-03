@@ -155,19 +155,27 @@ pub async fn get_quota_history(
 
 /// 获取配额统计
 pub async fn get_quota_stats(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
     check_permission(&claims, Permission::BillingRead)
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    // TODO: 实现统计功能 - 需要聚合查询
+    let service = QuotaService::new(state.db.clone());
+    let stats = service
+        .get_stats()
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(Json(json!({
-        "total_users": 0,
-        "total_quota": 0.0,
-        "total_used": 0.0,
-        "average_usage": 0.0,
+        "total_users": stats.total_users,
+        "active_subscription_users": stats.active_subscription_users,
+        "total_quota": stats.total_quota,
+        "total_used": stats.total_used,
+        "total_remaining": stats.total_remaining,
+        "average_usage": stats.average_usage,
+        "utilization_rate": stats.utilization_rate,
     })))
 }
 

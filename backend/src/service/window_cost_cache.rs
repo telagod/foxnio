@@ -6,7 +6,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use once_cell::sync::Lazy;
-use prometheus::{register_int_counter, register_int_gauge, opts};
+use prometheus::{opts, register_int_counter, register_int_gauge};
 use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,7 +24,8 @@ static WINDOW_CACHE_HITS: Lazy<prometheus::IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_window_cache_hits_total",
         "Window cost cache hits (memory + Redis)"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 缓存未命中次数
@@ -32,7 +33,8 @@ static WINDOW_CACHE_MISSES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_window_cache_misses_total",
         "Window cost cache misses"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 批量查询次数
@@ -40,7 +42,8 @@ static WINDOW_BATCH_QUERIES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_window_batch_queries_total",
         "Number of batch SQL queries for window cost"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// Redis 缓存命中次数
@@ -48,7 +51,8 @@ static WINDOW_REDIS_HITS: Lazy<prometheus::IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_window_redis_hits_total",
         "Window cost Redis cache hits"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// Redis 缓存未命中次数
@@ -56,7 +60,8 @@ static WINDOW_REDIS_MISSES: Lazy<prometheus::IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_window_redis_misses_total",
         "Window cost Redis cache misses"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 预取的账户数量
@@ -64,7 +69,8 @@ static WINDOW_PREFETCHED_ACCOUNTS: Lazy<prometheus::IntGauge> = Lazy::new(|| {
     register_int_gauge!(opts!(
         "foxnio_window_prefetched_accounts",
         "Number of accounts prefetched in current batch"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 窗口期费用缓存

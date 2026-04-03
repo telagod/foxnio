@@ -20,14 +20,43 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(RedeemCode::Code).string_len(64).not_null().unique_key())
+                    .col(
+                        ColumnDef::new(RedeemCode::Code)
+                            .string_len(64)
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(RedeemCode::BatchId).string_len(64).null())
                     .col(ColumnDef::new(RedeemCode::Amount).decimal().not_null())
-                    .col(ColumnDef::new(RedeemCode::Type).string_len(20).not_null().default("balance"))
-                    .col(ColumnDef::new(RedeemCode::MaxUses).integer().not_null().default(1))
-                    .col(ColumnDef::new(RedeemCode::UsedCount).integer().not_null().default(0))
-                    .col(ColumnDef::new(RedeemCode::Status).string_len(20).not_null().default("active"))
-                    .col(ColumnDef::new(RedeemCode::ExpiresAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(RedeemCode::Type)
+                            .string_len(20)
+                            .not_null()
+                            .default("balance"),
+                    )
+                    .col(
+                        ColumnDef::new(RedeemCode::MaxUses)
+                            .integer()
+                            .not_null()
+                            .default(1),
+                    )
+                    .col(
+                        ColumnDef::new(RedeemCode::UsedCount)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(RedeemCode::Status)
+                            .string_len(20)
+                            .not_null()
+                            .default("active"),
+                    )
+                    .col(
+                        ColumnDef::new(RedeemCode::ExpiresAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(ColumnDef::new(RedeemCode::UsedBy).json().null())
                     .col(ColumnDef::new(RedeemCode::Notes).text().null())
                     .col(ColumnDef::new(RedeemCode::CreatedBy).big_integer().null())

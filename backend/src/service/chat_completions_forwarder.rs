@@ -286,8 +286,9 @@ impl ChatCompletionsForwarder {
             .ok_or_else(|| anyhow!("Account not found: {}", account_id))?;
 
         // 解密凭证
-        let credential = crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
-            .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
+        let credential =
+            crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
+                .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
 
         Ok(credential)
     }
@@ -306,7 +307,7 @@ impl ChatCompletionsForwarder {
         mapped_model: &str,
     ) -> serde_json::Value {
         let mut upstream = serde_json::to_value(request).unwrap_or_default();
-        
+
         // 更新模型名称
         if let Some(obj) = upstream.as_object_mut() {
             obj.insert("model".to_string(), serde_json::json!(mapped_model));
@@ -332,7 +333,10 @@ impl ChatCompletionsForwarder {
             .http_client
             .post(&url)
             .json(&request_body)
-            .header(&provider_config.auth_header, format!("{}{}", provider_config.auth_prefix, credential))
+            .header(
+                &provider_config.auth_header,
+                format!("{}{}", provider_config.auth_prefix, credential),
+            )
             .header("Content-Type", "application/json");
 
         if is_stream {
@@ -343,26 +347,28 @@ impl ChatCompletionsForwarder {
         let mut last_error = None;
         for attempt in 0..=self.max_retries {
             if attempt > 0 {
-                tracing::warn!("Retrying request (attempt {}/{})", attempt, self.max_retries);
+                tracing::warn!(
+                    "Retrying request (attempt {}/{})",
+                    attempt,
+                    self.max_retries
+                );
                 tokio::time::sleep(std::time::Duration::from_millis(100 * attempt as u64)).await;
             }
 
-            match self.send_single_request(
-                &req,
-                is_stream,
-                original_model,
-                mapped_model,
-                start_time,
-            ).await {
+            match self
+                .send_single_request(&req, is_stream, original_model, mapped_model, start_time)
+                .await
+            {
                 Ok(result) => return Ok(result),
                 Err(e) => {
                     // 检查是否为可重试错误
                     let error_str = e.to_string();
-                    if error_str.contains("rate limit") || 
-                       error_str.contains("429") ||
-                       error_str.contains("timeout") ||
-                       error_str.contains("503") ||
-                       error_str.contains("502") {
+                    if error_str.contains("rate limit")
+                        || error_str.contains("429")
+                        || error_str.contains("timeout")
+                        || error_str.contains("503")
+                        || error_str.contains("502")
+                    {
                         last_error = Some(e);
                         continue;
                     }
@@ -383,7 +389,8 @@ impl ChatCompletionsForwarder {
         mapped_model: &str,
         start_time: std::time::Instant,
     ) -> Result<ForwardResult> {
-        let response = req.try_clone()
+        let response = req
+            .try_clone()
             .ok_or_else(|| anyhow!("Failed to clone request"))?
             .send()
             .await?;
@@ -427,7 +434,7 @@ impl ChatCompletionsForwarder {
 
     /// 处理流式响应（返回 usage 和首 token 延迟）
     async fn process_stream_response(
-        &self, 
+        &self,
         response: reqwest::Response,
         start_time: std::time::Instant,
     ) -> Result<(Usage, Option<u64>)> {
@@ -459,7 +466,8 @@ impl ChatCompletionsForwarder {
                 }
 
                 // 首个有效数据事件时记录延迟
-                if first_token_ms.is_none() && line.starts_with("data: ") && line != "data: [DONE]" {
+                if first_token_ms.is_none() && line.starts_with("data: ") && line != "data: [DONE]"
+                {
                     first_token_ms = Some(start_time.elapsed().as_millis() as u64);
                 }
 
@@ -555,13 +563,13 @@ impl ChatCompletionsForwarder {
     fn calculate_cost(&self, model: &str, total_tokens: u64) -> i64 {
         // 简单的定价模型（单位：分/千token）
         let price_per_1k = match model {
-            m if m.starts_with("gpt-4") => 30,      // GPT-4: 30分/千token
-            m if m.starts_with("gpt-3.5") => 2,     // GPT-3.5: 2分/千token
-            m if m.starts_with("claude-3") => 15,   // Claude-3: 15分/千token
-            m if m.starts_with("claude-2") => 8,    // Claude-2: 8分/千token
-            m if m.starts_with("gemini") => 5,      // Gemini: 5分/千token
-            m if m.starts_with("deepseek") => 1,    // DeepSeek: 1分/千token
-            _ => 5,                                  // 默认: 5分/千token
+            m if m.starts_with("gpt-4") => 30,    // GPT-4: 30分/千token
+            m if m.starts_with("gpt-3.5") => 2,   // GPT-3.5: 2分/千token
+            m if m.starts_with("claude-3") => 15, // Claude-3: 15分/千token
+            m if m.starts_with("claude-2") => 8,  // Claude-2: 8分/千token
+            m if m.starts_with("gemini") => 5,    // Gemini: 5分/千token
+            m if m.starts_with("deepseek") => 1,  // DeepSeek: 1分/千token
+            _ => 5,                               // 默认: 5分/千token
         };
 
         (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64

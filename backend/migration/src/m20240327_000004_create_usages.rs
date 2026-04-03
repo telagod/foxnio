@@ -26,11 +26,31 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Usages::ApiKeyId).uuid().not_null())
                     .col(ColumnDef::new(Usages::AccountId).uuid().not_null())
                     .col(ColumnDef::new(Usages::Model).string().not_null())
-                    .col(ColumnDef::new(Usages::InputTokens).big_integer().not_null().default(0))
-                    .col(ColumnDef::new(Usages::OutputTokens).big_integer().not_null().default(0))
-                    .col(ColumnDef::new(Usages::Cost).big_integer().not_null().default(0)) // 单位：分
+                    .col(
+                        ColumnDef::new(Usages::InputTokens)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Usages::OutputTokens)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Usages::Cost)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    ) // 单位：分
                     .col(ColumnDef::new(Usages::RequestId).string())
-                    .col(ColumnDef::new(Usages::Success).boolean().not_null().default(true))
+                    .col(
+                        ColumnDef::new(Usages::Success)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
                     .col(ColumnDef::new(Usages::ErrorMessage).text())
                     .col(ColumnDef::new(Usages::Metadata).json())
                     .col(

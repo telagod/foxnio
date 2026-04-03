@@ -156,7 +156,10 @@ impl BatchOperationService {
             let encrypted_credential = match GlobalEncryption::encrypt(&item.credential) {
                 Ok(enc) => enc,
                 Err(e) => {
-                    errors.push(format!("Failed to encrypt credential for {}: {}", item.name, e));
+                    errors.push(format!(
+                        "Failed to encrypt credential for {}: {}",
+                        item.name, e
+                    ));
                     continue;
                 }
             };
@@ -235,8 +238,7 @@ impl BatchOperationService {
             .all(&txn)
             .await?;
 
-        let existing_ids: std::collections::HashSet<Uuid> =
-            existing.iter().map(|a| a.id).collect();
+        let existing_ids: std::collections::HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
 
         // 更新账号
         for id in &req.account_ids {
@@ -351,8 +353,7 @@ impl BatchOperationService {
             .all(&txn)
             .await?;
 
-        let existing_ids: std::collections::HashSet<Uuid> =
-            existing.iter().map(|a| a.id).collect();
+        let existing_ids: std::collections::HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
 
         // 更新凭证
         let mut results = Vec::new();
@@ -564,10 +565,8 @@ impl BatchOperationService {
             .all(&self.db)
             .await?;
 
-        let account_map: std::collections::HashMap<Uuid, accounts::Model> = accounts_list
-            .into_iter()
-            .map(|a| (a.id, a))
-            .collect();
+        let account_map: std::collections::HashMap<Uuid, accounts::Model> =
+            accounts_list.into_iter().map(|a| (a.id, a)).collect();
 
         let results: Vec<(Uuid, bool, Option<String>)> = account_ids
             .iter()

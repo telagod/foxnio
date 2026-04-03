@@ -30,8 +30,17 @@ impl MigrationTrait for Migration {
                             .default("active"),
                     )
                     .col(ColumnDef::new(Accounts::LastError).string())
-                    .col(ColumnDef::new(Accounts::Priority).integer().not_null().default(0))
-                    .col(ColumnDef::new(Accounts::ConcurrentLimit).integer().default(5))
+                    .col(
+                        ColumnDef::new(Accounts::Priority)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Accounts::ConcurrentLimit)
+                            .integer()
+                            .default(5),
+                    )
                     .col(ColumnDef::new(Accounts::RateLimitRpm).integer().default(60))
                     .col(
                         ColumnDef::new(Accounts::CreatedAt)

@@ -10,9 +10,11 @@ pub mod tls;
 
 use anyhow::Result;
 
-// 重导出常用类型（仅在需要时使用）
-// pub use error::{AnthropicError, ErrorDetail};
-// pub use sse::{parse_sse_line, parse_sse_stream};
+// 重导出常用类型，保持测试与上层调用的兼容入口。
+#[allow(unused_imports)]
+pub use error::{AnthropicError, ErrorDetail};
+#[allow(unused_imports)]
+pub use sse::{parse_sse_line, parse_sse_stream};
 
 /// Claude Code Shell 配置
 #[derive(Debug, Clone)]

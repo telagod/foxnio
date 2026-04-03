@@ -133,7 +133,10 @@ pub async fn admin_cancel_code(
     let code_id = body
         .get("code_id")
         .and_then(|v| v.as_i64())
-        .ok_or(ApiError(StatusCode::BAD_REQUEST, "Missing or invalid code_id".into()))?;
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "Missing or invalid code_id".into(),
+        ))?;
 
     let redeem_service = RedeemCodeService::new(state.db.clone());
 

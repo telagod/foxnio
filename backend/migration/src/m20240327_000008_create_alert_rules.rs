@@ -20,18 +20,18 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .default(Expr::cust("gen_random_uuid()")),
                     )
-                    .col(
-                        ColumnDef::new(AlertRules::Name)
-                            .string_len(100)
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(AlertRules::Name).string_len(100).not_null())
                     .col(ColumnDef::new(AlertRules::Description).text())
                     .col(
                         ColumnDef::new(AlertRules::ConditionType)
                             .string_len(50)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(AlertRules::ConditionConfig).json().not_null())
+                    .col(
+                        ColumnDef::new(AlertRules::ConditionConfig)
+                            .json()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(AlertRules::DurationSecs)
                             .big_integer()

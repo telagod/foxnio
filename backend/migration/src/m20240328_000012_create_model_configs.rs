@@ -25,16 +25,8 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(ModelConfigs::Aliases).json())
-                    .col(
-                        ColumnDef::new(ModelConfigs::Provider)
-                            .string()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(ModelConfigs::ApiName)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(ModelConfigs::Provider).string().not_null())
+                    .col(ColumnDef::new(ModelConfigs::ApiName).string().not_null())
                     .col(
                         ColumnDef::new(ModelConfigs::DisplayName)
                             .string()

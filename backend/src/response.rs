@@ -1,5 +1,5 @@
 //! 统一响应格式模块
-//! 
+//!
 //! 提供标准化的 API 响应格式，确保前后端接口一致
 
 use axum::{http::StatusCode, response::IntoResponse, Json};
@@ -111,7 +111,10 @@ pub fn json_paginated<T: Serialize>(data: T, pagination: Pagination) -> Json<Api
 }
 
 /// 创建错误响应
-pub fn json_error(status: StatusCode, msg: impl Into<String>) -> (StatusCode, Json<ApiErrorResponse>) {
+pub fn json_error(
+    status: StatusCode,
+    msg: impl Into<String>,
+) -> (StatusCode, Json<ApiErrorResponse>) {
     let code = match status {
         StatusCode::BAD_REQUEST => "BAD_REQUEST",
         StatusCode::UNAUTHORIZED => "UNAUTHORIZED",

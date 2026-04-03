@@ -748,11 +748,14 @@ async fn handle_chat_completions(
     Extension(claims): Extension<crate::service::user::Claims>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use crate::service::chat_completions_forwarder::{ChatCompletionsForwarder, ChatCompletionsRequest};
-    
+    use crate::service::chat_completions_forwarder::{
+        ChatCompletionsForwarder, ChatCompletionsRequest,
+    };
+
     // 解析请求体
-    let request: ChatCompletionsRequest = serde_json::from_slice(&body)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid request: {}", e)))?;
+    let request: ChatCompletionsRequest = serde_json::from_slice(&body).map_err(|e| {
+        handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid request: {}", e))
+    })?;
 
     let user_id = uuid::Uuid::parse_str(&claims.sub)
         .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -765,11 +768,8 @@ async fn handle_chat_completions(
         crate::service::scheduler::SchedulingStrategy::RoundRobin,
     );
 
-    let forwarder = ChatCompletionsForwarder::new(
-        state.db.clone(),
-        Arc::new(account_service),
-        scheduler,
-    );
+    let forwarder =
+        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
 
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
@@ -813,7 +813,9 @@ async fn handle_messages(
     Extension(claims): Extension<crate::service::user::Claims>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use crate::service::anthropic_messages_forwarder::{AnthropicMessagesForwarder, AnthropicMessagesRequest};
+    use crate::service::anthropic_messages_forwarder::{
+        AnthropicMessagesForwarder, AnthropicMessagesRequest,
+    };
 
     let request: AnthropicMessagesRequest = serde_json::from_slice(&body)
         .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -829,11 +831,8 @@ async fn handle_messages(
         crate::service::scheduler::SchedulingStrategy::RoundRobin,
     );
 
-    let forwarder = AnthropicMessagesForwarder::new(
-        state.db.clone(),
-        Arc::new(account_service),
-        scheduler,
-    );
+    let forwarder =
+        AnthropicMessagesForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
 
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
@@ -859,7 +858,10 @@ async fn handle_messages(
         }
         Err(e) => {
             tracing::error!("Messages forwarding error: {}", e);
-            Err(handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            Err(handler::ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                e.to_string(),
+            ))
         }
     }
 }
@@ -870,7 +872,9 @@ async fn handle_completions(
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     // 旧版 completions API - 转换为 chat/completions 格式
-    use crate::service::chat_completions_forwarder::{ChatCompletionsForwarder, ChatCompletionsRequest, Message, MessageContent};
+    use crate::service::chat_completions_forwarder::{
+        ChatCompletionsForwarder, ChatCompletionsRequest, Message, MessageContent,
+    };
 
     let req: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -879,11 +883,16 @@ async fn handle_completions(
         .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 转换 completions 格式到 chat/completions 格式
-    let prompt = req.get("prompt")
+    let prompt = req
+        .get("prompt")
         .and_then(|p| p.as_str())
-        .ok_or(handler::ApiError(StatusCode::BAD_REQUEST, "Missing prompt".into()))?;
+        .ok_or(handler::ApiError(
+            StatusCode::BAD_REQUEST,
+            "Missing prompt".into(),
+        ))?;
 
-    let model = req.get("model")
+    let model = req
+        .get("model")
         .and_then(|m| m.as_str())
         .unwrap_or("gpt-3.5-turbo-instruct");
 
@@ -894,8 +903,14 @@ async fn handle_completions(
             role: "user".to_string(),
             content: MessageContent::Text(prompt.to_string()),
         }],
-        temperature: req.get("temperature").and_then(|t| t.as_f64()).map(|v| v as f32),
-        max_tokens: req.get("max_tokens").and_then(|t| t.as_u64()).map(|v| v as u32),
+        temperature: req
+            .get("temperature")
+            .and_then(|t| t.as_f64())
+            .map(|v| v as f32),
+        max_tokens: req
+            .get("max_tokens")
+            .and_then(|t| t.as_u64())
+            .map(|v| v as u32),
         stream: req.get("stream").and_then(|s| s.as_bool()).unwrap_or(false),
         stream_options: None,
         extra: req.clone(),
@@ -909,11 +924,8 @@ async fn handle_completions(
         crate::service::scheduler::SchedulingStrategy::RoundRobin,
     );
 
-    let forwarder = ChatCompletionsForwarder::new(
-        state.db.clone(),
-        Arc::new(account_service),
-        scheduler,
-    );
+    let forwarder =
+        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
 
     let api_key_id = uuid::Uuid::nil();
 
@@ -940,7 +952,10 @@ async fn handle_completions(
         }
         Err(e) => {
             tracing::error!("Completions forwarding error: {}", e);
-            Err(handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            Err(handler::ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                e.to_string(),
+            ))
         }
     }
 }

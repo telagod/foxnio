@@ -194,8 +194,9 @@ impl AnthropicMessagesForwarder {
             .await?
             .ok_or_else(|| anyhow!("Account not found: {}", account_id))?;
 
-        let credential = crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
-            .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
+        let credential =
+            crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
+                .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
 
         Ok(credential)
     }
@@ -230,9 +231,32 @@ impl AnthropicMessagesForwarder {
         start_time: std::time::Instant,
     ) -> Result<ForwardResult> {
         match provider.to_lowercase().as_str() {
-            "anthropic" => self.send_to_anthropic(credential, request, mapped_model, is_stream, original_model, start_time).await,
-            "openai" => self.send_to_openai(credential, request, mapped_model, is_stream, original_model, start_time).await,
-            _ => Err(anyhow!("Unsupported provider for Anthropic Messages: {}", provider)),
+            "anthropic" => {
+                self.send_to_anthropic(
+                    credential,
+                    request,
+                    mapped_model,
+                    is_stream,
+                    original_model,
+                    start_time,
+                )
+                .await
+            }
+            "openai" => {
+                self.send_to_openai(
+                    credential,
+                    request,
+                    mapped_model,
+                    is_stream,
+                    original_model,
+                    start_time,
+                )
+                .await
+            }
+            _ => Err(anyhow!(
+                "Unsupported provider for Anthropic Messages: {}",
+                provider
+            )),
         }
     }
 
@@ -284,7 +308,9 @@ impl AnthropicMessagesForwarder {
             self.process_anthropic_stream(response, start_time).await?
         } else {
             let resp = response.json::<AnthropicResponse>().await?;
-            let content = resp.content.iter()
+            let content = resp
+                .content
+                .iter()
                 .filter_map(|c| c.text.clone())
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -390,12 +416,11 @@ impl AnthropicMessagesForwarder {
         for msg in &request.messages {
             let content = match &msg.content {
                 AnthropicContent::Text(text) => text.clone(),
-                AnthropicContent::Blocks(blocks) => {
-                    blocks.iter()
-                        .filter_map(|b| b.text.clone())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
+                AnthropicContent::Blocks(blocks) => blocks
+                    .iter()
+                    .filter_map(|b| b.text.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             };
             messages.push(serde_json::json!({
                 "role": msg.role,
@@ -452,8 +477,10 @@ impl AnthropicMessagesForwarder {
                 if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
                     if event["type"] == "message_delta" {
                         if let Some(u) = event["usage"].as_object() {
-                            usage.input_tokens = u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                            usage.output_tokens = u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                            usage.input_tokens =
+                                u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                            usage.output_tokens =
+                                u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                         }
                     }
                     if event["type"] == "content_block_delta" {
@@ -509,8 +536,12 @@ impl AnthropicMessagesForwarder {
                         content.push_str(delta);
                     }
                     if let Some(u) = event["usage"].as_object() {
-                        usage.input_tokens = u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                        usage.output_tokens = u.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                        usage.input_tokens =
+                            u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                        usage.output_tokens = u
+                            .get("completion_tokens")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as u32;
                     }
                 }
             }
@@ -534,7 +565,10 @@ impl AnthropicMessagesForwarder {
         let usage_id = Uuid::new_v4();
         let now = chrono::Utc::now();
 
-        let cost = self.calculate_cost(&result.model, result.usage.input_tokens + result.usage.output_tokens);
+        let cost = self.calculate_cost(
+            &result.model,
+            result.usage.input_tokens + result.usage.output_tokens,
+        );
 
         let usage = usages::ActiveModel {
             id: Set(usage_id),

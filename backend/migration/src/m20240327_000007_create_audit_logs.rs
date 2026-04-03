@@ -21,11 +21,7 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(AuditLogs::UserId).uuid())
-                    .col(
-                        ColumnDef::new(AuditLogs::Action)
-                            .string_len(100)
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(AuditLogs::Action).string_len(100).not_null())
                     .col(ColumnDef::new(AuditLogs::ResourceType).string_len(50))
                     .col(ColumnDef::new(AuditLogs::ResourceId).string_len(100))
                     .col(ColumnDef::new(AuditLogs::IpAddress).string_len(45)) // IPv6 max length

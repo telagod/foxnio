@@ -181,7 +181,7 @@ pub async fn generate_content(
     let client = GeminiClient::with_defaults();
 
     // 检查是否为流式请求（通过查询参数 action 或 alt）
-    let is_stream = params.action.as_deref() == Some("streamGenerateContent") 
+    let is_stream = params.action.as_deref() == Some("streamGenerateContent")
         || params.alt.as_deref() == Some("sse");
 
     if is_stream {

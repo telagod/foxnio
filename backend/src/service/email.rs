@@ -126,6 +126,78 @@ impl SmtpEmailSender {
         mailer.send(&email)?;
         Ok(())
     }
+
+    /// 发送验证码邮件
+    pub fn send_verification_code_email(
+        &self,
+        to: &str,
+        verify_type: &str,
+        verification_code: &str,
+        expires_in_secs: i64,
+    ) -> Result<()> {
+        let subject = format!("【FoxNIO】{}验证码", verify_type_label(verify_type));
+
+        let html_body = format!(
+            r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #ff8a00 0%, #e52e71 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+        .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+        .code {{ font-size: 32px; letter-spacing: 8px; font-weight: bold; text-align: center; padding: 20px; background: #fff; border-radius: 8px; margin: 20px 0; }}
+        .footer {{ text-align: center; color: #999; font-size: 12px; margin-top: 20px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FoxNIO</h1>
+            <p>{}</p>
+        </div>
+        <div class="content">
+            <p>您好，</p>
+            <p>您本次的验证码如下：</p>
+            <div class="code">{}</div>
+            <p>验证码将在 <strong>{} 分钟</strong> 后失效。</p>
+            <p>如果这不是您的操作，请忽略此邮件。</p>
+        </div>
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿直接回复。</p>
+            <p>© {} FoxNIO. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+"#,
+            verify_type_label(verify_type),
+            verification_code,
+            (expires_in_secs / 60).max(1),
+            chrono::Utc::now().year()
+        );
+
+        let text_body = format!(
+            "FoxNIO {}\n\n验证码：{}\n有效期：{} 分钟\n\n如果这不是您的操作，请忽略此邮件。\n© {} FoxNIO",
+            verify_type_label(verify_type),
+            verification_code,
+            (expires_in_secs / 60).max(1),
+            chrono::Utc::now().year()
+        );
+
+        self.send_email(to, &subject, &html_body, &text_body)
+    }
+}
+
+fn verify_type_label(verify_type: &str) -> &'static str {
+    match verify_type {
+        "register" => "注册",
+        "reset_password" => "重置密码",
+        "change_email" => "变更邮箱",
+        _ => "身份验证",
+    }
 }
 
 impl EmailSender for SmtpEmailSender {

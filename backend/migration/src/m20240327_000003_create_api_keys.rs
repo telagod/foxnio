@@ -21,16 +21,30 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(ApiKeys::UserId).uuid().not_null())
-                    .col(ColumnDef::new(ApiKeys::Key).string().not_null().unique_key())
+                    .col(
+                        ColumnDef::new(ApiKeys::Key)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(ApiKeys::Name).string())
-                    .col(ColumnDef::new(ApiKeys::Prefix).string().not_null().default("sk-"))
+                    .col(
+                        ColumnDef::new(ApiKeys::Prefix)
+                            .string()
+                            .not_null()
+                            .default("sk-"),
+                    )
                     .col(
                         ColumnDef::new(ApiKeys::Status)
                             .string()
                             .not_null()
                             .default("active"),
                     )
-                    .col(ColumnDef::new(ApiKeys::ConcurrentLimit).integer().default(5))
+                    .col(
+                        ColumnDef::new(ApiKeys::ConcurrentLimit)
+                            .integer()
+                            .default(5),
+                    )
                     .col(ColumnDef::new(ApiKeys::RateLimitRpm).integer().default(60))
                     .col(ColumnDef::new(ApiKeys::AllowedModels).json()) // 允许的模型列表
                     .col(ColumnDef::new(ApiKeys::ExpiresAt).timestamp_with_time_zone())

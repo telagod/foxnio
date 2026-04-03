@@ -10,10 +10,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use futures::stream::{self, StreamExt};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -167,21 +164,26 @@ impl BatchImportService {
         let total = items.len();
 
         // 发送进度辅助函数
-        let send_progress = |phase: ImportPhase, processed: usize, succeeded: usize, failed: usize, msg: &str| {
-            if let Some(tx) = &progress_tx {
-                let progress = ImportProgress {
-                    phase,
-                    total,
-                    processed,
-                    succeeded,
-                    failed,
-                    percentage: if total > 0 { (processed as f64 / total as f64) * 100.0 } else { 0.0 },
-                    message: msg.to_string(),
-                };
-                // 忽略发送错误（接收端可能已关闭）
-                let _ = tx.try_send(progress);
-            }
-        };
+        let send_progress =
+            |phase: ImportPhase, processed: usize, succeeded: usize, failed: usize, msg: &str| {
+                if let Some(tx) = &progress_tx {
+                    let progress = ImportProgress {
+                        phase,
+                        total,
+                        processed,
+                        succeeded,
+                        failed,
+                        percentage: if total > 0 {
+                            (processed as f64 / total as f64) * 100.0
+                        } else {
+                            0.0
+                        },
+                        message: msg.to_string(),
+                    };
+                    // 忽略发送错误（接收端可能已关闭）
+                    let _ = tx.try_send(progress);
+                }
+            };
 
         // 阶段 1: 并行验证
         send_progress(ImportPhase::Validating, 0, 0, 0, "验证账号格式...");
@@ -300,7 +302,11 @@ impl BatchImportService {
                     } else {
                         Some("Invalid name or credential".to_string())
                     };
-                    ValidationResult { index, valid, error }
+                    ValidationResult {
+                        index,
+                        valid,
+                        error,
+                    }
                 }
             })
             .buffer_unordered(concurrency)
@@ -319,12 +325,16 @@ impl BatchImportService {
         }
 
         // 提供商验证
-        let valid_providers = ["anthropic", "openai", "gemini", "antigravity", "azure", "bedrock"];
+        let valid_providers = [
+            "anthropic",
+            "openai",
+            "gemini",
+            "antigravity",
+            "azure",
+            "bedrock",
+        ];
         if !valid_providers.contains(&item.provider.as_str()) {
-            return (
-                false,
-                Some(format!("不支持的提供商: {}", item.provider)),
-            );
+            return (false, Some(format!("不支持的提供商: {}", item.provider)));
         }
 
         // 凭证类型验证
@@ -346,7 +356,10 @@ impl BatchImportService {
             match item.provider.as_str() {
                 "anthropic" => {
                     if !item.credential.starts_with("sk-ant-") {
-                        return (false, Some("Anthropic API Key 应以 sk-ant- 开头".to_string()));
+                        return (
+                            false,
+                            Some("Anthropic API Key 应以 sk-ant- 开头".to_string()),
+                        );
                     }
                 }
                 "openai" => {
@@ -477,9 +490,7 @@ impl BatchImportService {
         }
 
         // 批量插入
-        let _inserted = accounts::Entity::insert_many(models)
-            .exec(&txn)
-            .await?;
+        let _inserted = accounts::Entity::insert_many(models).exec(&txn).await?;
 
         txn.commit().await?;
 
@@ -562,7 +573,14 @@ impl Default for AccountValidator {
 impl AccountValidator {
     pub fn new() -> Self {
         Self {
-            providers: vec!["anthropic", "openai", "gemini", "antigravity", "azure", "bedrock"],
+            providers: vec![
+                "anthropic",
+                "openai",
+                "gemini",
+                "antigravity",
+                "azure",
+                "bedrock",
+            ],
         }
     }
 
@@ -572,8 +590,6 @@ impl AccountValidator {
         accounts: &[(Uuid, String, String, String)], // (id, provider, credential_type, credential)
         concurrency: usize,
     ) -> Vec<(Uuid, bool, Option<String>)> {
-        
-
         let results: Vec<(Uuid, bool, Option<String>)> = stream::iter(accounts.iter())
             .map(|(id, _provider, _cred_type, cred)| async move {
                 // TODO: 实际调用 API 验证

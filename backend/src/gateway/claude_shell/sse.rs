@@ -120,10 +120,7 @@ pub fn parse_sse_line(line: &str) -> Option<SseEvent> {
 
 /// 解析 SSE 事件流
 pub fn parse_sse_stream(stream: &str) -> Vec<SseEvent> {
-    stream
-        .lines()
-        .filter_map(parse_sse_line)
-        .collect()
+    stream.lines().filter_map(parse_sse_line).collect()
 }
 
 /// 事件类型常量

@@ -40,7 +40,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Proxy::Tags).json().null())
                     .col(ColumnDef::new(Proxy::HealthCheckUrl).string_len(512).null())
-                    .col(ColumnDef::new(Proxy::LastCheckAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(Proxy::LastCheckAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(ColumnDef::new(Proxy::LastCheckStatus).string_len(20).null())
                     .col(ColumnDef::new(Proxy::Notes).text().null())
                     .col(

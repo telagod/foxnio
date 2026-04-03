@@ -20,22 +20,74 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Subscription::UserId).big_integer().not_null())
-                    .col(ColumnDef::new(Subscription::PlanId).string_len(64).not_null())
-                    .col(ColumnDef::new(Subscription::PlanName).string_len(128).not_null())
-                    .col(ColumnDef::new(Subscription::Status).string_len(20).not_null().default("active"))
-                    .col(ColumnDef::new(Subscription::QuotaLimit).decimal().not_null().default(0))
-                    .col(ColumnDef::new(Subscription::QuotaUsed).decimal().not_null().default(0))
+                    .col(
+                        ColumnDef::new(Subscription::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::PlanId)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::PlanName)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::Status)
+                            .string_len(20)
+                            .not_null()
+                            .default("active"),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::QuotaLimit)
+                            .decimal()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::QuotaUsed)
+                            .decimal()
+                            .not_null()
+                            .default(0),
+                    )
                     .col(ColumnDef::new(Subscription::RateLimit5h).decimal().null())
                     .col(ColumnDef::new(Subscription::RateLimit1d).decimal().null())
                     .col(ColumnDef::new(Subscription::RateLimit7d).decimal().null())
                     .col(ColumnDef::new(Subscription::Features).json().null())
-                    .col(ColumnDef::new(Subscription::StripeSubscriptionId).string_len(128).null())
-                    .col(ColumnDef::new(Subscription::StripeCustomerId).string_len(128).null())
-                    .col(ColumnDef::new(Subscription::CurrentPeriodStart).timestamp_with_time_zone().null())
-                    .col(ColumnDef::new(Subscription::CurrentPeriodEnd).timestamp_with_time_zone().null())
-                    .col(ColumnDef::new(Subscription::CancelAtPeriodEnd).boolean().not_null().default(false))
-                    .col(ColumnDef::new(Subscription::CanceledAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(Subscription::StripeSubscriptionId)
+                            .string_len(128)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::StripeCustomerId)
+                            .string_len(128)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::CurrentPeriodStart)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::CurrentPeriodEnd)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::CancelAtPeriodEnd)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(
+                        ColumnDef::new(Subscription::CanceledAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(Subscription::CreatedAt)
                             .timestamp_with_time_zone()

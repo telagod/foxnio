@@ -20,7 +20,11 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::Name).string_len(100).not_null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::Name)
+                            .string_len(100)
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::Enabled)
                             .boolean()
@@ -33,7 +37,11 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(0),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::ErrorCodes).json().null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::ErrorCodes)
+                            .json()
+                            .null(),
+                    )
                     .col(ColumnDef::new(ErrorPassthroughRule::Keywords).json().null())
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::MatchMode)
@@ -41,28 +49,44 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default("any"),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::Platforms).json().null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::Platforms)
+                            .json()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::PassthroughCode)
                             .boolean()
                             .not_null()
                             .default(true),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::ResponseCode).integer().null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::ResponseCode)
+                            .integer()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::PassthroughBody)
                             .boolean()
                             .not_null()
                             .default(true),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::CustomMessage).text().null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::CustomMessage)
+                            .text()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::SkipMonitoring)
                             .boolean()
                             .not_null()
                             .default(false),
                     )
-                    .col(ColumnDef::new(ErrorPassthroughRule::Description).text().null())
+                    .col(
+                        ColumnDef::new(ErrorPassthroughRule::Description)
+                            .text()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ErrorPassthroughRule::CreatedAt)
                             .timestamp_with_time_zone()

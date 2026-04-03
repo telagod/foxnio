@@ -50,7 +50,11 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default("active"),
                     )
-                    .col(ColumnDef::new(PromoCode::ExpiresAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(PromoCode::ExpiresAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(ColumnDef::new(PromoCode::Notes).text().null())
                     .col(
                         ColumnDef::new(PromoCode::CreatedAt)
@@ -102,8 +106,16 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(PromoCodeUsage::PromoCodeId).big_integer().not_null())
-                    .col(ColumnDef::new(PromoCodeUsage::UserId).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(PromoCodeUsage::PromoCodeId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PromoCodeUsage::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(PromoCodeUsage::CreatedAt)
                             .timestamp_with_time_zone()

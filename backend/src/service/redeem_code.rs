@@ -7,11 +7,11 @@
 use anyhow::{bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QuerySelect, Set, TransactionTrait,
-};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QuerySelect, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -115,6 +115,18 @@ pub struct RedeemResult {
     pub redeemed_at: DateTime<Utc>,
 }
 
+/// 卡密预校验结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemCodePreview {
+    pub valid: bool,
+    pub code: String,
+    pub code_type: RedeemType,
+    pub value: f64,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub message: Option<String>,
+}
+
 /// 卡密统计
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemStats {
@@ -165,7 +177,7 @@ impl RedeemCodeService {
 
         for _ in 0..req.count {
             let code_str = self.generate_code();
-            
+
             // 创建数据库模型
             let db_model = redeem_codes::ActiveModel {
                 id: sea_orm::ActiveValue::NotSet,
@@ -275,14 +287,16 @@ impl RedeemCodeService {
         // 根据类型执行兑换
         let message = match code_type {
             RedeemType::Balance => {
-                self.redeem_balance_with_txn(&txn, &req.user_id, value).await?
+                self.redeem_balance_with_txn(&txn, &req.user_id, value)
+                    .await?
             }
             RedeemType::Subscription => {
                 // 订阅暂时不支持，返回提示
                 "Subscription redeem not yet implemented".to_string()
             }
             RedeemType::Quota => {
-                self.redeem_quota_with_txn(&txn, &req.user_id, value as i64).await?
+                self.redeem_quota_with_txn(&txn, &req.user_id, value as i64)
+                    .await?
             }
         };
 
@@ -292,12 +306,12 @@ impl RedeemCodeService {
         code.used_count = Set(code.used_count.unwrap() + 1);
         code.used_by = Set(Some(serde_json::to_value(&req.user_id)?));
         code.updated_at = Set(now.into());
-        
+
         // 如果已达到最大使用次数，标记为已使用
         if code.used_count.as_ref() >= code.max_uses.as_ref() {
             code.status = Set("used".to_string());
         }
-        
+
         code.update(&txn).await?;
 
         // 提交事务
@@ -318,6 +332,43 @@ impl RedeemCodeService {
             message,
             redeemed_at: now,
         })
+    }
+
+    /// 预览卡密状态，用于公开校验场景
+    pub async fn preview_code(&self, code_str: &str) -> Result<Option<RedeemCodePreview>> {
+        let code = redeem_codes::Entity::find()
+            .filter(redeem_codes::Column::Code.eq(code_str))
+            .one(&self.db)
+            .await?;
+
+        Ok(code.map(|model| {
+            let code_type = model.r#type.parse().unwrap_or(RedeemType::Balance);
+            let value = model.amount.to_string().parse::<f64>().unwrap_or(0.0);
+            let message = if model.status != "active" {
+                Some(format!("Code already {}", model.status))
+            } else if model.used_count >= model.max_uses {
+                Some("Code has reached max uses".to_string())
+            } else if model
+                .expires_at
+                .is_some_and(|expires_at| Utc::now() > expires_at)
+            {
+                Some("Code has expired".to_string())
+            } else {
+                None
+            };
+
+            RedeemCodePreview {
+                valid: message.is_none(),
+                code: model.code,
+                code_type,
+                value,
+                expires_at: model
+                    .expires_at
+                    .map(|expires_at| expires_at.with_timezone(&Utc)),
+                notes: model.notes,
+                message,
+            }
+        }))
     }
 
     /// 查找卡密
@@ -522,7 +573,7 @@ impl RedeemCodeService {
     /// 清理过期卡密
     pub async fn cleanup_expired(&self) -> Result<i64> {
         let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
-        
+
         // 查找已过期但仍为 active 的卡密
         let expired_codes = redeem_codes::Entity::find()
             .filter(redeem_codes::Column::Status.eq("active"))
@@ -561,14 +612,15 @@ impl RedeemCodeService {
             },
             used_by: model.used_by.and_then(|v| {
                 if let Some(arr) = v.as_array() {
-                    arr.first().and_then(|id| id.as_str().and_then(|s| Uuid::parse_str(s).ok()))
+                    arr.first()
+                        .and_then(|id| id.as_str().and_then(|s| Uuid::parse_str(s).ok()))
                 } else {
                     v.as_str().and_then(|s| Uuid::parse_str(s).ok())
                 }
             }),
             used_at: None, // 数据库模型中没有这个字段
             expires_at: model.expires_at.map(|t| t.into()),
-            group_id: None, // 数据库模型中没有这个字段
+            group_id: None,    // 数据库模型中没有这个字段
             validity_days: 30, // 默认值
             notes: model.notes,
             created_at: model.created_at.into(),

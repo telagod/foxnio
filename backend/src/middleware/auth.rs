@@ -1,5 +1,5 @@
 //! 权限辅助函数模块
-//! 
+//!
 //! 提供权限检查辅助函数，与 gateway/middleware/permission.rs 配合使用
 
 /// 用户角色
@@ -34,12 +34,16 @@ impl Role {
 
 /// 检查是否为管理员
 pub fn is_admin(role: &str) -> bool {
-    Role::from_str(role).map(|r| r.at_least(Role::Admin)).unwrap_or(false)
+    Role::from_str(role)
+        .map(|r| r.at_least(Role::Admin))
+        .unwrap_or(false)
 }
 
 /// 检查是否为超级管理员
 pub fn is_super_admin(role: &str) -> bool {
-    Role::from_str(role).map(|r| r == Role::SuperAdmin).unwrap_or(false)
+    Role::from_str(role)
+        .map(|r| r == Role::SuperAdmin)
+        .unwrap_or(false)
 }
 
 /// 检查用户是否有权访问资源

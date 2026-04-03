@@ -175,13 +175,18 @@ pub async fn set_account_privacy(
     // 更新 metadata 中的 privacy_enabled
     let mut metadata = account.metadata.clone().unwrap_or(serde_json::json!({}));
     if let Some(obj) = metadata.as_object_mut() {
-        obj.insert("privacy_enabled".to_string(), serde_json::json!(privacy_enabled));
+        obj.insert(
+            "privacy_enabled".to_string(),
+            serde_json::json!(privacy_enabled),
+        );
     }
 
     let mut account: accounts::ActiveModel = account.into();
     account.metadata = Set(Some(metadata));
     account.updated_at = Set(Utc::now());
-    let _updated = account.update(&state.db).await
+    let _updated = account
+        .update(&state.db)
+        .await
         .map_err(|e: sea_orm::DbErr| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     tracing::info!(

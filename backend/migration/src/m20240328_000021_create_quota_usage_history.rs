@@ -20,14 +20,38 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(QuotaUsageHistory::UserId).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(QuotaUsageHistory::ApiKeyId).uuid().null())
-                    .col(ColumnDef::new(QuotaUsageHistory::AccountId).big_integer().null())
-                    .col(ColumnDef::new(QuotaUsageHistory::Model).string_len(128).not_null())
-                    .col(ColumnDef::new(QuotaUsageHistory::Amount).decimal().not_null())
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::AccountId)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::Model)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::Amount)
+                            .decimal()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(QuotaUsageHistory::TokensIn).integer().null())
-                    .col(ColumnDef::new(QuotaUsageHistory::TokensOut).integer().null())
-                    .col(ColumnDef::new(QuotaUsageHistory::RequestType).string_len(32).null())
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::TokensOut)
+                            .integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(QuotaUsageHistory::RequestType)
+                            .string_len(32)
+                            .null(),
+                    )
                     .col(ColumnDef::new(QuotaUsageHistory::Metadata).json().null())
                     .col(
                         ColumnDef::new(QuotaUsageHistory::CreatedAt)

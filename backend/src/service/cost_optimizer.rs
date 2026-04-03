@@ -153,6 +153,10 @@ pub struct ActionItem {
     pub implementation_time: std::time::Duration,
 }
 
+fn duration_hours(hours: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(hours.saturating_mul(60 * 60))
+}
+
 /// 成本报告
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CostReport {
@@ -990,12 +994,12 @@ impl CostOptimizerService {
                         ActionItem {
                             action: format!("评估 {alternative} 的适用场景"),
                             estimated_impact: potential_savings * 0.3,
-                            implementation_time: std::time::Duration::from_hours(1),
+                            implementation_time: duration_hours(1),
                         },
                         ActionItem {
                             action: "更新模型路由配置".to_string(),
                             estimated_impact: potential_savings * 0.7,
-                            implementation_time: std::time::Duration::from_hours(2),
+                            implementation_time: duration_hours(2),
                         },
                     ],
                     affected_models: vec![model_usage.model_name.clone()],
@@ -1137,12 +1141,12 @@ impl CostOptimizerService {
                         ActionItem {
                             action: "实现 Redis 缓存层".into(),
                             estimated_impact: potential_savings,
-                            implementation_time: std::time::Duration::from_hours(8),
+                            implementation_time: duration_hours(8),
                         },
                         ActionItem {
                             action: "配置缓存过期策略".into(),
                             estimated_impact: potential_savings * 0.2,
-                            implementation_time: std::time::Duration::from_hours(2),
+                            implementation_time: duration_hours(2),
                         },
                     ],
                     affected_models: analysis
@@ -1190,12 +1194,12 @@ impl CostOptimizerService {
                         ActionItem {
                             action: "分析失败原因".into(),
                             estimated_impact: wasted_cost * 0.8,
-                            implementation_time: std::time::Duration::from_hours(2),
+                            implementation_time: duration_hours(2),
                         },
                         ActionItem {
                             action: "实现重试机制".into(),
                             estimated_impact: wasted_cost * 0.2,
-                            implementation_time: std::time::Duration::from_hours(4),
+                            implementation_time: duration_hours(4),
                         },
                     ],
                     affected_models: vec![model_usage.model_name.clone()],
@@ -1218,7 +1222,7 @@ impl CostOptimizerService {
                     action_items: vec![ActionItem {
                         action: "实现请求批处理".into(),
                         estimated_impact: pattern.impact.cost_impact,
-                        implementation_time: std::time::Duration::from_hours(4),
+                        implementation_time: duration_hours(4),
                     }],
                     affected_models: vec![],
                     created_at: Utc::now(),
@@ -1251,12 +1255,12 @@ impl CostOptimizerService {
                         ActionItem {
                             action: "立即检查使用情况".into(),
                             estimated_impact: anomaly.estimated_extra_cost,
-                            implementation_time: std::time::Duration::from_hours(1),
+                            implementation_time: duration_hours(1),
                         },
                         ActionItem {
                             action: "设置配额告警阈值".into(),
                             estimated_impact: anomaly.estimated_extra_cost * 0.5,
-                            implementation_time: std::time::Duration::from_hours(2),
+                            implementation_time: duration_hours(2),
                         },
                     ],
                     affected_models: anomaly.affected_models.clone(),
@@ -1281,7 +1285,7 @@ impl CostOptimizerService {
                 action_items: vec![ActionItem {
                     action: "设置月度预算限制".into(),
                     estimated_impact: analysis.total_cost * 0.1,
-                    implementation_time: std::time::Duration::from_hours(1),
+                    implementation_time: duration_hours(1),
                 }],
                 affected_models: vec![],
                 created_at: Utc::now(),
@@ -1316,12 +1320,12 @@ impl CostOptimizerService {
                     ActionItem {
                         action: "设置项目标签".into(),
                         estimated_impact: analysis.total_cost * 0.03,
-                        implementation_time: std::time::Duration::from_hours(4),
+                        implementation_time: duration_hours(4),
                     },
                     ActionItem {
                         action: "配置成本报表".into(),
                         estimated_impact: analysis.total_cost * 0.02,
-                        implementation_time: std::time::Duration::from_hours(2),
+                        implementation_time: duration_hours(2),
                     },
                 ],
                 affected_models: vec![],
@@ -1626,7 +1630,7 @@ mod tests {
             action_items: vec![ActionItem {
                 action: "Test action".to_string(),
                 estimated_impact: 10.0,
-                implementation_time: std::time::Duration::from_hours(1),
+                implementation_time: duration_hours(1),
             }],
             affected_models: vec!["gpt-4".to_string()],
             created_at: Utc::now(),
@@ -1754,7 +1758,7 @@ mod tests {
         let action = ActionItem {
             action: "Test action".to_string(),
             estimated_impact: 10.0,
-            implementation_time: std::time::Duration::from_hours(2),
+            implementation_time: duration_hours(2),
         };
 
         assert_eq!(action.action, "Test action");

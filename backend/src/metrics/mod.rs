@@ -35,7 +35,8 @@ pub static REQUESTS_TOTAL: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_requests_total",
         "Total number of requests processed"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 成功请求数（按模型分类）
@@ -44,7 +45,8 @@ pub static REQUESTS_SUCCESS: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_requests_success_total",
         "Total number of successful requests",
         &["model", "provider", "user"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 失败请求数（按模型分类）
@@ -53,7 +55,8 @@ pub static REQUESTS_FAILED: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_requests_failed_total",
         "Total number of failed requests",
         &["model", "provider", "error_type"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 按状态码分类的请求数
@@ -62,7 +65,8 @@ pub static REQUESTS_BY_STATUS: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_requests_by_status",
         "Number of requests grouped by HTTP status code",
         &["status_code"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -76,7 +80,8 @@ pub static REQUEST_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
         "Request latency in seconds",
         &["model", "provider", "endpoint"],
         vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 上游 API 延迟
@@ -86,7 +91,8 @@ pub static UPSTREAM_REQUEST_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
         "Upstream API request latency in seconds",
         &["provider", "model"],
         vec![0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 请求队列等待时间
@@ -95,7 +101,8 @@ pub static REQUEST_QUEUE_DURATION: Lazy<Histogram> = Lazy::new(|| {
         "foxnio_request_queue_duration_seconds",
         "Time requests spend in queue before processing",
         vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -104,10 +111,7 @@ pub static REQUEST_QUEUE_DURATION: Lazy<Histogram> = Lazy::new(|| {
 
 /// 活跃连接数
 pub static ACTIVE_CONNECTIONS: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(
-        "foxnio_active_connections",
-        "Number of active connections"
-    ).unwrap()
+    register_int_gauge!("foxnio_active_connections", "Number of active connections").unwrap()
 });
 
 /// WebSocket 活跃连接数
@@ -115,7 +119,8 @@ pub static WEBSOCKET_CONNECTIONS: Lazy<IntGauge> = Lazy::new(|| {
     register_int_gauge!(
         "foxnio_websocket_connections",
         "Number of active WebSocket connections"
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 连接池状态
@@ -124,7 +129,8 @@ pub static CONNECTION_POOL_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
         "foxnio_connection_pool_size",
         "Connection pool size by provider",
         &["provider", "pool_type"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -137,7 +143,8 @@ pub static TOKENS_INPUT: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_tokens_input_total",
         "Total number of input tokens used",
         &["model", "provider", "user"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 输出 Token 使用量
@@ -146,7 +153,8 @@ pub static TOKENS_OUTPUT: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_tokens_output_total",
         "Total number of output tokens generated",
         &["model", "provider", "user"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// Token 使用速率（每分钟）
@@ -155,7 +163,8 @@ pub static TOKENS_RATE: Lazy<GaugeVec> = Lazy::new(|| {
         "foxnio_tokens_rate_per_minute",
         "Token usage rate per minute",
         &["model", "provider", "token_type"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -163,12 +172,8 @@ pub static TOKENS_RATE: Lazy<GaugeVec> = Lazy::new(|| {
 // ============================================================================
 
 /// 总成本（美元）
-pub static COST_TOTAL: Lazy<Counter> = Lazy::new(|| {
-    register_counter!(
-        "foxnio_cost_total_dollars",
-        "Total cost in dollars"
-    ).unwrap()
-});
+pub static COST_TOTAL: Lazy<Counter> =
+    Lazy::new(|| register_counter!("foxnio_cost_total_dollars", "Total cost in dollars").unwrap());
 
 /// 按模型分类的成本
 pub static COST_BY_MODEL: Lazy<CounterVec> = Lazy::new(|| {
@@ -176,7 +181,8 @@ pub static COST_BY_MODEL: Lazy<CounterVec> = Lazy::new(|| {
         "foxnio_cost_by_model_dollars",
         "Cost in dollars grouped by model",
         &["model", "provider", "user"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 每日成本
@@ -185,7 +191,8 @@ pub static COST_DAILY: Lazy<GaugeVec> = Lazy::new(|| {
         "foxnio_cost_daily_dollars",
         "Daily cost in dollars",
         &["date"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -198,7 +205,8 @@ pub static ACCOUNT_QUOTA_USAGE: Lazy<GaugeVec> = Lazy::new(|| {
         "foxnio_account_quota_usage_ratio",
         "Account quota usage ratio (0-1)",
         &["account_id", "provider"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 账号剩余配额
@@ -207,7 +215,8 @@ pub static ACCOUNT_QUOTA_REMAINING: Lazy<GaugeVec> = Lazy::new(|| {
         "foxnio_account_quota_remaining",
         "Account remaining quota",
         &["account_id", "provider"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 账号请求速率
@@ -216,7 +225,8 @@ pub static ACCOUNT_REQUEST_RATE: Lazy<GaugeVec> = Lazy::new(|| {
         "foxnio_account_request_rate_per_minute",
         "Account request rate per minute",
         &["account_id", "provider"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 账号使用率（活跃账号比例）
@@ -224,7 +234,8 @@ pub static ACTIVE_ACCOUNTS_RATIO: Lazy<Gauge> = Lazy::new(|| {
     register_gauge!(
         "foxnio_active_accounts_ratio",
         "Ratio of active accounts to total accounts"
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -237,7 +248,8 @@ pub static ERRORS_TOTAL: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_errors_total",
         "Total number of errors",
         &["error_type", "provider", "model"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 重试次数
@@ -246,7 +258,8 @@ pub static RETRIES_TOTAL: Lazy<IntCounterVec> = Lazy::new(|| {
         "foxnio_retries_total",
         "Total number of request retries",
         &["provider", "reason"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 熔断器状态
@@ -255,7 +268,8 @@ pub static CIRCUIT_BREAKER_STATE: Lazy<IntGaugeVec> = Lazy::new(|| {
         "foxnio_circuit_breaker_state",
         "Circuit breaker state (0=closed, 1=open, 2=half-open)",
         &["provider", "account_id"]
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 // ============================================================================
@@ -264,34 +278,22 @@ pub static CIRCUIT_BREAKER_STATE: Lazy<IntGaugeVec> = Lazy::new(|| {
 
 /// 缓存命中次数
 pub static CACHE_HITS: Lazy<IntCounter> = Lazy::new(|| {
-    register_int_counter!(
-        "foxnio_cache_hits_total",
-        "Total number of cache hits"
-    ).unwrap()
+    register_int_counter!("foxnio_cache_hits_total", "Total number of cache hits").unwrap()
 });
 
 /// 缓存未命中次数
 pub static CACHE_MISSES: Lazy<IntCounter> = Lazy::new(|| {
-    register_int_counter!(
-        "foxnio_cache_misses_total",
-        "Total number of cache misses"
-    ).unwrap()
+    register_int_counter!("foxnio_cache_misses_total", "Total number of cache misses").unwrap()
 });
 
 /// 缓存大小
 pub static CACHE_SIZE: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(
-        "foxnio_cache_size_bytes",
-        "Current cache size in bytes"
-    ).unwrap()
+    register_int_gauge!("foxnio_cache_size_bytes", "Current cache size in bytes").unwrap()
 });
 
 /// 缓存条目数
 pub static CACHE_ENTRIES: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(
-        "foxnio_cache_entries",
-        "Number of entries in cache"
-    ).unwrap()
+    register_int_gauge!("foxnio_cache_entries", "Number of entries in cache").unwrap()
 });
 
 // ============================================================================
@@ -300,34 +302,25 @@ pub static CACHE_ENTRIES: Lazy<IntGauge> = Lazy::new(|| {
 
 /// 内存使用量
 pub static MEMORY_USAGE: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(
-        "foxnio_memory_usage_bytes",
-        "Current memory usage in bytes"
-    ).unwrap()
+    register_int_gauge!("foxnio_memory_usage_bytes", "Current memory usage in bytes").unwrap()
 });
 
 /// CPU 使用率
-pub static CPU_USAGE: Lazy<Gauge> = Lazy::new(|| {
-    register_gauge!(
-        "foxnio_cpu_usage_ratio",
-        "CPU usage ratio (0-1)"
-    ).unwrap()
-});
+pub static CPU_USAGE: Lazy<Gauge> =
+    Lazy::new(|| register_gauge!("foxnio_cpu_usage_ratio", "CPU usage ratio (0-1)").unwrap());
 
 /// Goroutine 数量（兼容性指标）
 pub static GOROUTINE_COUNT: Lazy<IntGauge> = Lazy::new(|| {
     register_int_gauge!(
         "foxnio_goroutine_count",
         "Number of active tasks (for compatibility)"
-    ).unwrap()
+    )
+    .unwrap()
 });
 
 /// 文件描述符数量
 pub static FILE_DESCRIPTORS: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(
-        "foxnio_file_descriptors",
-        "Number of open file descriptors"
-    ).unwrap()
+    register_int_gauge!("foxnio_file_descriptors", "Number of open file descriptors").unwrap()
 });
 
 // ============================================================================
@@ -339,7 +332,8 @@ pub static WEBHOOK_EVENTS_SENT: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_webhook_events_sent_total",
         "Total webhook events sent"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 成功的 Webhook 投递数
@@ -347,7 +341,8 @@ pub static WEBHOOK_DELIVERY_SUCCESS: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_webhook_delivery_success_total",
         "Successful webhook deliveries"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 失败的 Webhook 投递数
@@ -355,7 +350,8 @@ pub static WEBHOOK_DELIVERY_FAILED: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_webhook_delivery_failed_total",
         "Failed webhook deliveries"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// Webhook 重试次数
@@ -363,7 +359,8 @@ pub static WEBHOOK_RETRY_COUNT: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_webhook_retry_total",
         "Webhook retry attempts"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 // ============================================================================
@@ -375,7 +372,8 @@ pub static BATCH_OPERATIONS_TOTAL: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_batch_operations_total",
         "Total batch operations"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 批量操作处理的条目总数
@@ -383,15 +381,13 @@ pub static BATCH_ITEMS_PROCESSED: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_batch_items_processed_total",
         "Total items processed in batch operations"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 批量操作错误数
 pub static BATCH_ERRORS: Lazy<IntCounter> = Lazy::new(|| {
-    register_int_counter!(opts!(
-        "foxnio_batch_errors_total",
-        "Batch operation errors"
-    )).unwrap()
+    register_int_counter!(opts!("foxnio_batch_errors_total", "Batch operation errors")).unwrap()
 });
 
 // ============================================================================
@@ -403,7 +399,8 @@ pub static API_KEY_AUTH_CHECKS: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_api_key_auth_checks_total",
         "API key authentication checks"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// API Key 配额超限次数
@@ -411,7 +408,8 @@ pub static API_KEY_QUOTA_EXCEEDED: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_api_key_quota_exceeded_total",
         "API key quota exceeded events"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// API Key 模型访问拒绝次数
@@ -419,7 +417,8 @@ pub static API_KEY_MODEL_DENIED: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_api_key_model_denied_total",
         "API key model access denied events"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 // ============================================================================
@@ -431,7 +430,8 @@ pub static COST_OPTIMIZATION_SAVINGS: Lazy<Gauge> = Lazy::new(|| {
     register_gauge!(opts!(
         "foxnio_cost_optimization_potential_savings",
         "Potential cost savings identified"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 成本优化建议生成数
@@ -439,7 +439,8 @@ pub static COST_RECOMMENDATIONS_GENERATED: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_cost_recommendations_total",
         "Cost optimization recommendations generated"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 // ============================================================================
@@ -448,19 +449,13 @@ pub static COST_RECOMMENDATIONS_GENERATED: Lazy<IntCounter> = Lazy::new(|| {
 
 /// 模型同步耗时
 pub static MODEL_SYNC_DURATION: Lazy<Histogram> = Lazy::new(|| {
-    let opts = HistogramOpts::new(
-        "foxnio_model_sync_duration_seconds",
-        "Model sync duration"
-    );
+    let opts = HistogramOpts::new("foxnio_model_sync_duration_seconds", "Model sync duration");
     register_histogram!(opts).unwrap()
 });
 
 /// 已同步的模型数量
 pub static MODELS_SYNCED: Lazy<IntGauge> = Lazy::new(|| {
-    register_int_gauge!(opts!(
-        "foxnio_models_synced",
-        "Number of models synced"
-    )).unwrap()
+    register_int_gauge!(opts!("foxnio_models_synced", "Number of models synced")).unwrap()
 });
 
 /// 模型价格变化检测数
@@ -468,7 +463,8 @@ pub static MODEL_PRICE_CHANGES: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!(
         "foxnio_model_price_changes_total",
         "Model price changes detected"
-    )).unwrap()
+    ))
+    .unwrap()
 });
 
 /// 指标记录器 - 用于记录请求指标

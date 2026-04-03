@@ -18,8 +18,8 @@ pub mod metrics;
 
 // 重导出等待队列模块
 pub use crate::gateway::waiting_queue::{
-    AllocationSlot, GlobalQueueStats, ModelWaitingQueue, QueueError, QueueStats, WaitingQueue, WaitingQueueConfig,
-    WaitingRequestInfo,
+    AllocationSlot, GlobalQueueStats, ModelWaitingQueue, QueueError, QueueStats, WaitingQueue,
+    WaitingQueueConfig, WaitingRequestInfo,
 };
 
 use chrono::{DateTime, Utc};
@@ -198,7 +198,7 @@ pub struct Scheduler {
     waiting_queue: Arc<WaitingQueue>,
     /// 按模型的等待队列
     model_waiting_queue: Arc<ModelWaitingQueue>,
-    
+
     // ===== 性能优化缓存 =====
     /// 按 Provider 分组的活跃账号缓存（避免每次遍历）
     accounts_by_provider: RwLock<HashMap<String, Vec<AccountInfo>>>,
@@ -279,37 +279,37 @@ impl Scheduler {
             cache_updated_at: RwLock::new(None),
         }
     }
-    
+
     /// 刷新候选账号缓存（后台任务定期调用）
-    /// 
+    ///
     /// 性能优化：将账号按 Provider 分组，避免每次请求都遍历所有账号
     pub async fn refresh_candidate_cache(&self) {
         let accounts = self.accounts.read().await;
-        
+
         // 1. 按 Provider 分组
         let mut by_provider: HashMap<String, Vec<AccountInfo>> = HashMap::new();
         let mut candidates: Vec<AccountInfo> = Vec::new();
-        
+
         for account in accounts.iter() {
             // 只缓存活跃账号
             if account.status.is_available() {
                 candidates.push(account.clone());
-                
+
                 by_provider
                     .entry(account.provider.clone())
                     .or_default()
                     .push(account.clone());
             }
         }
-        
+
         // 2. 更新缓存
         *self.accounts_by_provider.write().await = by_provider;
         *self.candidate_cache.write().await = candidates;
         *self.cache_updated_at.write().await = Some(Instant::now());
     }
-    
+
     /// 快速选择账号 - 使用缓存，O(1) 复杂度
-    /// 
+    ///
     /// 适用场景：高并发下需要快速选择账号，不需要精确的负载均衡
     pub async fn select_fast(&self, provider: &str) -> Option<AccountInfo> {
         // 优先从缓存选择
@@ -320,7 +320,7 @@ impl Scheduler {
                 return Some(candidates[index % candidates.len()].clone());
             }
         }
-        
+
         // 缓存未命中，回退到标准选择
         drop(by_provider);
         let ctx = ScheduleContext {
@@ -329,17 +329,20 @@ impl Scheduler {
         };
         self.select(&ctx).await.map(|r| r.account)
     }
-    
+
     /// 获取缓存统计信息
     pub async fn get_cache_stats(&self) -> CacheStats {
         let by_provider = self.accounts_by_provider.read().await;
         let candidates = self.candidate_cache.read().await;
         let updated_at = self.cache_updated_at.read().await;
-        
+
         CacheStats {
             providers_count: by_provider.len(),
             total_candidates: candidates.len(),
-            accounts_per_provider: by_provider.iter().map(|(k, v)| (k.clone(), v.len())).collect(),
+            accounts_per_provider: by_provider
+                .iter()
+                .map(|(k, v)| (k.clone(), v.len()))
+                .collect(),
             cache_age_secs: updated_at.map(|t| t.elapsed().as_secs()).unwrap_or(0),
         }
     }
@@ -356,7 +359,7 @@ impl Scheduler {
                 accounts.push(account);
             }
         }
-        
+
         // 自动刷新缓存
         self.refresh_candidate_cache().await;
     }
@@ -367,7 +370,7 @@ impl Scheduler {
             let mut accounts = self.accounts.write().await;
             accounts.retain(|a| a.id != account_id);
         }
-        
+
         // 自动刷新缓存
         self.refresh_candidate_cache().await;
     }

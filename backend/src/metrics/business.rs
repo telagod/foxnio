@@ -416,7 +416,8 @@ pub struct BusinessMetricsSummary {
 use once_cell::sync::Lazy;
 
 // 全局业务指标实例
-pub static BUSINESS_METRICS: Lazy<Arc<BusinessMetrics>> = Lazy::new(|| Arc::new(BusinessMetrics::new()));
+pub static BUSINESS_METRICS: Lazy<Arc<BusinessMetrics>> =
+    Lazy::new(|| Arc::new(BusinessMetrics::new()));
 
 /// 获取全局业务指标实例
 pub fn get_business_metrics() -> Arc<BusinessMetrics> {

@@ -392,8 +392,12 @@ pub struct ListAccountsQuery {
     pub search: Option<String>,
 }
 
-fn default_page() -> Option<u64> { Some(1) }
-fn default_per_page() -> Option<u64> { Some(50) }
+fn default_page() -> Option<u64> {
+    Some(1)
+}
+fn default_per_page() -> Option<u64> {
+    Some(50)
+}
 
 /// 列出账号 - 需要 AccountRead 权限
 ///

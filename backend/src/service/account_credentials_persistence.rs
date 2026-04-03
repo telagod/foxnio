@@ -81,7 +81,10 @@ impl AccountCredentialsPersistence {
     pub fn new(db: DatabaseConnection, encryption_key: String) -> Self {
         // 从字符串派生 32 字节密钥
         let key = Self::derive_key(&encryption_key);
-        Self { db, encryption_key: key }
+        Self {
+            db,
+            encryption_key: key,
+        }
     }
 
     /// 从字符串派生 32 字节密钥
@@ -107,7 +110,9 @@ impl AccountCredentialsPersistence {
         let encrypted = self.encrypt(value)?;
 
         // 检查是否已存在
-        let existing = self.find_by_account_and_type(account_id, &credential_type).await?;
+        let existing = self
+            .find_by_account_and_type(account_id, &credential_type)
+            .await?;
 
         if let Some(existing) = existing {
             // 更新现有记录
@@ -150,7 +155,9 @@ impl AccountCredentialsPersistence {
         account_id: Uuid,
         credential_type: &CredentialType,
     ) -> Result<Option<AccountCredential>> {
-        let cred = self.find_by_account_and_type(account_id, credential_type).await?;
+        let cred = self
+            .find_by_account_and_type(account_id, credential_type)
+            .await?;
         Ok(cred.map(|c| self.db_model_to_domain(c)))
     }
 
@@ -184,7 +191,9 @@ impl AccountCredentialsPersistence {
         credential_type: &CredentialType,
         new_value: &str,
     ) -> Result<()> {
-        let existing = self.find_by_account_and_type(account_id, credential_type).await?
+        let existing = self
+            .find_by_account_and_type(account_id, credential_type)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Credential not found"))?;
 
         let encrypted = self.encrypt(new_value)?;
@@ -205,17 +214,19 @@ impl AccountCredentialsPersistence {
 
     /// 删除凭证
     pub async fn delete(&self, account_id: Uuid, credential_type: &CredentialType) -> Result<bool> {
-        let existing = self.find_by_account_and_type(account_id, credential_type).await?;
+        let existing = self
+            .find_by_account_and_type(account_id, credential_type)
+            .await?;
 
         if let Some(cred) = existing {
             cred.delete(&self.db).await?;
-            
+
             tracing::info!(
                 account_id = %account_id,
                 credential_type = %credential_type,
                 "Deleted credential"
             );
-            
+
             return Ok(true);
         }
 
@@ -229,7 +240,10 @@ impl AccountCredentialsPersistence {
             .all(&self.db)
             .await?;
 
-        Ok(creds.into_iter().map(|c| self.db_model_to_domain(c)).collect())
+        Ok(creds
+            .into_iter()
+            .map(|c| self.db_model_to_domain(c))
+            .collect())
     }
 
     /// 检查凭证是否存在
@@ -242,19 +256,19 @@ impl AccountCredentialsPersistence {
     fn encrypt(&self, value: &str) -> Result<String> {
         let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&self.encryption_key);
         let cipher = Aes256Gcm::new(key);
-        
+
         // 生成随机 nonce
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-        
+
         // 加密
         let ciphertext = cipher
             .encrypt(&nonce, value.as_bytes())
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
-        
+
         // 组合 nonce + ciphertext 并 base64 编码
         let mut combined = nonce.to_vec();
         combined.extend(ciphertext);
-        
+
         Ok(BASE64.encode(&combined))
     }
 
@@ -262,25 +276,24 @@ impl AccountCredentialsPersistence {
     fn decrypt(&self, encrypted: &str) -> Result<String> {
         // Base64 解码
         let combined = BASE64.decode(encrypted)?;
-        
+
         if combined.len() < 12 {
             bail!("Invalid encrypted data: too short");
         }
-        
+
         // 分离 nonce 和 ciphertext
         let (nonce_bytes, ciphertext) = combined.split_at(12);
         let nonce = Nonce::from_slice(nonce_bytes);
-        
+
         // 解密
         let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&self.encryption_key);
         let cipher = Aes256Gcm::new(key);
-        
+
         let plaintext = cipher
             .decrypt(nonce, ciphertext)
             .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
-        
-        String::from_utf8(plaintext)
-            .map_err(|e| anyhow::anyhow!("Invalid UTF-8: {}", e))
+
+        String::from_utf8(plaintext).map_err(|e| anyhow::anyhow!("Invalid UTF-8: {}", e))
     }
 
     /// 轮换加密密钥
@@ -292,9 +305,7 @@ impl AccountCredentialsPersistence {
         let new_cipher = Aes256Gcm::new(new_key_ref);
 
         // 获取所有凭证
-        let all_creds = account_credentials::Entity::find()
-            .all(&self.db)
-            .await?;
+        let all_creds = account_credentials::Entity::find().all(&self.db).await?;
 
         let mut count = 0i64;
 
@@ -307,7 +318,7 @@ impl AccountCredentialsPersistence {
                     let new_ciphertext = new_cipher
                         .encrypt(&nonce, plaintext.as_bytes())
                         .map_err(|e| anyhow::anyhow!("Re-encryption failed: {}", e))?;
-                    
+
                     let mut combined = nonce.to_vec();
                     combined.extend(new_ciphertext);
                     let new_encrypted = BASE64.encode(&combined);
@@ -317,7 +328,7 @@ impl AccountCredentialsPersistence {
                     model.encrypted_value = Set(new_encrypted);
                     model.updated_at = Set(Utc::now());
                     model.update(&self.db).await?;
-                    
+
                     count += 1;
                 }
                 Err(e) => {
@@ -330,7 +341,10 @@ impl AccountCredentialsPersistence {
             }
         }
 
-        tracing::info!("Encryption key rotation completed: {} credentials re-encrypted", count);
+        tracing::info!(
+            "Encryption key rotation completed: {} credentials re-encrypted",
+            count
+        );
 
         Ok(count)
     }
@@ -355,7 +369,10 @@ impl AccountCredentialsPersistence {
         AccountCredential {
             id: model.id,
             account_id: model.account_id,
-            credential_type: model.credential_type.parse().unwrap_or(CredentialType::ApiKey),
+            credential_type: model
+                .credential_type
+                .parse()
+                .unwrap_or(CredentialType::ApiKey),
             encrypted_value: model.encrypted_value,
             metadata: model.metadata,
             expires_at: model.expires_at,

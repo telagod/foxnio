@@ -115,11 +115,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(AccountGroups::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(AccountGroups::AccountId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(AccountGroups::AccountId).uuid().not_null())
                     .col(
                         ColumnDef::new(AccountGroups::GroupId)
                             .big_integer()

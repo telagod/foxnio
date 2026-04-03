@@ -21,15 +21,27 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(UserAttributeDefinition::Key).string_len(100).not_null())
-                    .col(ColumnDef::new(UserAttributeDefinition::Name).string_len(255).not_null())
+                    .col(
+                        ColumnDef::new(UserAttributeDefinition::Key)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserAttributeDefinition::Name)
+                            .string_len(255)
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Description)
                             .text()
                             .not_null()
                             .default(""),
                     )
-                    .col(ColumnDef::new(UserAttributeDefinition::Type).string_len(20).not_null())
+                    .col(
+                        ColumnDef::new(UserAttributeDefinition::Type)
+                            .string_len(20)
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(UserAttributeDefinition::Options)
                             .json()
@@ -129,9 +141,22 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(UserAttributeValue::UserId).big_integer().not_null())
-                    .col(ColumnDef::new(UserAttributeValue::AttributeId).big_integer().not_null())
-                    .col(ColumnDef::new(UserAttributeValue::Value).text().not_null().default(""))
+                    .col(
+                        ColumnDef::new(UserAttributeValue::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserAttributeValue::AttributeId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserAttributeValue::Value)
+                            .text()
+                            .not_null()
+                            .default(""),
+                    )
                     .col(
                         ColumnDef::new(UserAttributeValue::CreatedAt)
                             .timestamp_with_time_zone()
@@ -179,7 +204,11 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(UserAttributeValue::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(UserAttributeDefinition::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(UserAttributeDefinition::Table)
+                    .to_owned(),
+            )
             .await?;
         Ok(())
     }

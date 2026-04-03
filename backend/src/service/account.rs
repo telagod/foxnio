@@ -12,8 +12,8 @@ use anyhow::Result;
 use chrono::Utc;
 use lru::LruCache;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder, QuerySelect, PaginatorTrait, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -87,9 +87,9 @@ pub struct CreateAccountRequest {
 /// 缓存键
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 enum CacheKey {
-    ActiveAccounts(String),      // provider
-    Account(Uuid),               // account_id
-    AccountList(String),         // filter hash
+    ActiveAccounts(String), // provider
+    Account(Uuid),          // account_id
+    AccountList(String),    // filter hash
 }
 
 /// 账号服务
@@ -170,14 +170,17 @@ impl AccountService {
     }
 
     /// 创建账号（带调度配置）
-    pub async fn create_with_scheduling(&self, req: CreateAccountRequest) -> Result<AccountWithScheduling> {
+    pub async fn create_with_scheduling(
+        &self,
+        req: CreateAccountRequest,
+    ) -> Result<AccountWithScheduling> {
         // 加密凭证
         let encrypted_credential = GlobalEncryption::encrypt(&req.credential)
             .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
 
         let now = Utc::now();
         let id = Uuid::new_v4();
-        
+
         let account = accounts::ActiveModel {
             id: Set(id),
             name: Set(req.name),
@@ -259,9 +262,11 @@ impl AccountService {
     }
 
     /// 获取可调度的账号（支持分组过滤）
-    pub async fn list_schedulable(&self, group_id: Option<i64>) -> Result<Vec<AccountWithScheduling>> {
-        let mut query = accounts::Entity::find()
-            .filter(accounts::Column::Status.eq("active"));
+    pub async fn list_schedulable(
+        &self,
+        group_id: Option<i64>,
+    ) -> Result<Vec<AccountWithScheduling>> {
+        let mut query = accounts::Entity::find().filter(accounts::Column::Status.eq("active"));
 
         if let Some(gid) = group_id {
             query = query.filter(accounts::Column::GroupId.eq(gid));
@@ -312,7 +317,10 @@ impl AccountService {
     }
 
     /// 批量获取账号并发限制
-    pub async fn get_concurrency_batch(&self, account_ids: &[Uuid]) -> Result<Vec<AccountConcurrency>> {
+    pub async fn get_concurrency_batch(
+        &self,
+        account_ids: &[Uuid],
+    ) -> Result<Vec<AccountConcurrency>> {
         let accounts = accounts::Entity::find()
             .filter(accounts::Column::Id.is_in(account_ids.to_vec()))
             .all(&self.db)
@@ -464,13 +472,15 @@ impl AccountService {
         let mut stats: HashMap<String, ProviderStats> = HashMap::new();
 
         for account in accounts {
-            let entry = stats.entry(account.provider.clone()).or_insert(ProviderStats {
-                provider: account.provider.clone(),
-                total: 0,
-                active: 0,
-                inactive: 0,
-                error: 0,
-            });
+            let entry = stats
+                .entry(account.provider.clone())
+                .or_insert(ProviderStats {
+                    provider: account.provider.clone(),
+                    total: 0,
+                    active: 0,
+                    inactive: 0,
+                    error: 0,
+                });
 
             entry.total += 1;
             match account.status.as_str() {
@@ -522,7 +532,9 @@ impl AccountService {
 
     /// 检查账号是否支持指定模型
     pub async fn supports_model(&self, account_id: Uuid, model: &str) -> Result<bool> {
-        let account = self.get_with_credential(account_id).await?
+        let account = self
+            .get_with_credential(account_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Account not found"))?;
 
         let provider = Self::infer_provider(model);
@@ -530,7 +542,10 @@ impl AccountService {
     }
 
     /// 按模型过滤账号
-    pub fn filter_by_model(accounts: &[AccountWithScheduling], model: &str) -> Vec<AccountWithScheduling> {
+    pub fn filter_by_model(
+        accounts: &[AccountWithScheduling],
+        model: &str,
+    ) -> Vec<AccountWithScheduling> {
         let provider = Self::infer_provider(model);
         accounts
             .iter()

@@ -2,4 +2,4 @@
 
 pub mod auth;
 
-pub use auth::{is_admin, is_super_admin, can_access_user, Role};
+pub use auth::{can_access_user, is_admin, is_super_admin, Role};

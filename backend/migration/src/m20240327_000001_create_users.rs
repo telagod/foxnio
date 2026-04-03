@@ -18,9 +18,19 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .default(Expr::cust("gen_random_uuid()")),
                     )
-                    .col(ColumnDef::new(Users::Email).string().not_null().unique_key())
+                    .col(
+                        ColumnDef::new(Users::Email)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(Users::PasswordHash).string().not_null())
-                    .col(ColumnDef::new(Users::Balance).big_integer().not_null().default(0))
+                    .col(
+                        ColumnDef::new(Users::Balance)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .col(
                         ColumnDef::new(Users::Role)
                             .string()
@@ -34,7 +44,12 @@ impl MigrationTrait for Migration {
                             .default("active"),
                     )
                     .col(ColumnDef::new(Users::TotpSecret).string())
-                    .col(ColumnDef::new(Users::TotpEnabled).boolean().not_null().default(false))
+                    .col(
+                        ColumnDef::new(Users::TotpEnabled)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
                     .col(
                         ColumnDef::new(Users::CreatedAt)
                             .timestamp_with_time_zone()

@@ -6,7 +6,7 @@
 
 use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, PaginatorTrait};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -93,6 +93,17 @@ pub struct QuotaUsageRecord {
     pub timestamp: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuotaStats {
+    pub total_users: u64,
+    pub active_subscription_users: u64,
+    pub total_quota: f64,
+    pub total_used: f64,
+    pub total_remaining: f64,
+    pub average_usage: f64,
+    pub utilization_rate: f64,
+}
+
 /// 配额服务
 pub struct QuotaService {
     db: DatabaseConnection,
@@ -150,7 +161,8 @@ impl QuotaService {
                 quota_limit: key.daily_quota.unwrap_or(0) as f64,
                 quota_used: key.daily_used_quota.unwrap_or(0) as f64,
                 rate_limits: HashMap::new(),
-                ip_whitelist: key.ip_whitelist
+                ip_whitelist: key
+                    .ip_whitelist
                     .and_then(|v| serde_json::from_value(v).ok())
                     .unwrap_or_default(),
                 ip_blacklist: vec![],
@@ -158,7 +170,10 @@ impl QuotaService {
             };
 
             // 更新缓存
-            self.usage_cache.write().await.insert(api_key_id, config.clone());
+            self.usage_cache
+                .write()
+                .await
+                .insert(api_key_id, config.clone());
 
             Ok(Some(config))
         } else {
@@ -271,7 +286,10 @@ impl QuotaService {
 
         tracing::debug!(
             "Consumed quota: api_key={}, amount={}, tokens={}, model={}",
-            api_key_id, amount, tokens, model
+            api_key_id,
+            amount,
+            tokens,
+            model
         );
 
         Ok(())
@@ -344,14 +362,17 @@ impl QuotaService {
             .all(&self.db)
             .await?;
 
-        let total_tokens: i64 = usages.iter().map(|u| u.input_tokens + u.output_tokens).sum();
+        let total_tokens: i64 = usages
+            .iter()
+            .map(|u| u.input_tokens + u.output_tokens)
+            .sum();
         let _total_cost: i64 = usages.iter().map(|u| u.cost).sum();
 
         // 根据窗口类型设置限制
         let limit = match window {
-            TimeWindow::FiveHours => 100000.0,   // 10万 tokens
-            TimeWindow::OneDay => 500000.0,      // 50万 tokens
-            TimeWindow::SevenDays => 3000000.0,  // 300万 tokens
+            TimeWindow::FiveHours => 100000.0,  // 10万 tokens
+            TimeWindow::OneDay => 500000.0,     // 50万 tokens
+            TimeWindow::SevenDays => 3000000.0, // 300万 tokens
         };
 
         Ok(WindowUsage {
@@ -456,6 +477,57 @@ impl QuotaService {
             .collect())
     }
 
+    /// 获取管理员视图的配额统计
+    pub async fn get_stats(&self) -> Result<QuotaStats> {
+        use crate::entity::{subscriptions, users};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let total_users = users::Entity::find().count(&self.db).await?;
+        let active_subscriptions = subscriptions::Entity::find()
+            .filter(subscriptions::Column::Status.eq("active"))
+            .all(&self.db)
+            .await?;
+
+        let active_subscription_users = active_subscriptions
+            .iter()
+            .filter(|subscription| subscription.is_active())
+            .count() as u64;
+
+        let total_quota: f64 = active_subscriptions
+            .iter()
+            .filter(|subscription| subscription.is_active())
+            .map(|subscription| decimal_to_f64(subscription.quota_limit))
+            .sum();
+
+        let total_used: f64 = active_subscriptions
+            .iter()
+            .filter(|subscription| subscription.is_active())
+            .map(|subscription| decimal_to_f64(subscription.quota_used))
+            .sum();
+
+        let total_remaining = (total_quota - total_used).max(0.0);
+        let average_usage = if active_subscription_users == 0 {
+            0.0
+        } else {
+            total_used / active_subscription_users as f64
+        };
+        let utilization_rate = if total_quota <= 0.0 {
+            0.0
+        } else {
+            total_used / total_quota
+        };
+
+        Ok(QuotaStats {
+            total_users,
+            active_subscription_users,
+            total_quota,
+            total_used,
+            total_remaining,
+            average_usage,
+            utilization_rate,
+        })
+    }
+
     /// 重置配额
     pub async fn reset_quota(&self, api_key_id: Uuid) -> Result<()> {
         use crate::entity::api_keys;
@@ -492,6 +564,10 @@ impl QuotaService {
 
         Ok(result.rows_affected as i64)
     }
+}
+
+fn decimal_to_f64(value: rust_decimal::Decimal) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(0.0)
 }
 
 #[cfg(test)]

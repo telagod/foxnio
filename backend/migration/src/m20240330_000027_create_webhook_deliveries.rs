@@ -32,11 +32,7 @@ impl MigrationTrait for Migration {
                             .string_len(64)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(WebhookDeliveries::Payload)
-                            .json()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(WebhookDeliveries::Payload).json().not_null())
                     .col(
                         ColumnDef::new(WebhookDeliveries::Status)
                             .string_len(32)

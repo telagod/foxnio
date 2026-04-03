@@ -35,8 +35,16 @@ impl MigrationTrait for Migration {
                             .default("silent"),
                     )
                     .col(ColumnDef::new(Announcement::Targeting).json().null())
-                    .col(ColumnDef::new(Announcement::StartsAt).timestamp_with_time_zone().null())
-                    .col(ColumnDef::new(Announcement::EndsAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(Announcement::StartsAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Announcement::EndsAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(ColumnDef::new(Announcement::CreatedBy).big_integer().null())
                     .col(ColumnDef::new(Announcement::UpdatedBy).big_integer().null())
                     .col(
@@ -89,8 +97,16 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AnnouncementRead::AnnouncementId).big_integer().not_null())
-                    .col(ColumnDef::new(AnnouncementRead::UserId).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(AnnouncementRead::AnnouncementId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AnnouncementRead::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(AnnouncementRead::ReadAt)
                             .timestamp_with_time_zone()

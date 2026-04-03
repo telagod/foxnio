@@ -74,7 +74,11 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_index(Index::drop().name("idx_accounts_status_priority").to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_accounts_status_priority")
+                    .to_owned(),
+            )
             .await?;
 
         manager
@@ -86,7 +90,11 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_index(Index::drop().name("idx_model_configs_provider_name").to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_model_configs_provider_name")
+                    .to_owned(),
+            )
             .await?;
 
         Ok(())

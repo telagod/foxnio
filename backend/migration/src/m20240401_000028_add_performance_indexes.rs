@@ -131,7 +131,11 @@ impl MigrationTrait for Migration {
 
         // 删除 accounts 表的索引
         manager
-            .drop_index(Index::drop().name("idx_accounts_provider_status").to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_accounts_provider_status")
+                    .to_owned(),
+            )
             .await?;
 
         manager

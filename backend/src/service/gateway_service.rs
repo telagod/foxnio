@@ -256,9 +256,18 @@ impl GatewayService {
         let request = ChatCompletionsRequest {
             model: route.mapped_model.clone(),
             messages,
-            temperature: body.get("temperature").and_then(|t| t.as_f64()).map(|v| v as f32),
-            max_tokens: body.get("max_tokens").and_then(|t| t.as_u64()).map(|v| v as u32),
-            stream: body.get("stream").and_then(|s| s.as_bool()).unwrap_or(false),
+            temperature: body
+                .get("temperature")
+                .and_then(|t| t.as_f64())
+                .map(|v| v as f32),
+            max_tokens: body
+                .get("max_tokens")
+                .and_then(|t| t.as_u64())
+                .map(|v| v as u32),
+            stream: body
+                .get("stream")
+                .and_then(|s| s.as_bool())
+                .unwrap_or(false),
             stream_options: None,
             extra: body.clone(),
         };
@@ -290,13 +299,16 @@ impl GatewayService {
 
         // 6. 处理响应
         let response_body = response.bytes().await?;
-        let response_json: serde_json::Value = serde_json::from_slice(&response_body)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let response_json: serde_json::Value =
+            serde_json::from_slice(&response_body).unwrap_or_else(|_| serde_json::json!({}));
 
         // 提取使用量
         let usage = response_json.get("usage").map(|u| TokenUsage {
             prompt_tokens: u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            completion_tokens: u.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            completion_tokens: u
+                .get("completion_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32,
             total_tokens: u.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
         });
 
@@ -322,8 +334,9 @@ impl GatewayService {
             .await?
             .ok_or_else(|| anyhow!("Account not found: {}", account_id))?;
 
-        let credential = crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
-            .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
+        let credential =
+            crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
+                .map_err(|e| anyhow!("Failed to decrypt credential: {}", e))?;
 
         Ok(credential)
     }
@@ -337,7 +350,10 @@ impl GatewayService {
             "deepseek" => "https://api.deepseek.com/v1/chat/completions".to_string(),
             "mistral" => "https://api.mistral.ai/v1/chat/completions".to_string(),
             "cohere" => "https://api.cohere.ai/v1/chat/completions".to_string(),
-            _ => format!("https://api.{}/v1/chat/completions", provider.to_lowercase()),
+            _ => format!(
+                "https://api.{}/v1/chat/completions",
+                provider.to_lowercase()
+            ),
         }
     }
 

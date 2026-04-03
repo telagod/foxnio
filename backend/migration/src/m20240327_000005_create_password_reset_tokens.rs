@@ -21,18 +21,20 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(PasswordResetTokens::UserId)
                             .uuid()
-                            .not_null()
+                            .not_null(),
                     )
-                    .col(ColumnDef::new(PasswordResetTokens::TokenHash).string().not_null().unique_key())
+                    .col(
+                        ColumnDef::new(PasswordResetTokens::TokenHash)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(
                         ColumnDef::new(PasswordResetTokens::ExpiresAt)
                             .timestamp_with_time_zone()
-                            .not_null()
+                            .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(PasswordResetTokens::UsedAt)
-                            .timestamp_with_time_zone()
-                    )
+                    .col(ColumnDef::new(PasswordResetTokens::UsedAt).timestamp_with_time_zone())
                     .col(
                         ColumnDef::new(PasswordResetTokens::CreatedAt)
                             .timestamp_with_time_zone()
@@ -44,17 +46,17 @@ impl MigrationTrait for Migration {
                             .name("fk_password_reset_tokens_user_id")
                             .from(PasswordResetTokens::Table, PasswordResetTokens::UserId)
                             .to(Users::Table, Users::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .index(
                         Index::create()
                             .name("idx_password_reset_tokens_user_id")
-                            .col(PasswordResetTokens::UserId)
+                            .col(PasswordResetTokens::UserId),
                     )
                     .index(
                         Index::create()
                             .name("idx_password_reset_tokens_expires_at")
-                            .col(PasswordResetTokens::ExpiresAt)
+                            .col(PasswordResetTokens::ExpiresAt),
                     )
                     .to_owned(),
             )

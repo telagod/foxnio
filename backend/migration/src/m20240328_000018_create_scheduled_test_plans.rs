@@ -20,7 +20,11 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(ScheduledTestPlan::Name).string_len(255).not_null())
+                    .col(
+                        ColumnDef::new(ScheduledTestPlan::Name)
+                            .string_len(255)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(ScheduledTestPlan::Description).text().null())
                     .col(
                         ColumnDef::new(ScheduledTestPlan::Enabled)
@@ -28,16 +32,32 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
-                    .col(ColumnDef::new(ScheduledTestPlan::CronExpr).string_len(100).not_null())
+                    .col(
+                        ColumnDef::new(ScheduledTestPlan::CronExpr)
+                            .string_len(100)
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(ScheduledTestPlan::TestConfig)
                             .json()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(ScheduledTestPlan::LastRunAt).timestamp_with_time_zone().null())
-                    .col(ColumnDef::new(ScheduledTestPlan::NextRunAt).timestamp_with_time_zone().null())
+                    .col(
+                        ColumnDef::new(ScheduledTestPlan::LastRunAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ScheduledTestPlan::NextRunAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
                     .col(ColumnDef::new(ScheduledTestPlan::LastResult).json().null())
-                    .col(ColumnDef::new(ScheduledTestPlan::CreatedBy).big_integer().null())
+                    .col(
+                        ColumnDef::new(ScheduledTestPlan::CreatedBy)
+                            .big_integer()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ScheduledTestPlan::CreatedAt)
                             .timestamp_with_time_zone()
@@ -88,14 +108,22 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(ScheduledTestResult::PlanId).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(ScheduledTestResult::PlanId)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(ScheduledTestResult::Status)
                             .string_len(20)
                             .not_null(),
                     )
                     .col(ColumnDef::new(ScheduledTestResult::Result).json().null())
-                    .col(ColumnDef::new(ScheduledTestResult::ErrorMessage).text().null())
+                    .col(
+                        ColumnDef::new(ScheduledTestResult::ErrorMessage)
+                            .text()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(ScheduledTestResult::DurationMs)
                             .big_integer()

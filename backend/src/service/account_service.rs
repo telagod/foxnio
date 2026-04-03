@@ -19,7 +19,6 @@ pub struct CreateAccountRequest {
     pub load_factor: f64,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Account {
     pub id: i64,
