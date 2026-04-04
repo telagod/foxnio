@@ -12,12 +12,15 @@ use uuid::Uuid;
 
 use super::ApiError;
 use crate::gateway::SharedState;
+use crate::handler::verify::consume_verify_code;
 use crate::service::user::{Claims, UserService};
+use crate::utils::validator::is_valid_email;
 
 /// 更新用户信息请求
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserRequest {
     pub email: Option<String>,
+    pub verify_code: Option<String>,
 }
 
 /// 修改密码请求
@@ -70,22 +73,49 @@ pub async fn update_user_info(
         state.config.jwt.expire_hours,
     );
 
-    // 验证邮箱格式（如果提供）
-    if let Some(ref email) = req.email {
-        if !email.contains('@') {
-            return Err(ApiError(
-                StatusCode::BAD_REQUEST,
-                "Invalid email format".into(),
-            ));
-        }
-    }
-
-    // 更新用户信息
-    let user = user_service
-        .update_profile(user_id, req.email.as_deref(), None, None)
+    let current_user = user_service
+        .get_by_id(user_id)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or(ApiError(StatusCode::NOT_FOUND, "User not found".into()))?;
+
+    let target_email = match req.email.as_deref() {
+        Some(email) => {
+            let normalized_email = email.trim().to_lowercase();
+            if !is_valid_email(&normalized_email) {
+                return Err(ApiError(
+                    StatusCode::BAD_REQUEST,
+                    "Invalid email format".into(),
+                ));
+            }
+
+            if normalized_email.eq_ignore_ascii_case(&current_user.email) {
+                None
+            } else {
+                let verify_code = req.verify_code.as_deref().ok_or(ApiError(
+                    StatusCode::BAD_REQUEST,
+                    "Verification code is required when changing email".into(),
+                ))?;
+
+                consume_verify_code(&state, &normalized_email, verify_code, "change_email")
+                    .await
+                    .map_err(|(status, message)| ApiError(status, message))?;
+
+                Some(normalized_email)
+            }
+        }
+        None => None,
+    };
+
+    let user = if let Some(email) = target_email.as_deref() {
+        user_service
+            .update_profile(user_id, Some(email), None, None)
+            .await
+            .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .ok_or(ApiError(StatusCode::NOT_FOUND, "User not found".into()))?
+    } else {
+        current_user
+    };
 
     Ok(Json(json!({
         "success": true,

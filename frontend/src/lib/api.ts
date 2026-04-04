@@ -56,20 +56,87 @@ export interface HealthStatus {
   timestamp?: string;
 }
 
-export interface DashboardStats {
-  total_users: number;
-  total_accounts: number;
-  total_requests_today: number;
-  total_revenue: number;
-  active_users: number;
-  active_accounts: number;
+export interface AdminDashboardStats {
+  users: {
+    total: number;
+    active: number;
+    new_today: number;
+    new_this_week: number;
+    new_this_month: number;
+  };
+  accounts: {
+    total: number;
+    active: number;
+    healthy: number;
+    by_platform: Array<{
+      platform: string;
+      count: number;
+      healthy_count: number;
+    }>;
+  };
+  api_keys: {
+    total: number;
+    active: number;
+    expiring_soon: number;
+  };
+  usage: {
+    total_requests: number;
+    total_tokens: number;
+    total_cost: number;
+    today_requests: number;
+    today_tokens: number;
+    today_cost: number;
+  };
+  updated_at: string;
 }
 
-export interface UsageStats {
+export interface ChartDataset {
+  label: string;
+  data: number[];
+  color?: string;
+  borderColor?: string;
+  backgroundColor?: string | string[];
+  fill?: boolean;
+}
+
+export interface ChartData {
+  labels: string[];
+  datasets: ChartDataset[];
+}
+
+export interface DistributionData {
+  labels: string[];
+  data: number[];
+  total: number;
+}
+
+export interface DailyUsage {
+  date: string;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost: number;
+  cost_yuan: number;
+}
+
+export interface UserUsageReport {
+  days: number;
   total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
   total_tokens: number;
   total_cost: number;
-  by_model?: Record<string, { requests: number; tokens: number }>;
+  total_cost_yuan: number;
+  daily_usage: DailyUsage[];
+}
+
+export type VerifyType = 'register' | 'reset_password' | 'change_email';
+
+export interface VerifyCodeResponse {
+  success?: boolean;
+  message: string;
+  expires_in: number;
 }
 
 export interface ChatCompletionRequest {
@@ -254,10 +321,25 @@ class ApiClient {
     });
   }
 
-  async register(email: string, password: string): Promise<{ token: string; user: User }> {
+  async sendVerifyCode(email: string, verifyType: VerifyType): Promise<VerifyCodeResponse> {
+    return this.request('/api/v1/auth/send-verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, type: verifyType }),
+    });
+  }
+
+  async register(
+    email: string,
+    password: string,
+    verifyCode?: string
+  ): Promise<{ token: string; user: User }> {
     return this.request('/api/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        ...(verifyCode ? { verify_code: verifyCode } : {}),
+      }),
     });
   }
 
@@ -366,6 +448,13 @@ class ApiClient {
     return searchParams.toString();
   }
 
+  private buildDateQuery(startDate?: string, endDate?: string): string {
+    const searchParams = new URLSearchParams();
+    if (startDate) searchParams.set('start_date', startDate);
+    if (endDate) searchParams.set('end_date', endDate);
+    return searchParams.toString();
+  }
+
   // Alerts - 使用管理员路径
   async listAlertRules(): Promise<{ rules: AlertRule[] }> {
     return this.request('/api/v1/admin/alerts/rules');
@@ -421,9 +510,30 @@ class ApiClient {
 
   // === 新增 P2 方法 ===
 
-  // 管理员统计数据
-  async getAdminStats(): Promise<DashboardStats> {
-    return this.request('/api/v1/admin/stats');
+  async getAdminDashboardStats(): Promise<AdminDashboardStats> {
+    return this.request('/api/v1/admin/dashboard/stats');
+  }
+
+  async getAdminDashboardTrend(startDate?: string, endDate?: string): Promise<ChartData> {
+    const query = this.buildDateQuery(startDate, endDate);
+    return this.request(`/api/v1/admin/dashboard/trend${query ? `?${query}` : ''}`);
+  }
+
+  async getAdminDashboardLine(startDate?: string, endDate?: string): Promise<ChartData> {
+    const query = this.buildDateQuery(startDate, endDate);
+    return this.request(`/api/v1/admin/dashboard/line${query ? `?${query}` : ''}`);
+  }
+
+  async getAdminDashboardPie(): Promise<ChartData> {
+    return this.request('/api/v1/admin/dashboard/pie');
+  }
+
+  async getAdminDashboardModelDistribution(): Promise<DistributionData> {
+    return this.request('/api/v1/admin/dashboard/model-distribution');
+  }
+
+  async getAdminDashboardPlatformDistribution(): Promise<DistributionData> {
+    return this.request('/api/v1/admin/dashboard/platform-distribution');
   }
 
   // 获取模型列表
@@ -445,8 +555,8 @@ class ApiClient {
   }
 
   // 用户使用量
-  async getUserUsage(): Promise<UsageStats> {
-    return this.request('/api/v1/user/usage');
+  async getUserUsage(days = 30): Promise<UserUsageReport> {
+    return this.request(`/api/v1/user/usage?days=${days}`);
   }
 }
 

@@ -5,8 +5,8 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use uuid::Uuid;
 
@@ -137,18 +137,21 @@ impl ApiKeyService {
             .all(&self.db)
             .await?;
 
-        Ok(keys
-            .into_iter()
-            .map(|k| ApiKeyInfo {
-                id: k.id,
-                user_id: k.user_id,
-                key_masked: k.mask_key(),
-                name: k.name,
-                status: k.status,
-                created_at: k.created_at,
-                last_used_at: k.last_used_at,
-            })
-            .collect())
+        Ok(keys.into_iter().map(Self::to_info).collect())
+    }
+
+    /// 列出所有 API Keys（管理员视图）
+    pub async fn list_all(&self, page: u64, per_page: u64) -> Result<(Vec<ApiKeyInfo>, u64)> {
+        let total = api_keys::Entity::find().count(&self.db).await?;
+
+        let keys = api_keys::Entity::find()
+            .order_by_desc(api_keys::Column::CreatedAt)
+            .offset((page.saturating_sub(1)) * per_page)
+            .limit(per_page)
+            .all(&self.db)
+            .await?;
+
+        Ok((keys.into_iter().map(Self::to_info).collect(), total))
     }
 
     /// 删除 API Key
@@ -164,6 +167,18 @@ impl ApiKeyService {
 
         api_key.delete(&self.db).await?;
         Ok(())
+    }
+
+    fn to_info(key: api_keys::Model) -> ApiKeyInfo {
+        ApiKeyInfo {
+            id: key.id,
+            user_id: key.user_id,
+            key_masked: key.mask_key(),
+            name: key.name,
+            status: key.status,
+            created_at: key.created_at,
+            last_used_at: key.last_used_at,
+        }
     }
 }
 

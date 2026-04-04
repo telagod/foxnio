@@ -4,6 +4,7 @@
 
 #![allow(dead_code)]
 use axum::{extract::Path, extract::Query, http::StatusCode, Extension, Json};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use utoipa::ToSchema;
@@ -12,11 +13,16 @@ use uuid::Uuid;
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
+use crate::service::dashboard_query_service::{DashboardDateRange, DashboardQueryService};
 use crate::service::permission::{Permission, PermissionService};
 use crate::service::user::Claims;
-use crate::service::{
-    LegacyAccountService as AccountService, LegacyBillingService as BillingService, UserService,
-};
+use crate::service::{LegacyAccountService as AccountService, LegacyApiKeyService, UserService};
+
+#[derive(Debug, Deserialize)]
+pub struct PaginationQuery {
+    pub page: Option<u64>,
+    pub per_page: Option<u64>,
+}
 
 // ============ 用户管理 API ============
 
@@ -582,18 +588,42 @@ pub async fn delete_account(
 
 /// 列出所有 API Keys - 需要 ApiKeyRead 权限
 pub async fn list_apikeys(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<PaginationQuery>,
 ) -> Result<Json<Value>, ApiError> {
     // 权限检查
     check_permission(&claims, Permission::ApiKeyRead)
         .await
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
-    // TODO: 实现管理员查看所有 API Key
+    let page = query.page.filter(|p| *p > 0).unwrap_or(1);
+    let per_page = query.per_page.filter(|p| *p > 0).unwrap_or(50).min(200);
+
+    let api_key_service = LegacyApiKeyService::new(
+        state.db.clone(),
+        state.config.gateway.api_key_prefix.clone(),
+    );
+
+    let (keys, total) = api_key_service
+        .list_all(page, per_page)
+        .await
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(Json(json!({
         "object": "list",
-        "data": []
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "data": keys.iter().map(|k| json!({
+            "id": k.id.to_string(),
+            "user_id": k.user_id.to_string(),
+            "key": k.key_masked,
+            "name": k.name,
+            "status": k.status,
+            "created_at": k.created_at.to_rfc3339(),
+            "last_used_at": k.last_used_at.map(|t| t.to_rfc3339()),
+        })).collect::<Vec<_>>()
     })))
 }
 
@@ -604,18 +634,13 @@ pub async fn get_stats(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
-    // 权限检查
-    check_permission(&claims, Permission::BillingRead)
-        .await
-        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+    ensure_billing_permission(&claims).await?;
 
-    let billing_service =
-        BillingService::new(state.db.clone(), state.config.gateway.rate_multiplier);
-
-    let stats = billing_service
-        .get_global_stats(30)
+    let service = DashboardQueryService::new(state.db.clone());
+    let stats = service
+        .get_usage_totals(rolling_range(30)?)
         .await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(internal_error)?;
 
     Ok(Json(json!({
         "total_requests": stats.total_requests,
@@ -631,18 +656,13 @@ pub async fn get_dashboard(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Value>, ApiError> {
-    // 权限检查
-    check_permission(&claims, Permission::BillingRead)
-        .await
-        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+    ensure_billing_permission(&claims).await?;
 
-    let billing_service =
-        BillingService::new(state.db.clone(), state.config.gateway.rate_multiplier);
-
-    let stats = billing_service
-        .get_global_stats(7)
+    let service = DashboardQueryService::new(state.db.clone());
+    let stats = service
+        .get_usage_totals(rolling_range(7)?)
         .await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(internal_error)?;
 
     Ok(Json(json!({
         "week": {
@@ -652,6 +672,23 @@ pub async fn get_dashboard(
             "total_cost": stats.total_cost,
         }
     })))
+}
+
+async fn ensure_billing_permission(claims: &Claims) -> Result<(), ApiError> {
+    check_permission(claims, Permission::BillingRead)
+        .await
+        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))
+}
+
+fn rolling_range(days: i64) -> Result<DashboardDateRange, ApiError> {
+    let end_time = Utc::now();
+    let start_time = end_time - Duration::days(days.max(1));
+    DashboardDateRange::new(start_time, end_time)
+        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))
+}
+
+fn internal_error(error: impl std::fmt::Display) -> ApiError {
+    ApiError(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
 }
 
 // ============ 权限管理 API ============
