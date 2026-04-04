@@ -4,10 +4,12 @@
 
 #![allow(dead_code)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use url::Url;
 
 #[cfg(test)]
 mod test;
@@ -381,8 +383,20 @@ impl Default for Http2ClientConfig {
 }
 
 /// 服务器完整配置
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ServerConfig {
+    /// 监听地址
+    #[serde(default = "default_server_host")]
+    pub host: String,
+
+    /// 监听端口
+    #[serde(default = "default_server_port")]
+    pub port: u16,
+
+    /// 运行模式
+    #[serde(default = "default_server_mode")]
+    pub mode: String,
+
     /// HTTP/2 配置
     #[serde(default)]
     pub http2: Http2Config,
@@ -394,6 +408,37 @@ pub struct ServerConfig {
     /// HTTP/2 客户端配置
     #[serde(default)]
     pub http2_client: Http2ClientConfig,
+}
+
+fn default_server_host() -> String {
+    "0.0.0.0".to_string()
+}
+
+fn default_server_port() -> u16 {
+    8080
+}
+
+fn default_server_mode() -> String {
+    "release".to_string()
+}
+
+impl ServerConfig {
+    pub fn bind_addr(&self) -> String {
+        format!("{}:{}", self.host, self.port)
+    }
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            host: default_server_host(),
+            port: default_server_port(),
+            mode: default_server_mode(),
+            http2: Http2Config::default(),
+            tls: None,
+            http2_client: Http2ClientConfig::default(),
+        }
+    }
 }
 
 // ============================================================================
@@ -461,29 +506,178 @@ pub struct GatewayConfig {
 impl Config {
     /// 从文件加载配置
     pub fn load() -> Result<Self> {
-        let config_path =
-            std::env::var("FOXNIO_CONFIG").unwrap_or_else(|_| "config.yaml".to_string());
+        let _ = dotenvy::dotenv();
 
-        Self::from_file(&config_path)
+        let mut config = match env::var("FOXNIO_CONFIG") {
+            Ok(path) => Self::from_file(&path)
+                .with_context(|| format!("failed to load config from {}", path))?,
+            Err(_) if Path::new("config.yaml").exists() => {
+                Self::from_file("config.yaml").context("failed to load config from config.yaml")?
+            }
+            Err(_) => Self::default(),
+        };
+
+        config.apply_env_overrides()?;
+        Ok(config)
     }
 
     /// 从文件加载
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&content)?;
+        let mut config: Config = serde_yaml::from_str(&content)?;
+        config.sync_server_transport_config();
         Ok(config)
+    }
+
+    fn sync_server_transport_config(&mut self) {
+        self.server.http2 = self.http2.clone();
+        self.server.tls = self.tls.clone();
+        self.server.http2_client = self.http2_client.clone();
+    }
+
+    fn apply_env_overrides(&mut self) -> Result<()> {
+        if let Some(value) = env_string(&["FOXNIO_SERVER_HOST", "HOST"]) {
+            self.server.host = value;
+        }
+        if let Some(value) = env_parse::<u16>(&["FOXNIO_SERVER_PORT", "PORT"])? {
+            self.server.port = value;
+        }
+        if let Some(value) = env_string(&["FOXNIO_SERVER_MODE", "APP_ENV"]) {
+            self.server.mode = value;
+        }
+
+        if let Some(value) = env_string(&["FOXNIO_DATABASE_URL", "DATABASE_URL"]) {
+            self.apply_database_url(&value)?;
+        } else {
+            if let Some(value) = env_string(&["DB_HOST", "DATABASE_HOST"]) {
+                self.database.host = value;
+            }
+            if let Some(value) = env_parse::<u16>(&["DB_PORT", "DATABASE_PORT"])? {
+                self.database.port = value;
+            }
+            if let Some(value) = env_string(&["DB_USER", "DATABASE_USER"]) {
+                self.database.user = value;
+            }
+            if let Some(value) = env_string(&["DB_PASSWORD", "DATABASE_PASSWORD"]) {
+                self.database.password = value;
+            }
+            if let Some(value) = env_string(&["DB_NAME", "DATABASE_NAME"]) {
+                self.database.dbname = value;
+            }
+        }
+        if let Some(value) = env_parse::<u32>(&["DB_MAX_CONNECTIONS", "DATABASE_MAX_CONNECTIONS"])?
+        {
+            self.database.max_connections = value;
+        }
+
+        if let Some(value) = env_string(&["FOXNIO_REDIS_URL", "REDIS_URL"]) {
+            self.apply_redis_url(&value)?;
+        } else {
+            if let Some(value) = env_string(&["REDIS_HOST"]) {
+                self.redis.host = value;
+            }
+            if let Some(value) = env_parse::<u16>(&["REDIS_PORT"])? {
+                self.redis.port = value;
+            }
+            if let Some(value) = env_string(&["REDIS_PASSWORD"]) {
+                self.redis.password = value;
+            }
+            if let Some(value) = env_parse::<i64>(&["REDIS_DB"])? {
+                self.redis.db = value;
+            }
+        }
+
+        if let Some(value) = env_string(&["JWT_SECRET", "FOXNIO_JWT_SECRET"]) {
+            self.jwt.secret = value;
+        }
+        if let Some(value) = env_parse::<u64>(&["JWT_EXPIRE_HOURS"])? {
+            self.jwt.expire_hours = value;
+        }
+
+        if let Some(value) = env_parse::<u32>(&["GATEWAY_USER_CONCURRENCY"])? {
+            self.gateway.user_concurrency = value;
+        }
+        if let Some(value) = env_parse::<i64>(&["GATEWAY_USER_BALANCE"])? {
+            self.gateway.user_balance = value;
+        }
+        if let Some(value) = env_string(&["GATEWAY_API_KEY_PREFIX"]) {
+            self.gateway.api_key_prefix = value;
+        }
+        if let Some(value) = env_parse::<f64>(&["GATEWAY_RATE_MULTIPLIER"])? {
+            self.gateway.rate_multiplier = value;
+        }
+
+        self.sync_server_transport_config();
+
+        Ok(())
+    }
+
+    fn apply_database_url(&mut self, raw: &str) -> Result<()> {
+        let parsed = Url::parse(raw)
+            .with_context(|| format!("failed to parse database url from env: {}", raw))?;
+
+        if let Some(host) = parsed.host_str() {
+            self.database.host = host.to_string();
+        }
+        if let Some(port) = parsed.port() {
+            self.database.port = port;
+        }
+        if !parsed.username().is_empty() {
+            self.database.user = parsed.username().to_string();
+        }
+        if let Some(password) = parsed.password() {
+            self.database.password = password.to_string();
+        }
+
+        let database_name = parsed.path().trim_start_matches('/');
+        if !database_name.is_empty() {
+            self.database.dbname = database_name.to_string();
+        }
+
+        Ok(())
+    }
+
+    fn apply_redis_url(&mut self, raw: &str) -> Result<()> {
+        let parsed = Url::parse(raw)
+            .with_context(|| format!("failed to parse redis url from env: {}", raw))?;
+
+        if let Some(host) = parsed.host_str() {
+            self.redis.host = host.to_string();
+        }
+        if let Some(port) = parsed.port() {
+            self.redis.port = port;
+        }
+        if let Some(password) = parsed.password() {
+            self.redis.password = password.to_string();
+        }
+
+        let database_index = parsed.path().trim_start_matches('/');
+        if !database_index.is_empty() {
+            self.redis.db = database_index
+                .parse::<i64>()
+                .with_context(|| format!("failed to parse redis db from env url: {}", raw))?;
+        }
+
+        Ok(())
     }
 
     /// 数据库连接 URL
     pub fn database_url(&self) -> String {
-        format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.database.user,
-            self.database.password,
-            self.database.host,
-            self.database.port,
-            self.database.dbname
-        )
+        if self.database.password.is_empty() {
+            format!(
+                "postgres://{}@{}:{}/{}",
+                self.database.user, self.database.host, self.database.port, self.database.dbname
+            )
+        } else {
+            format!(
+                "postgres://{}:{}@{}:{}/{}",
+                self.database.user,
+                self.database.password,
+                self.database.host,
+                self.database.port,
+                self.database.dbname
+            )
+        }
     }
 
     /// Redis 连接 URL
@@ -499,6 +693,25 @@ impl Config {
                 self.redis.password, self.redis.host, self.redis.port, self.redis.db
             )
         }
+    }
+}
+
+fn env_string(keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| env::var(key).ok().filter(|value| !value.is_empty()))
+}
+
+fn env_parse<T>(keys: &[&str]) -> Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    match env_string(keys) {
+        Some(value) => value
+            .parse::<T>()
+            .map(Some)
+            .map_err(|error| anyhow::anyhow!("failed to parse env {}: {}", keys[0], error)),
+        None => Ok(None),
     }
 }
 

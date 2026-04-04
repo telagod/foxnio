@@ -9,8 +9,8 @@ use foxnio::Config;
 async fn test_config_default() {
     let config = Config::default();
 
-    // ServerConfig now uses http2/tls/http2_client fields
-    // Check that config is valid
+    assert_eq!(config.server.host, "0.0.0.0");
+    assert_eq!(config.server.port, 8080);
     assert!(config.server.http2.enabled);
     assert_eq!(config.database.dbname, "foxnio");
     assert_eq!(config.gateway.api_key_prefix, "sk-");

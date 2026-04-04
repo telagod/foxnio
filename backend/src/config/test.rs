@@ -8,8 +8,8 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
 
-        // ServerConfig now uses http2/tls/http2_client fields
-        // Test that config is valid
+        assert_eq!(config.server.host, "0.0.0.0");
+        assert_eq!(config.server.port, 8080);
         assert!(config.server.http2.enabled);
     }
 
@@ -75,5 +75,23 @@ mod tests {
         assert_eq!(config.user_concurrency, 5);
         assert_eq!(config.user_balance, 1000);
         assert_eq!(config.api_key_prefix, "fx-");
+    }
+
+    #[test]
+    fn test_database_url_without_password() {
+        let config = Config {
+            database: DatabaseConfig {
+                host: "localhost".to_string(),
+                port: 5432,
+                user: "postgres".to_string(),
+                password: String::new(),
+                dbname: "foxnio".to_string(),
+                max_connections: 10,
+            },
+            ..Default::default()
+        };
+
+        let url = config.database_url();
+        assert_eq!(url, "postgres://postgres@localhost:5432/foxnio");
     }
 }

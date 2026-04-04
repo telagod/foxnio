@@ -46,8 +46,8 @@ async fn main() -> Result<()> {
     }
 
     // 加载配置
-    let config = config::Config::load().unwrap_or_else(|_| {
-        tracing::warn!("Using default config");
+    let config = config::Config::load().unwrap_or_else(|error| {
+        tracing::warn!("Failed to load config: {}. Using default config", error);
         config::Config::default()
     });
 
@@ -55,14 +55,7 @@ async fn main() -> Result<()> {
 
     // 创建数据库配置
     let db_config = db::pool::DatabaseConfig {
-        url: format!(
-            "postgres://{}:{}@{}:{}/{}",
-            config.database.user,
-            config.database.password,
-            config.database.host,
-            config.database.port,
-            config.database.dbname
-        ),
+        url: config.database_url(),
         max_connections: config.database.max_connections,
         ..Default::default()
     };
@@ -73,10 +66,7 @@ async fn main() -> Result<()> {
 
     // 创建 Redis 配置
     let redis_config = db::redis::RedisConfig {
-        url: format!(
-            "redis://:{}@{}:{}/{}",
-            config.redis.password, config.redis.host, config.redis.port, config.redis.db
-        ),
+        url: config.redis_url(),
         ..Default::default()
     };
 
@@ -123,7 +113,7 @@ async fn main() -> Result<()> {
     );
 
     // 启动服务器
-    let addr = "0.0.0.0:8080";
+    let addr = config.server.bind_addr();
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     tracing::info!("🦊 FoxNIO listening on {}", addr);
