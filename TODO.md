@@ -1,6 +1,6 @@
 # FoxNIO TODO
 
-**更新时间**: 2026-04-04  
+**更新时间**: 2026-04-05  
 **目标**: 把项目从“主链已接真”推进到“可部署、可回归、可运营、可解释的完整可用产品”
 
 ## 现状
@@ -37,25 +37,31 @@
 - [x] `deploy.sh` 第一轮收口
 - [x] backend `cargo check`
 - [x] frontend `npm run check`
+- [x] frontend Tailwind v3 → v4 (CSS-first)
+- [x] frontend ESLint v8 → v10 (flat config)
+- [x] frontend 全页面去 emoji 换 SVG、a11y 修复、深浅色、响应式
+- [x] frontend svelte-check 0 errors 0 warnings
+- [x] deploy.sh MASTER_KEY 格式修正 (hex → base64)
+- [x] docker-compose.yml 容器内 DB/Redis 地址硬编码
 
 ## 未完成
 
 ### P0 - 发布与上线阻断
 
-- [ ] backend release image 完整构建并记录最终镜像口径
-- [ ] `docker compose up -d postgres redis backend` 后 `/health` 回归通过
-- [ ] `./deploy.sh build && ./deploy.sh start` 在干净环境跑通
-- [ ] `./deploy.sh build-ui && ./deploy.sh start-ui` 跑通 frontend Node server
-- [ ] `./deploy.sh build-edge && ./deploy.sh start-edge` 跑通 nginx profile
-- [ ] 建最小上线 smoke：
-- [ ] `GET /health`
-- [ ] `GET /v1/models`
-- [ ] 一条认证接口
-- [ ] `GET /api/v1/user/usage`
-- [ ] `GET /api/v1/admin/dashboard/stats`
-- [ ] 写清最小回滚手册
-- [ ] 写清环境变量权威说明
-- [ ] 修正 frontend lint 范围，排除 `frontend/build/**`
+- [x] backend release image 完整构建并记录最终镜像口径
+- [x] `docker compose up -d postgres redis backend` 后 `/health` 回归通过
+- [x] `./deploy.sh build && ./deploy.sh start` 在干净环境跑通
+- [x] `./deploy.sh build-ui && ./deploy.sh start-ui` 跑通 frontend Node server
+- [x] `./deploy.sh build-edge && ./deploy.sh start-edge` 跑通 nginx profile
+- [x] 建最小上线 smoke：
+- [x] `GET /health`
+- [x] `GET /v1/models`
+- [x] 一条认证接口
+- [x] `GET /api/v1/user/usage`
+- [x] `GET /api/v1/admin/dashboard/stats`
+- [x] 写清最小回滚手册
+- [x] 写清环境变量权威说明
+- [x] 修正 frontend lint 范围，排除 `frontend/build/**`
 
 ### P0 - 真实 provider smoke
 
@@ -131,10 +137,10 @@
 - [ ] `usage` 页面测试
 - [ ] `apikeys` 页面测试
 - [ ] `admin` 页面测试
-- [ ] loading / error / empty state 统一
-- [ ] 用户侧与管理侧 UI 文案统一
+- [x] loading / error / empty state 统一
+- [x] 用户侧与管理侧 UI 文案统一
 - [ ] 权限不足时前端回退行为明确化
-- [ ] 现有 a11y warnings 逐页清理
+- [x] 现有 a11y warnings 逐页清理
 
 ### P3 - 文档与口径清理
 
@@ -142,7 +148,7 @@
 - [ ] 统一 migration 权威路径说明
 - [ ] 统一 frontend 构建 / 运行 / Docker 命令口径
 - [ ] 统一 `npm` / `pnpm` / `make` 的权威命令说明
-- [ ] 统一 `.env` / `config.yaml` / runtime env 关系说明
+- [x] 统一 `.env` / `config.yaml` / runtime env 关系说明
 - [ ] 输出“最小上线架构图”和“最小回归矩阵”
 
 ## 下一步
