@@ -85,39 +85,39 @@
 
 ### P1 - failure chain 与账务口径
 
-- [ ] Realtime integration tests
-- [ ] `upstream_prepare_failed`
-- [ ] `upstream_connect_failed`
-- [ ] `upstream_stream_error`
-- [ ] `response.failed`
-- [ ] Gemini integration tests
-- [ ] stream read error
-- [ ] quota consume metadata
-- [ ] failed usage metadata
-- [ ] Sora / prompt enhance integration tests
-- [ ] 成功 usage
-- [ ] 失败 usage
-- [ ] 状态查询失败
-- [ ] quota consume
-- [ ] 输出 usage / audit 权威核验表
-- [ ] 每条成功写什么
-- [ ] 每条失败写什么
-- [ ] metadata 长什么样
+- [x] Realtime integration tests
+- [x] `upstream_prepare_failed`
+- [x] `upstream_connect_failed`
+- [x] `upstream_stream_error`
+- [x] `response.failed`
+- [x] Gemini integration tests
+- [x] stream read error
+- [x] quota consume metadata
+- [x] failed usage metadata
+- [x] Sora / prompt enhance integration tests
+- [x] 成功 usage
+- [x] 失败 usage
+- [x] 状态查询失败
+- [x] quota consume
+- [x] 输出 usage / audit 权威核验表
+- [x] 每条成功写什么
+- [x] 每条失败写什么
+- [x] metadata 长什么样
 
 ### P1 - 控制面补齐
 
-- [ ] backup 正式化
-- [ ] `import`
+- [x] backup 正式化
+- [x] `import`
 - [ ] 对象存储
 - [ ] 生命周期
-- [ ] 恢复演练
+- [x] 恢复演练
 - [ ] 审计
-- [ ] redeem 正式化
+- [x] redeem 正式化
 - [ ] 活动规则
-- [ ] 限次与幂等
-- [ ] 额度来源解释
-- [ ] ledger 查询接口
-- [ ] 账务 / quota / subscription / redeem 解释统一
+- [x] 限次与幂等
+- [x] 额度来源解释
+- [x] ledger 查询接口
+- [x] 账务 / quota / subscription / redeem 解释统一
 - [ ] account / group / control-plane 查询链继续接真
 
 ### P2 - 运维与异步能力
