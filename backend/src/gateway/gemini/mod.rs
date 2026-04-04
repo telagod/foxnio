@@ -27,8 +27,12 @@ use axum::{
     Json,
 };
 use bytes::Bytes;
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, Set};
 use serde::Deserialize;
+use uuid::Uuid;
 
+use crate::entity::usages;
 use crate::gateway::SharedState;
 
 /// Gemini v1beta 路由处理器
@@ -142,11 +146,41 @@ pub async fn get_model(
     }
 }
 
+/// 记录 Gemini 请求失败的 usage
+async fn record_gemini_failure(
+    state: &SharedState,
+    model: &str,
+    error_code: u16,
+    error_message: &str,
+) {
+    let usage = usages::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        user_id: Set(Uuid::nil()),
+        api_key_id: Set(Uuid::nil()),
+        account_id: Set(None),
+        model: Set(model.to_string()),
+        input_tokens: Set(0),
+        output_tokens: Set(0),
+        cost: Set(0),
+        request_id: Set(None),
+        success: Set(false),
+        error_message: Set(Some(error_message.to_string())),
+        metadata: Set(Some(serde_json::json!({
+            "gateway": "gemini",
+            "error_code": error_code,
+        }))),
+        created_at: Set(Utc::now()),
+    };
+    if let Err(e) = usage.insert(&state.db).await {
+        tracing::error!("Failed to record gemini failure usage: {}", e);
+    }
+}
+
 /// POST /v1beta/models/:model - 生成内容
 /// 通过查询参数 ?action=generateContent 或 ?action=streamGenerateContent 区分
 /// 或者通过 ?alt=sse 触发流式响应
 pub async fn generate_content(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Path(model): Path<String>,
     Query(params): Query<GeminiQueryParams>,
     body: Bytes,
@@ -201,11 +235,9 @@ pub async fn generate_content(
                     .unwrap()
             }
             Err(e) => {
-                let error = client::build_error_response(
-                    502,
-                    &format!("Upstream error: {e}"),
-                    "UNAVAILABLE",
-                );
+                let err_msg = format!("Upstream error: {e}");
+                record_gemini_failure(&state, model_name, 502, &err_msg).await;
+                let error = client::build_error_response(502, &err_msg, "UNAVAILABLE");
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
             }
         }
@@ -217,11 +249,9 @@ pub async fn generate_content(
         {
             Ok(response) => Json(response).into_response(),
             Err(e) => {
-                let error = client::build_error_response(
-                    502,
-                    &format!("Upstream error: {e}"),
-                    "UNAVAILABLE",
-                );
+                let err_msg = format!("Upstream error: {e}");
+                record_gemini_failure(&state, model_name, 502, &err_msg).await;
+                let error = client::build_error_response(502, &err_msg, "UNAVAILABLE");
                 (StatusCode::BAD_GATEWAY, Json(error)).into_response()
             }
         }

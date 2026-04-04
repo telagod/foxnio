@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::entity::redeem_codes;
 use crate::entity::users;
+use crate::service::balance_ledger::BalanceLedgerService;
 
 /// 卡密类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -431,12 +432,27 @@ impl RedeemCodeService {
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
         let balance_delta = (amount * 100.0) as i64;
-        let new_balance = user.balance + balance_delta;
+        let balance_before = user.balance;
+        let new_balance = balance_before + balance_delta;
 
-        let mut user: users::ActiveModel = user.into();
-        user.balance = Set(new_balance);
-        user.updated_at = Set(Utc::now());
-        user.update(txn).await?;
+        let mut user_am: users::ActiveModel = user.into();
+        user_am.balance = Set(new_balance);
+        user_am.updated_at = Set(Utc::now());
+        user_am.update(txn).await?;
+
+        // Record ledger entry (insert only, balance already updated above)
+        BalanceLedgerService::insert_entry_with_txn(
+            txn,
+            *user_id,
+            "redeem",
+            None,
+            balance_delta,
+            balance_before,
+            new_balance,
+            Some(format!("Redeemed ${:.2}", amount)),
+            None,
+        )
+        .await?;
 
         Ok(format!("Added ${:.2} to your balance", amount))
     }

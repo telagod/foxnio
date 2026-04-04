@@ -4,6 +4,7 @@
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -251,14 +252,20 @@ impl SoraService {
 pub struct SoraRouterService {
     sora_service: Arc<SoraService>,
     billing_service: Arc<BillingService>,
+    db: DatabaseConnection,
 }
 
 impl SoraRouterService {
     /// 创建新的路由服务
-    pub fn new(sora_service: Arc<SoraService>, billing_service: Arc<BillingService>) -> Self {
+    pub fn new(
+        sora_service: Arc<SoraService>,
+        billing_service: Arc<BillingService>,
+        db: DatabaseConnection,
+    ) -> Self {
         Self {
             sora_service,
             billing_service,
+            db,
         }
     }
 
@@ -292,24 +299,25 @@ impl SoraRouterService {
         error_message: Option<String>,
     ) -> Result<()> {
         // 创建使用记录
-        let _usage = usages::ActiveModel {
-            id: sea_orm::ActiveValue::Set(Uuid::new_v4()),
-            user_id: sea_orm::ActiveValue::Set(user_id),
-            api_key_id: sea_orm::ActiveValue::Set(api_key_id),
-            account_id: sea_orm::ActiveValue::Set(None),
-            model: sea_orm::ActiveValue::Set(model.to_string()),
-            input_tokens: sea_orm::ActiveValue::Set(0),
-            output_tokens: sea_orm::ActiveValue::Set(0),
-            cost: sea_orm::ActiveValue::Set(cost),
-            request_id: sea_orm::ActiveValue::Set(None),
-            success: sea_orm::ActiveValue::Set(success),
-            error_message: sea_orm::ActiveValue::Set(error_message),
-            metadata: sea_orm::ActiveValue::Set(None),
-            created_at: sea_orm::ActiveValue::Set(Utc::now()),
+        let usage = usages::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            user_id: Set(user_id),
+            api_key_id: Set(api_key_id),
+            account_id: Set(None),
+            model: Set(model.to_string()),
+            input_tokens: Set(0),
+            output_tokens: Set(0),
+            cost: Set(cost),
+            request_id: Set(None),
+            success: Set(success),
+            error_message: Set(error_message),
+            metadata: Set(Some(serde_json::json!({
+                "gateway": "sora",
+            }))),
+            created_at: Set(Utc::now()),
         };
 
-        // TODO: 保存使用记录到数据库
-        // 这里需要注入 DatabaseConnection
+        usage.insert(&self.db).await?;
 
         Ok(())
     }

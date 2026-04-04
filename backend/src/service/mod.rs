@@ -14,6 +14,7 @@ pub mod api_key_test;
 pub mod audit;
 pub mod auth_service;
 pub mod backup;
+pub mod balance_ledger;
 pub mod batch;
 pub mod batch_import;
 pub mod batch_operations;

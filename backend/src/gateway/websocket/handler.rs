@@ -12,11 +12,15 @@ use axum::{
     response::Response,
     Json,
 };
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
+
+use crate::entity::usages;
 
 /// WebSocket 处理器
 pub struct WebSocketHandler {
@@ -24,12 +28,14 @@ pub struct WebSocketHandler {
     pool: ConnectionPool,
     /// 配置
     config: WSConfig,
+    /// 数据库连接
+    db: DatabaseConnection,
 }
 
 impl WebSocketHandler {
     /// 创建新的处理器
-    pub fn new(pool: ConnectionPool, config: WSConfig) -> Self {
-        Self { pool, config }
+    pub fn new(pool: ConnectionPool, config: WSConfig, db: DatabaseConnection) -> Self {
+        Self { pool, config, db }
     }
 
     /// 处理 WebSocket 升级请求
@@ -41,8 +47,11 @@ impl WebSocketHandler {
     ) -> Response {
         let pool = self.pool.clone();
         let config = self.config.clone();
+        let db = self.db.clone();
 
-        ws.on_upgrade(move |socket| Self::handle_connection(socket, pool, config, protocol, model))
+        ws.on_upgrade(move |socket| {
+            Self::handle_connection(socket, pool, config, protocol, model, db)
+        })
     }
 
     /// 处理 WebSocket 连接
@@ -52,6 +61,7 @@ impl WebSocketHandler {
         _config: WSConfig,
         protocol: WSProtocol,
         model: Option<String>,
+        db: DatabaseConnection,
     ) {
         info!(
             protocol = ?protocol,
@@ -85,6 +95,7 @@ impl WebSocketHandler {
         if let Ok(msg) = session_created.to_json() {
             if socket.send(AxumMessage::Text(msg)).await.is_err() {
                 error!("Failed to send session.created event");
+                record_ws_failure(&db, None, None, "send_error", "Failed to send session.created event").await;
                 return;
             }
         }
@@ -143,6 +154,7 @@ impl WebSocketHandler {
                         }
                         Some(Err(e)) => {
                             error!(error = %e, "WebSocket error");
+                            record_ws_failure(&db, None, None, "ws_error", &e.to_string()).await;
                             break;
                         }
                         None => {
@@ -158,6 +170,7 @@ impl WebSocketHandler {
                         if let Ok(json) = msg.to_json() {
                             if socket.send(AxumMessage::Text(json)).await.is_err() {
                                 error!("Failed to send message to client");
+                                record_ws_failure(&db, None, None, "send_error", "Failed to send message to client").await;
                                 break;
                             }
                         }
@@ -497,9 +510,9 @@ pub struct WSQueryParams {
 }
 
 /// 创建 WebSocket 处理器工厂
-pub fn create_handler(config: WSConfig) -> WebSocketHandler {
+pub fn create_handler(config: WSConfig, db: DatabaseConnection) -> WebSocketHandler {
     let pool = ConnectionPool::new(config.clone());
-    WebSocketHandler::new(pool, config)
+    WebSocketHandler::new(pool, config, db)
 }
 
 /// Axum 路由处理器 - V1 Realtime API
@@ -530,4 +543,35 @@ pub async fn ws_pool_stats(
 ) -> Json<serde_json::Value> {
     let stats = handler.pool.stats();
     Json(serde_json::to_value(stats).unwrap_or(serde_json::json!({})))
+}
+
+/// 记录 WebSocket 请求失败的 usage
+async fn record_ws_failure(
+    db: &DatabaseConnection,
+    user_id: Option<uuid::Uuid>,
+    api_key_id: Option<uuid::Uuid>,
+    error_type: &str,
+    error_message: &str,
+) {
+    let usage = usages::ActiveModel {
+        id: Set(uuid::Uuid::new_v4()),
+        user_id: Set(user_id.unwrap_or(uuid::Uuid::nil())),
+        api_key_id: Set(api_key_id.unwrap_or(uuid::Uuid::nil())),
+        account_id: Set(None),
+        model: Set("websocket-realtime".to_string()),
+        input_tokens: Set(0),
+        output_tokens: Set(0),
+        cost: Set(0),
+        request_id: Set(None),
+        success: Set(false),
+        error_message: Set(Some(error_message.to_string())),
+        metadata: Set(Some(serde_json::json!({
+            "gateway": "websocket",
+            "error_type": error_type,
+        }))),
+        created_at: Set(Utc::now()),
+    };
+    if let Err(e) = usage.insert(db).await {
+        error!("Failed to record websocket failure usage: {}", e);
+    }
 }

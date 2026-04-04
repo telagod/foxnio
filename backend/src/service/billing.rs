@@ -7,8 +7,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-use super::user::UserService;
 use crate::entity::usages;
+use crate::service::balance_ledger::BalanceLedgerService;
 
 /// 使用记录参数
 #[derive(Debug, Clone)]
@@ -99,10 +99,19 @@ impl BillingService {
 
         let usage = usage.insert(&self.db).await?;
 
-        // 扣减余额
+        // 扣减余额 + record ledger entry atomically
         if cost > 0 {
-            let user_service = UserService::new(self.db.clone(), String::new(), 24);
-            user_service.update_balance(params.user_id, -cost).await?;
+            let ledger_service = BalanceLedgerService::new(self.db.clone());
+            let _ = ledger_service
+                .record(
+                    params.user_id,
+                    "usage",
+                    Some(usage.id.to_string()),
+                    -cost,
+                    Some(format!("Usage: {} ({} tokens)", usage.model, usage.input_tokens + usage.output_tokens)),
+                    None,
+                )
+                .await;
         }
 
         Ok(UsageRecord {

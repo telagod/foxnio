@@ -628,7 +628,7 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // WebSocket 路由 - OpenAI Realtime/Responses API
-    let _ws_handler = Arc::new(websocket::create_handler(WSConfig::default()));
+    let _ws_handler = Arc::new(websocket::create_handler(WSConfig::default(), shared_state.db.clone()));
     let ws_routes = Router::new()
         // OpenAI Realtime API v1 - WebSocket
         .route("/v1/realtime", get(websocket::handler::ws_realtime_v1))
