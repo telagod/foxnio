@@ -86,12 +86,11 @@ npm --prefix frontend run dev
 
 ## 文档入口
 
-- [文档总索引](docs/README.md)
 - [当前状态](docs/CURRENT_STATUS.md)
 - [业务逻辑](docs/BUSINESS_LOGIC.md)
 - [部署说明](docs/DEPLOYMENT.md)
+- [开发文档](docs/DEVELOPMENT.md)
 - [后端模块文档](backend/README.md)
-- [前端模块文档](frontend/README.md)
 - [长期 TODO](TODO.md)
 
 ## 许可证

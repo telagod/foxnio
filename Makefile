@@ -1,5 +1,7 @@
 .PHONY: build run test clean docker deploy dev help
 
+COMPOSE := docker compose
+
 # 默认目标
 .DEFAULT_GOAL := help
 
@@ -86,35 +88,35 @@ test-coverage-open: ## 打开覆盖率报告
 
 docker-build: ## 构建 Docker 镜像
 	@echo "$(CYAN)构建 Docker 镜像...$(NC)"
-	docker-compose build
+	$(COMPOSE) build
 
 docker-up: ## 启动 Docker 服务
 	@echo "$(CYAN)启动 Docker 服务...$(NC)"
-	docker-compose up -d
+	$(COMPOSE) up -d
 
 docker-down: ## 停止 Docker 服务
 	@echo "$(CYAN)停止 Docker 服务...$(NC)"
-	docker-compose down
+	$(COMPOSE) down
 
 docker-logs: ## 查看 Docker 日志
-	docker-compose logs -f
+	$(COMPOSE) logs -f
 
 docker-ps: ## 查看 Docker 容器状态
-	docker-compose ps
+	$(COMPOSE) ps
 
 ## 数据库命令
 
 db-migrate: ## 运行数据库迁移
 	@echo "$(CYAN)运行迁移...$(NC)"
-	cd backend && cargo sqlx migrate run
+	cargo run --manifest-path backend/migration/Cargo.toml -- up
 
 db-rollback: ## 回滚数据库迁移
 	@echo "$(CYAN)回滚迁移...$(NC)"
-	cd backend && cargo sqlx migrate revert
+	cargo run --manifest-path backend/migration/Cargo.toml -- down
 
 db-reset: ## 重置数据库
 	@echo "$(CYAN)重置数据库...$(NC)"
-	cd backend && cargo sqlx database reset
+	cargo run --manifest-path backend/migration/Cargo.toml -- reset
 
 db-backup: ## 备份数据库
 	@echo "$(CYAN)备份数据库...$(NC)"
@@ -169,7 +171,7 @@ clean: ## 清理构建产物
 
 clean-docker: ## 清理 Docker 资源
 	@echo "$(CYAN)清理 Docker...$(NC)"
-	docker-compose down -v
+	$(COMPOSE) down -v
 	docker system prune -af
 
 ## 工具命令
@@ -190,14 +192,14 @@ env: ## 创建环境配置
 	@echo "$(GREEN)请编辑 .env 文件$(NC)"
 
 logs: ## 查看服务日志
-	docker-compose logs -f backend
+	$(COMPOSE) logs -f backend
 
 status: ## 查看服务状态
 	@echo "$(CYAN)服务状态:$(NC)"
-	docker-compose ps
+	$(COMPOSE) ps
 	@echo ""
 	@echo "$(CYAN)健康检查:$(NC)"
-	curl -s http://localhost:3000/health | jq . || echo "服务未启动"
+	curl -s http://localhost:8080/health | jq . || echo "服务未启动"
 
 ## 帮助
 

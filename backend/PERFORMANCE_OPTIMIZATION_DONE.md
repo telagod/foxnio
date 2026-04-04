@@ -134,9 +134,9 @@ pub static ref ACCOUNT_LIST_QUERY_DURATION: Histogram =
 1. **运行数据库迁移**:
 ```bash
 cd backend
-cargo sqlx migrate run
+cargo run --manifest-path migration/Cargo.toml -- up
 # 或
-sqlx migrate run
+cargo run --manifest-path migration/Cargo.toml -- up
 ```
 
 2. **构建 Release**:
@@ -153,3 +153,5 @@ cargo build --release
 
 **优化完成**: 2026-04-01 22:40
 **编译器版本**: rustc 1.94.1
+> 历史优化记录。
+> 本文档中的构建与迁移命令仅作归档参考，当前以仓库根目录 `README.md` 与 `docs/DEVELOPMENT.md` 为准。

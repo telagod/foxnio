@@ -1,202 +1,102 @@
-# FoxNIO v0.2.1 发布检查清单
+# FoxNIO 发布检查清单
 
-## ✅ 已完成项目
+**更新时间**: 2026-04-04
+**口径**: 本清单只用于当前仓库的发布前检查，不沿用旧版本号、旧完成度、旧发布结论
 
-### 核心功能 (100%)
-- [x] Webhook 系统完整实现
-  - [x] 数据库迁移
-  - [x] 实体定义
-  - [x] 服务层（HMAC-SHA256 签名）
-  - [x] Handler（7 个端点）
-  - [x] 路由集成
-  - [x] Prometheus 指标
+## 现状
 
-- [x] 批量操作 API
-  - [x] 服务层实现
-  - [x] Handler（4 个端点）
-  - [x] CSV 导入支持
-  - [x] 路由集成
-  - [x] 监控指标
+FoxNIO 当前已经具备发布前检查的基础条件：
 
-- [x] 窗口费用预取
-  - [x] 双层缓存（Memory + Redis）
-  - [x] 批量 SQL 查询
-  - [x] 监控指标
+- backend `cargo check` 可过
+- frontend `npm run check` 可过
+- 用户 dashboard、`/usage`、管理 dashboard 已接真实后端聚合
+- 部署路径已统一到 `deploy.sh + Docker + compose profile`
 
-- [x] API Key 权限系统
-  - [x] 数据库迁移
-  - [x] 权限验证中间件
-  - [x] 模型访问控制
-  - [x] IP 白名单
-  - [x] 配额管理
+但还不能直接把当前状态称作“可无条件发布”，因为仍缺三类关键闭环：
 
-- [x] 等待队列和 RPM 限制
-  - [x] 等待队列服务
-  - [x] 模型级 RPM 限制
-  - [x] 完整测试
+- 干净环境部署演练
+- 最小 smoke 回归
+- 真实 provider smoke
 
-- [x] OpenAPI 文档
-  - [x] Swagger UI 集成
-  - [x] 完整端点注解
+## 已完成
 
-### 代码质量
-- [x] 版本号更新（0.2.1）
-- [x] CHANGELOG 更新
-- [x] 清理临时文档
-- [x] 代码注释完整
+### 代码与静态检查
 
----
+- [x] backend `cargo check --manifest-path backend/Cargo.toml --all-targets --message-format short`
+- [x] frontend `npm --prefix frontend run check`
+- [x] `git diff --check`
 
-## ⚠️ 需要完善的项目
+### 主业务链
 
-### P1 - 高优先级
+- [x] 用户 dashboard 主链
+- [x] 用户 `/usage` 日维度 usage 主链
+- [x] 管理 dashboard `/api/v1/admin/dashboard/*`
+- [x] API Key 创建 / 删除 / 列表主链
+- [x] 验证码发送与改邮箱消费主链
+- [x] Realtime/WebSocket usage / audit 主链
+- [x] Gemini Native usage / quota 主链
+- [x] Sora / prompt enhance usage / quota 主链
+- [x] redeem code 写库、幂等、ledger 审计主链
 
-#### 1. 成本优化服务 (40% 完成)
-**文件**: `backend/src/service/cost_optimizer.rs` (525 行)
+### 发布口径第一轮收口
 
-**已完成**:
-- [x] 数据结构定义
-- [x] 服务骨架
+- [x] runtime env / config 统一
+- [x] frontend `adapter-node` Docker 运行方式
+- [x] compose `core` / `ui` / `edge` 分层
+- [x] `deploy.sh` 命令收口
 
-**待实现**:
-- [ ] `analyze_usage()` - 使用分析核心逻辑
-- [ ] `generate_recommendations()` - 优化建议生成
-- [ ] `find_cheaper_alternative()` - 替代模型查找
-- [ ] `calculate_potential_savings()` - 节省计算
-- [ ] 模式识别算法
-- [ ] 异常检测逻辑
+## 未完成
 
-#### 2. 模型自动同步服务 (40% 完成)
-**文件**: `backend/src/service/model_sync.rs` (480 行)
+### P0 - 发布前必须完成
 
-**已完成**:
-- [x] 服务骨架
-- [x] 同步状态管理
-- [x] OpenAI API 调用框架
+- [ ] backend release image 构建成功并记录结果
+- [ ] `./deploy.sh build` 在干净环境跑通
+- [ ] `./deploy.sh start` 起 `core` 栈成功
+- [ ] `GET /health` 成功
+- [ ] `GET /v1/models` 成功
+- [ ] 一条认证接口成功
+- [ ] `GET /api/v1/user/usage` 成功
+- [ ] `GET /api/v1/admin/dashboard/stats` 成功
+- [ ] `ui` profile 起服成功
+- [ ] `edge` profile 起服成功
+- [ ] 最小回滚手册完成
 
-**待实现**:
-- [ ] `sync_openai()` - 完整实现
-- [ ] `sync_anthropic()` - 实现同步逻辑
-- [ ] `sync_google()` - 实现同步逻辑
-- [ ] `sync_deepseek()` - 实现同步逻辑
-- [ ] `sync_mistral()` - 实现同步逻辑
-- [ ] `sync_cohere()` - 实现同步逻辑
-- [ ] 价格变化检测
-- [ ] 定时同步任务
+### P0 - 当前已知阻断
 
-### P2 - 中优先级
+- [ ] 真实 OpenAI / Gemini 密钥缺失
+- [ ] 真实 provider account / OAuth token 缺失
+- [ ] frontend lint 仍会扫到 `frontend/build/**`
 
-#### 3. 集成测试
-**状态**: 文件结构未创建
+### P1 - 建议在发布前补齐
 
-**需要创建**:
-- [ ] `backend/tests/webhook_integration_test.rs`
-- [ ] `backend/tests/batch_operations_test.rs`
-- [ ] `backend/tests/api_key_permission_test.rs`
+- [ ] 最小 smoke 脚本化
+- [ ] usage / audit 核验表
+- [ ] 发布环境变量权威说明
+- [ ] 发布后日志、健康检查、数据库迁移检查步骤
 
-#### 4. Handler TODO 清理
-**位置**: 多个 handler 文件
+## 下一步
 
-**待实现的 TODO**:
-- [ ] `handler/verify.rs` - 验证码和邀请码验证
-- [ ] `handler/dashboard.rs` - 数据库查询实现
-- [ ] `handler/backup.rs` - 备份文件管理
-- [ ] `handler/quota.rs` - 统计功能
+### 发布前执行顺序
 
-### P3 - 低优先级
+1. 跑 backend / frontend 当前静态检查
+2. 构建 backend image
+3. 起 `core` 栈
+4. 跑最小 smoke
+5. 需要控制台时起 `ui`
+6. 需要边缘层时起 `edge`
+7. 记录结果并补回文档
 
-#### 5. 文档完善
-- [ ] API 使用示例
-- [ ] 部署指南更新
-- [ ] 性能优化建议
-- [ ] 监控告警配置
+### 通过标准
 
----
+可认为“本轮可发布”至少需要同时满足：
 
-## 📊 完成度统计
+- backend 与 frontend 当前静态检查通过
+- `core` 栈成功起服
+- `/health` 与最小业务 smoke 通过
+- 没有新的高优先级已知回归
 
-| 模块 | 完成度 | 状态 |
-|------|--------|------|
-| Webhook 系统 | 100% | ✅ 生产就绪 |
-| 批量操作 | 100% | ✅ 生产就绪 |
-| 窗口费用缓存 | 100% | ✅ 生产就绪 |
-| API Key 权限 | 100% | ✅ 生产就绪 |
-| 等待队列 | 100% | ✅ 生产就绪 |
-| 模型 RPM | 100% | ✅ 生产就绪 |
-| OpenAPI 文档 | 100% | ✅ 生产就绪 |
-| 监控指标 | 100% | ✅ 生产就绪 |
-| 成本优化 | 40% | ⚠️ 需完善 |
-| 模型同步 | 40% | ⚠️ 需完善 |
-| 集成测试 | 0% | ⏳ 待创建 |
+## 说明
 
-**总体完成度**: **85%**
-
----
-
-## 🚀 发布建议
-
-### v0.2.1 可以发布
-**原因**:
-- 核心功能 100% 完成
-- 所有主要端点可用
-- 监控指标完整
-- 文档齐全
-
-### 后续版本计划
-
-#### v0.2.2 (本周)
-- 完成成本优化建议服务
-- 完成模型自动同步服务
-- 添加基础集成测试
-
-#### v0.3.0 (下周)
-- 完善所有 Handler TODO
-- 完整的测试覆盖
-- 性能优化和压测
-
-#### v1.0.0 (月度)
-- 生产环境验证
-- 用户反馈整合
-- 文档完善
-
----
-
-## ✅ 发布前最终检查
-
-### 代码检查
-- [x] 版本号更新
-- [x] CHANGELOG 更新
-- [x] 临时文档清理
-- [x] Git 提交记录清晰
-
-### 功能检查
-- [x] 核心端点可访问
-- [x] 监控指标正常
-- [x] 文档可访问
-
-### 安全检查
-- [x] 无敏感信息泄露
-- [x] 认证中间件正常
-- [x] 权限检查到位
-
----
-
-## 📝 备注
-
-**开发团队**: AI Agent 协同开发
-**开发时间**: 6.5 小时
-**代码行数**: 7,000+ 行新增
-**Agent 数量**: 24 个并行 Agent
-**提交次数**: 16 次
-
-**特别说明**:
-- 所有核心功能均经过代码审查
-- 遵循 Rust 最佳实践
-- 完整的错误处理
-- Prometheus 监控集成
-
----
-
-**准备发布**: ✅ 是
-**发布版本**: v0.2.1
-**发布日期**: 2026-03-30
+- 本清单不再使用旧的 `v0.2.1` 固定发布结论。
+- 本清单不再使用伪精确完成度口径。
+- 真实 provider smoke 未完成前，不应在任何发布文档里写“所有 provider 已可直接上线”。

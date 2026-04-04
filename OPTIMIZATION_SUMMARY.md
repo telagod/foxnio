@@ -88,6 +88,9 @@ cargo --version
 
 ### 2. 修复安全漏洞（需要 Rust 升级后）
 
+> 历史优化记录。
+> 本文档中的优化建议仅作参考；当前开发与部署命令请以 `README.md`、`docs/DEVELOPMENT.md`、`docs/DEPLOYMENT.md` 为准。
+
 **升级依赖：**
 ```toml
 # Cargo.toml
@@ -101,14 +104,13 @@ sqlx = "0.8"         # 从 0.7 升级，修复二进制协议漏洞
 **启动数据库后执行：**
 ```bash
 # 确保 PostgreSQL 和 Redis 运行中
-docker-compose up -d postgres redis
+docker compose up -d postgres redis
 
 # 运行迁移
-cd backend
-cargo sqlx migrate run
+cargo run --manifest-path backend/migration/Cargo.toml -- up
 
 # 或者编译后运行
-cargo run --bin foxnio-migration
+cargo run --manifest-path backend/migration/Cargo.toml -- up
 ```
 
 ### 4. 构建和部署

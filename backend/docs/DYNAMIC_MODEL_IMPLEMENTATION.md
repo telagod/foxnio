@@ -117,7 +117,7 @@ GET    /api/v1/admin/models/:name/route - 获取模型路由信息
 
 ### 创建模型
 ```bash
-curl -X POST http://localhost:3000/api/v1/admin/models \
+curl -X POST http://localhost:8080/api/v1/admin/models \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -143,13 +143,13 @@ curl -X POST http://localhost:3000/api/v1/admin/models \
 
 ### 热加载模型
 ```bash
-curl -X POST http://localhost:3000/api/v1/admin/models/reload \
+curl -X POST http://localhost:8080/api/v1/admin/models/reload \
   -H "Authorization: Bearer <token>"
 ```
 
 ### 导入默认模型
 ```bash
-curl -X POST http://localhost:3000/api/v1/admin/models/import-defaults \
+curl -X POST http://localhost:8080/api/v1/admin/models/import-defaults \
   -H "Authorization: Bearer <token>"
 ```
 

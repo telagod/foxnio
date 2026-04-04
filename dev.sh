@@ -27,7 +27,7 @@ fi
 
 # 启动依赖服务
 echo "Starting dependencies..."
-docker-compose up -d postgres redis
+docker compose up -d postgres redis
 
 # 等待服务就绪
 echo "Waiting for services..."
@@ -47,9 +47,7 @@ cd ..
 
 # 运行数据库迁移
 echo "Running migrations..."
-cd backend
-cargo sqlx migrate run || true
-cd ..
+cargo run --manifest-path backend/migration/Cargo.toml -- up || true
 
 echo ""
 echo "✅ Development environment ready!"

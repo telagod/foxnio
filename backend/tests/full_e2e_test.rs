@@ -20,7 +20,7 @@ impl Default for TestConfig {
             }),
             redis_url: std::env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
-            api_base: "http://localhost:3000".to_string(),
+            api_base: "http://localhost:8080".to_string(),
         }
     }
 }
@@ -36,7 +36,7 @@ mod e2e_tests {
         let client = reqwest::Client::new();
 
         let _response = client
-            .post("http://localhost:3000/api/v1/auth/register")
+            .post("http://localhost:8080/api/v1/auth/register")
             .json(&json!({
                 "email": "test@example.com",
                 "password": "TestPassword123",
@@ -47,7 +47,7 @@ mod e2e_tests {
 
         // 2. 登录
         let response = client
-            .post("http://localhost:3000/api/v1/auth/login")
+            .post("http://localhost:8080/api/v1/auth/login")
             .json(&json!({
                 "email": "test@example.com",
                 "password": "TestPassword123"
@@ -72,7 +72,7 @@ mod e2e_tests {
 
         // 1. 创建 API Key
         let _response = client
-            .post("http://localhost:3000/api/v1/user/apikeys")
+            .post("http://localhost:8080/api/v1/user/apikeys")
             .header("Authorization", format!("Bearer {}", token))
             .json(&json!({
                 "name": "Test Key"
@@ -82,7 +82,7 @@ mod e2e_tests {
 
         // 2. 列出 API Keys
         let response = client
-            .get("http://localhost:3000/api/v1/user/apikeys")
+            .get("http://localhost:8080/api/v1/user/apikeys")
             .header("Authorization", format!("Bearer {}", token))
             .send()
             .await;
@@ -100,7 +100,7 @@ mod e2e_tests {
 
         // 发送 chat completion 请求
         let response = client
-            .post("http://localhost:3000/v1/chat/completions")
+            .post("http://localhost:8080/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&json!({
                 "model": "gpt-4",
@@ -125,7 +125,7 @@ mod e2e_tests {
 
         // 发送流式请求
         let response = client
-            .post("http://localhost:3000/v1/chat/completions")
+            .post("http://localhost:8080/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&json!({
                 "model": "gpt-4",
@@ -155,7 +155,7 @@ mod e2e_tests {
             let client = client.clone();
             let handle = tokio::spawn(async move {
                 let _ = client
-                    .post("http://localhost:3000/v1/chat/completions")
+                    .post("http://localhost:8080/v1/chat/completions")
                     .header("Authorization", format!("Bearer {}", api_key))
                     .json(&json!({
                         "model": "gpt-4",
@@ -182,7 +182,7 @@ mod e2e_tests {
 
         // 测试无效 API Key
         let response = client
-            .post("http://localhost:3000/v1/chat/completions")
+            .post("http://localhost:8080/v1/chat/completions")
             .header("Authorization", "Bearer invalid-key")
             .json(&json!({
                 "model": "gpt-4",
@@ -197,7 +197,7 @@ mod e2e_tests {
 
         // 测试无效模型
         let response = client
-            .post("http://localhost:3000/v1/chat/completions")
+            .post("http://localhost:8080/v1/chat/completions")
             .header("Authorization", "Bearer valid-key")
             .json(&json!({
                 "model": "invalid-model",
@@ -216,7 +216,7 @@ mod e2e_tests {
         let client = reqwest::Client::new();
 
         let response = client
-            .get("http://localhost:3000/health")
+            .get("http://localhost:8080/health")
             .send()
             .await
             .unwrap();
@@ -230,7 +230,7 @@ mod e2e_tests {
         let client = reqwest::Client::new();
 
         let response = client
-            .get("http://localhost:3000/metrics")
+            .get("http://localhost:8080/metrics")
             .send()
             .await
             .unwrap();
