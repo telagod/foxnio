@@ -37,8 +37,7 @@
     };
 
     const checkTheme = () => {
-      isDark = document.documentElement.classList.contains('dark') ||
-               window.matchMedia('(prefers-color-scheme: dark)').matches;
+      isDark = document.documentElement.classList.contains('dark');
     };
 
     checkMobile();

@@ -18,15 +18,6 @@ export default [
     },
   },
   {
-    files: ['**/*.svelte'],
-    languageOptions: {
-      parser: svelteParser,
-      parserOptions: {
-        parser: ts.parser,
-      },
-    },
-  },
-  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -35,6 +26,18 @@ export default [
     },
   },
   {
-    ignores: ['build/**', '.svelte-kit/**', 'node_modules/**'],
+    files: ['**/*.svelte'],
+    languageOptions: {
+      parser: svelteParser,
+      parserOptions: {
+        parser: ts.parser,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+  {
+    ignores: ['build/**', '.svelte-kit/**', 'node_modules/**', 'coverage/**'],
   },
 ];

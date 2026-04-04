@@ -1,13 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-
-  let stats = $state({
-    totalUsers: 0,
-    totalKeys: 0,
-    totalAccounts: 0,
-    totalRequests: 0,
-  });
-
   const features = [
     {
       title: 'API Key 管理',

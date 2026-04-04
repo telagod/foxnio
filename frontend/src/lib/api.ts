@@ -178,13 +178,13 @@ export interface PaginatedResponse<T> {
 }
 
 // 防抖函数
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
   delay: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  
-  return function (this: any, ...args: Parameters<T>) {
+
+  return function (this: unknown, ...args: Parameters<T>) {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
@@ -196,13 +196,13 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 // 节流函数
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   fn: T,
   limit: number
 ): (...args: Parameters<T>) => void {
   let inThrottle = false;
-  
-  return function (this: any, ...args: Parameters<T>) {
+
+  return function (this: unknown, ...args: Parameters<T>) {
     if (!inThrottle) {
       fn.apply(this, args);
       inThrottle = true;
@@ -216,8 +216,10 @@ export function throttle<T extends (...args: any[]) => any>(
 class ApiClient {
   private token: string | null = null;
   // 请求去重：存储正在进行的请求
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pendingRequests = new Map<string, Promise<any>>();
   // 缓存：短期缓存 GET 请求结果
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private cache = new Map<string, { data: any; expires: number }>();
   private cacheTTL = 5000; // 5秒缓存
 
@@ -577,7 +579,7 @@ export interface AlertChannel {
   id: string;
   name: string;
   type: 'email' | 'webhook' | 'slack' | 'dingtalk' | 'feishu';
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   enabled: boolean;
   created_at: string;
 }

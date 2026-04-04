@@ -36,10 +36,10 @@
     apiKeys = apiKeyResponse.data || [];
     usageStats = {
       total_requests: usage.total_requests || 0,
-      total_input_tokens: (usage as any).total_input_tokens || 0,
-      total_output_tokens: (usage as any).total_output_tokens || 0,
+      total_input_tokens: usage.total_input_tokens || 0,
+      total_output_tokens: usage.total_output_tokens || 0,
       total_cost: usage.total_cost || 0,
-      total_cost_yuan: (usage as any).total_cost_yuan || (usage.total_cost || 0) / 100
+      total_cost_yuan: usage.total_cost_yuan || (usage.total_cost || 0) / 100
     };
     error = '';
   }
