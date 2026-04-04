@@ -9,13 +9,16 @@ use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::entity::redeem_code_ledger;
 use crate::entity::redeem_codes;
+use crate::entity::subscriptions;
 use crate::entity::users;
 use crate::service::balance_ledger::BalanceLedgerService;
 
@@ -231,8 +234,28 @@ impl RedeemCodeService {
         Ok(codes)
     }
 
+    /// Generate a request fingerprint from (user_id, code_id) for idempotency
+    fn fingerprint(user_id: &Uuid, code_id: i64) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(user_id.as_bytes());
+        hasher.update(code_id.to_le_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
     /// 兑换卡密
     pub async fn redeem(&self, req: RedeemCodeRequest) -> Result<RedeemResult> {
+        // Task 4: Rate limiting — count redemptions by this user in the last 5 minutes
+        let five_min_ago: chrono::DateTime<chrono::FixedOffset> =
+            (Utc::now() - Duration::minutes(5)).into();
+        let recent_count = redeem_code_ledger::Entity::find()
+            .filter(redeem_code_ledger::Column::UserId.eq(req.user_id))
+            .filter(redeem_code_ledger::Column::CreatedAt.gte(five_min_ago))
+            .count(&self.db)
+            .await?;
+        if recent_count >= 10 {
+            bail!("Too many redemption attempts, please try again later");
+        }
+
         // 使用事务确保原子性
         let txn = self.db.begin().await?;
 
@@ -243,6 +266,28 @@ impl RedeemCodeService {
             .one(&txn)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Invalid redeem code"))?;
+
+        let code_id = code.id;
+        let fingerprint = Self::fingerprint(&req.user_id, code_id);
+
+        // Task 3: Idempotency — check for existing ledger entry with same (code_id, user_id)
+        let existing = redeem_code_ledger::Entity::find()
+            .filter(redeem_code_ledger::Column::RedeemCodeId.eq(code_id))
+            .filter(redeem_code_ledger::Column::UserId.eq(req.user_id))
+            .one(&txn)
+            .await?;
+        if let Some(entry) = existing {
+            txn.commit().await?;
+            let code_type = entry.code_type.parse().unwrap_or(RedeemType::Balance);
+            let value: f64 = entry.amount.to_string().parse().unwrap_or(0.0);
+            return Ok(RedeemResult {
+                success: true,
+                code_type,
+                value,
+                message: entry.result_message,
+                redeemed_at: entry.created_at.with_timezone(&Utc),
+            });
+        }
 
         // 检查状态
         if code.status != "active" {
@@ -284,25 +329,52 @@ impl RedeemCodeService {
 
         let code_type = code.r#type.parse::<RedeemType>()?;
         let value = code.amount.to_string().parse::<f64>().unwrap_or(0.0);
+        let notes = code.notes.clone();
 
         // 根据类型执行兑换
-        let message = match code_type {
+        let (message, balance_delta, sub_days, quota_delta, sub_id) = match code_type {
             RedeemType::Balance => {
-                self.redeem_balance_with_txn(&txn, &req.user_id, value)
-                    .await?
+                let msg = self
+                    .redeem_balance_with_txn(&txn, &req.user_id, value)
+                    .await?;
+                let delta = (value * 100.0) as i64;
+                (msg, Some(delta), None, None, None)
             }
             RedeemType::Subscription => {
-                // 订阅暂时不支持，返回提示
-                "Subscription redeem not yet implemented".to_string()
+                let (msg, sid) = self
+                    .redeem_subscription_with_txn(&txn, &req.user_id, notes.as_deref(), value as i64)
+                    .await?;
+                (msg, None, Some(value as i64), None, Some(sid))
             }
             RedeemType::Quota => {
-                self.redeem_quota_with_txn(&txn, &req.user_id, value as i64)
-                    .await?
+                let (msg, sid) = self
+                    .redeem_quota_with_txn(&txn, &req.user_id, value as i64)
+                    .await?;
+                (msg, None, None, Some(Decimal::from_f64_retain(value).unwrap_or_default()), Some(sid))
             }
         };
 
-        // 更新卡密状态
+        // Record in redeem_code_ledger
         let now = Utc::now();
+        let ledger_entry = redeem_code_ledger::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            redeem_code_id: Set(code_id),
+            user_id: Set(req.user_id),
+            idempotency_key: Set(None),
+            request_fingerprint: Set(fingerprint),
+            code_type: Set(code_type.to_string()),
+            amount: Set(code.amount),
+            balance_delta_cents: Set(balance_delta),
+            subscription_days: Set(sub_days),
+            quota_delta: Set(quota_delta),
+            subscription_id: Set(sub_id),
+            result_message: Set(message.clone()),
+            metadata: Set(None),
+            created_at: Set(now.into()),
+        };
+        ledger_entry.insert(&txn).await?;
+
+        // 更新卡密状态
         let mut code: redeem_codes::ActiveModel = code.into();
         code.used_count = Set(code.used_count.unwrap() + 1);
         code.used_by = Set(Some(serde_json::to_value(&req.user_id)?));
@@ -468,16 +540,85 @@ impl RedeemCodeService {
         Ok(format!("Added {days} days subscription"))
     }
 
-    /// 兑换订阅（带事务）
+    /// 兑换订阅（带事务）— returns (message, subscription_id)
     async fn redeem_subscription_with_txn(
         &self,
-        _txn: &sea_orm::DatabaseTransaction,
-        _user_id: &Uuid,
-        _group_id: Option<i64>,
-        days: i32,
-    ) -> Result<String> {
-        // TODO: 实现订阅逻辑
-        Ok(format!("Added {days} days subscription"))
+        txn: &sea_orm::DatabaseTransaction,
+        user_id: &Uuid,
+        notes: Option<&str>,
+        days: i64,
+    ) -> Result<(String, i64)> {
+        // Verify user exists
+        let _user = users::Entity::find_by_id(*user_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        let now = Utc::now();
+        let now_tz: chrono::DateTime<chrono::FixedOffset> = now.into();
+        let duration = Duration::days(days);
+
+        // Look for an active subscription for this user (match by user_id stored as i64 hash)
+        // subscriptions.user_id is i64 — we derive a stable i64 from the UUID
+        let user_id_i64 = uuid_to_i64(user_id);
+
+        let existing = subscriptions::Entity::find()
+            .filter(subscriptions::Column::UserId.eq(user_id_i64))
+            .filter(subscriptions::Column::Status.eq("active"))
+            .one(txn)
+            .await?;
+
+        let (sub_id, msg) = if let Some(sub) = existing {
+            // Extend current_period_end
+            let current_end = sub
+                .current_period_end
+                .unwrap_or(now_tz);
+            let new_end = if current_end > now_tz {
+                current_end + duration
+            } else {
+                now_tz + duration
+            };
+
+            let sub_id = sub.id;
+            let mut sub_am: subscriptions::ActiveModel = sub.into();
+            sub_am.current_period_end = Set(Some(new_end));
+            sub_am.updated_at = Set(now_tz);
+            sub_am.update(txn).await?;
+
+            let end_str = new_end.format("%Y-%m-%d").to_string();
+            (sub_id, format!("Extended subscription by {days} days, new end date: {end_str}"))
+        } else {
+            // Create new subscription
+            let plan_name = notes.unwrap_or("redeemed").to_string();
+            let period_end = now_tz + duration;
+
+            let new_sub = subscriptions::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                user_id: Set(user_id_i64),
+                plan_id: Set("redeem".to_string()),
+                plan_name: Set(plan_name.clone()),
+                status: Set("active".to_string()),
+                quota_limit: Set(Decimal::ZERO),
+                quota_used: Set(Decimal::ZERO),
+                rate_limit_5h: Set(None),
+                rate_limit_1d: Set(None),
+                rate_limit_7d: Set(None),
+                features: Set(None),
+                stripe_subscription_id: Set(None),
+                stripe_customer_id: Set(None),
+                current_period_start: Set(Some(now_tz)),
+                current_period_end: Set(Some(period_end)),
+                cancel_at_period_end: Set(false),
+                canceled_at: Set(None),
+                created_at: Set(now_tz),
+                updated_at: Set(now_tz),
+            };
+            let inserted = new_sub.insert(txn).await?;
+            let end_str = period_end.format("%Y-%m-%d").to_string();
+            (inserted.id, format!("Created {plan_name} subscription for {days} days, ends: {end_str}"))
+        };
+
+        Ok((msg, sub_id))
     }
 
     /// 兑换配额
@@ -486,15 +627,65 @@ impl RedeemCodeService {
         Ok(format!("Added {quota} tokens quota"))
     }
 
-    /// 兑换配额（带事务）
+    /// 兑换配额（带事务）— returns (message, subscription_id)
     async fn redeem_quota_with_txn(
         &self,
-        _txn: &sea_orm::DatabaseTransaction,
-        _user_id: &Uuid,
+        txn: &sea_orm::DatabaseTransaction,
+        user_id: &Uuid,
         quota: i64,
-    ) -> Result<String> {
-        // TODO: 实现配额逻辑
-        Ok(format!("Added {quota} tokens quota"))
+    ) -> Result<(String, i64)> {
+        let _user = users::Entity::find_by_id(*user_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        let now_tz: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
+        let user_id_i64 = uuid_to_i64(user_id);
+        let quota_dec = Decimal::from(quota);
+
+        let existing = subscriptions::Entity::find()
+            .filter(subscriptions::Column::UserId.eq(user_id_i64))
+            .filter(subscriptions::Column::Status.eq("active"))
+            .one(txn)
+            .await?;
+
+        let (sub_id, msg) = if let Some(sub) = existing {
+            let new_limit = sub.quota_limit + quota_dec;
+            let sub_id = sub.id;
+            let mut sub_am: subscriptions::ActiveModel = sub.into();
+            sub_am.quota_limit = Set(new_limit);
+            sub_am.updated_at = Set(now_tz);
+            sub_am.update(txn).await?;
+
+            (sub_id, format!("Added {quota} quota units, new limit: {new_limit}"))
+        } else {
+            // Create a basic subscription with the quota
+            let new_sub = subscriptions::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                user_id: Set(user_id_i64),
+                plan_id: Set("redeem".to_string()),
+                plan_name: Set("redeemed".to_string()),
+                status: Set("active".to_string()),
+                quota_limit: Set(quota_dec),
+                quota_used: Set(Decimal::ZERO),
+                rate_limit_5h: Set(None),
+                rate_limit_1d: Set(None),
+                rate_limit_7d: Set(None),
+                features: Set(None),
+                stripe_subscription_id: Set(None),
+                stripe_customer_id: Set(None),
+                current_period_start: Set(Some(now_tz)),
+                current_period_end: Set(None),
+                cancel_at_period_end: Set(false),
+                canceled_at: Set(None),
+                created_at: Set(now_tz),
+                updated_at: Set(now_tz),
+            };
+            let inserted = new_sub.insert(txn).await?;
+            (inserted.id, format!("Created subscription with {quota} quota units"))
+        };
+
+        Ok((msg, sub_id))
     }
 
     /// 获取用户兑换历史
@@ -642,6 +833,12 @@ impl RedeemCodeService {
             created_at: model.created_at.into(),
         }
     }
+}
+
+/// Derive a stable i64 from a UUID for the subscriptions.user_id column (bigint).
+fn uuid_to_i64(id: &Uuid) -> i64 {
+    let bytes = id.as_bytes();
+    i64::from_le_bytes(bytes[..8].try_into().unwrap())
 }
 
 #[cfg(test)]

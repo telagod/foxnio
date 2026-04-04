@@ -587,6 +587,22 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/admin/backup/import",
             post(handler::backup::import_data),
         )
+        .route(
+            "/api/v1/admin/backups",
+            get(handler::backup::list_backups),
+        )
+        .route(
+            "/api/v1/admin/backups/create",
+            post(handler::backup::create_backup),
+        )
+        .route(
+            "/api/v1/admin/backups/:filename/download",
+            get(handler::backup::download_backup),
+        )
+        .route(
+            "/api/v1/admin/backups/:filename",
+            delete(handler::backup::delete_backup),
+        )
         // 分组管理扩展 API
         .route(
             "/api/v1/admin/groups/usage-summary",

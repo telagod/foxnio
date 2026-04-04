@@ -23,6 +23,7 @@ pub mod promo_code_usages;
 pub mod promo_codes;
 pub mod proxies;
 pub mod quota_usage_history;
+pub mod redeem_code_ledger;
 pub mod redeem_codes;
 pub mod refresh_tokens;
 pub mod scheduled_test_plans;
