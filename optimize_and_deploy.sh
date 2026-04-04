@@ -42,14 +42,14 @@ if command -v docker &> /dev/null; then
         echo -e "${GREEN}✓ PostgreSQL 容器运行中${NC}"
     else
         echo "启动 PostgreSQL 容器..."
-        docker-compose up -d postgres
+        docker compose up -d postgres
     fi
 
     if docker ps | grep -q redis; then
         echo -e "${GREEN}✓ Redis 容器运行中${NC}"
     else
         echo "启动 Redis 容器..."
-        docker-compose up -d redis
+        docker compose up -d redis
     fi
 else
     echo -e "${YELLOW}未检测到 Docker，假设数据库服务已手动启动${NC}"
@@ -68,7 +68,7 @@ else
 fi
 
 echo "运行迁移..."
-cargo sqlx migrate run
+cargo run --manifest-path migration/Cargo.toml -- up
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ 数据库迁移成功${NC}"

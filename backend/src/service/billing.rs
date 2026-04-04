@@ -2,8 +2,9 @@
 
 #![allow(dead_code)]
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use super::user::UserService;
@@ -39,6 +40,28 @@ pub struct UserStats {
     pub total_input_tokens: i64,
     pub total_output_tokens: i64,
     pub total_cost: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DailyUsageStats {
+    pub date: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub cost: i64,
+    pub cost_yuan: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserUsageReport {
+    pub total_requests: i64,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_tokens: i64,
+    pub total_cost: i64,
+    pub total_cost_yuan: f64,
+    pub daily_usage: Vec<DailyUsageStats>,
 }
 
 pub struct BillingService {
@@ -144,46 +167,120 @@ impl BillingService {
 
     /// 获取用户用量统计
     pub async fn get_user_stats(&self, user_id: Uuid, days: i32) -> Result<UserStats> {
-        let start_time = Utc::now() - chrono::Duration::days(days as i64);
-
-        let usages = usages::Entity::find()
-            .filter(usages::Column::UserId.eq(user_id))
-            .filter(usages::Column::CreatedAt.gte(start_time))
-            .all(&self.db)
+        let usages = self
+            .load_user_usage_since(user_id, Self::rolling_start_time(days))
             .await?;
+        Ok(Self::summarize_usage(&usages))
+    }
 
-        let total_requests = usages.len() as i64;
-        let total_input_tokens = usages.iter().map(|u| u.input_tokens).sum();
-        let total_output_tokens = usages.iter().map(|u| u.output_tokens).sum();
-        let total_cost = usages.iter().map(|u| u.cost).sum();
+    /// 获取用户用量报表（含日维度聚合）
+    pub async fn get_user_usage_report(&self, user_id: Uuid, days: i32) -> Result<UserUsageReport> {
+        let days = days.max(1);
+        let start_time = Self::report_start_time(days);
+        let usages = self.load_user_usage_since(user_id, start_time).await?;
+        let summary = Self::summarize_usage(&usages);
+        let daily_usage = Self::build_daily_usage(&usages, start_time, days);
 
-        Ok(UserStats {
-            total_requests,
-            total_input_tokens,
-            total_output_tokens,
-            total_cost,
+        Ok(UserUsageReport {
+            total_requests: summary.total_requests,
+            total_input_tokens: summary.total_input_tokens,
+            total_output_tokens: summary.total_output_tokens,
+            total_tokens: summary.total_input_tokens + summary.total_output_tokens,
+            total_cost: summary.total_cost,
+            total_cost_yuan: summary.total_cost as f64 / 100.0,
+            daily_usage,
         })
     }
 
     /// 获取全局统计（管理后台）
     pub async fn get_global_stats(&self, days: i32) -> Result<UserStats> {
-        let start_time = Utc::now() - chrono::Duration::days(days as i64);
+        let usages = self
+            .load_global_usage_since(Self::rolling_start_time(days))
+            .await?;
+        Ok(Self::summarize_usage(&usages))
+    }
 
-        let usages = usages::Entity::find()
+    async fn load_user_usage_since(
+        &self,
+        user_id: Uuid,
+        start_time: DateTime<Utc>,
+    ) -> Result<Vec<usages::Model>> {
+        Ok(usages::Entity::find()
+            .filter(usages::Column::UserId.eq(user_id))
             .filter(usages::Column::CreatedAt.gte(start_time))
             .all(&self.db)
-            .await?;
+            .await?)
+    }
 
-        let total_requests = usages.len() as i64;
-        let total_input_tokens = usages.iter().map(|u| u.input_tokens).sum();
-        let total_output_tokens = usages.iter().map(|u| u.output_tokens).sum();
-        let total_cost = usages.iter().map(|u| u.cost).sum();
+    async fn load_global_usage_since(
+        &self,
+        start_time: DateTime<Utc>,
+    ) -> Result<Vec<usages::Model>> {
+        Ok(usages::Entity::find()
+            .filter(usages::Column::CreatedAt.gte(start_time))
+            .all(&self.db)
+            .await?)
+    }
 
-        Ok(UserStats {
-            total_requests,
-            total_input_tokens,
-            total_output_tokens,
-            total_cost,
-        })
+    fn summarize_usage(usages: &[usages::Model]) -> UserStats {
+        UserStats {
+            total_requests: usages.len() as i64,
+            total_input_tokens: usages.iter().map(|usage| usage.input_tokens).sum(),
+            total_output_tokens: usages.iter().map(|usage| usage.output_tokens).sum(),
+            total_cost: usages.iter().map(|usage| usage.cost).sum(),
+        }
+    }
+
+    fn build_daily_usage(
+        usages: &[usages::Model],
+        start_time: DateTime<Utc>,
+        days: i32,
+    ) -> Vec<DailyUsageStats> {
+        let mut grouped = BTreeMap::<String, DailyUsageStats>::new();
+
+        for offset in 0..days {
+            let date = (start_time + Duration::days(offset as i64))
+                .format("%Y-%m-%d")
+                .to_string();
+            grouped.insert(
+                date.clone(),
+                DailyUsageStats {
+                    date,
+                    requests: 0,
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    total_tokens: 0,
+                    cost: 0,
+                    cost_yuan: 0.0,
+                },
+            );
+        }
+
+        for usage in usages {
+            let date = usage.created_at.format("%Y-%m-%d").to_string();
+            if let Some(entry) = grouped.get_mut(&date) {
+                entry.requests += 1;
+                entry.input_tokens += usage.input_tokens;
+                entry.output_tokens += usage.output_tokens;
+                entry.total_tokens += usage.input_tokens + usage.output_tokens;
+                entry.cost += usage.cost;
+                entry.cost_yuan = entry.cost as f64 / 100.0;
+            }
+        }
+
+        grouped.into_values().collect()
+    }
+
+    fn rolling_start_time(days: i32) -> DateTime<Utc> {
+        Utc::now() - Duration::days(days.max(1) as i64)
+    }
+
+    fn report_start_time(days: i32) -> DateTime<Utc> {
+        let start_time = Utc::now() - Duration::days(days.max(1) as i64 - 1);
+        start_time
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|value| DateTime::<Utc>::from_naive_utc_and_offset(value, Utc))
+            .expect("valid start time")
     }
 }

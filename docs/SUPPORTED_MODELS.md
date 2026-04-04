@@ -1,7 +1,6 @@
 # FoxNIO 支持的模型和服务商
 
-**更新时间**: 2026-03-30
-**版本**: v0.2.0
+**更新时间**: 2026-04-04
 
 ## ⚠️ 重要说明
 
@@ -200,6 +199,6 @@ curl -X POST http://localhost:8080/api/v1/admin/models/reload \
 
 ## 相关文档
 
-- [动态模型实现](backend/docs/DYNAMIC_MODEL_IMPLEMENTATION.md)
+- [动态模型实现](../backend/docs/DYNAMIC_MODEL_IMPLEMENTATION.md)
 - [API 参考](API_REFERENCE.md)
 - [功能对齐计划](FEATURE_ALIGNMENT.md)

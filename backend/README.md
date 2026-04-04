@@ -76,8 +76,8 @@ backend/
 
 ## 相关文档
 
-- [后端设计](DESIGN.md)
 - [项目当前状态](../docs/CURRENT_STATUS.md)
 - [业务逻辑](../docs/BUSINESS_LOGIC.md)
 - [部署说明](../docs/DEPLOYMENT.md)
+- [开发文档](../docs/DEVELOPMENT.md)
 - [长期 TODO](../TODO.md)

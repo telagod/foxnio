@@ -254,7 +254,7 @@ cd foxnio/backend
 cargo build --release
 
 # 2. 运行数据库迁移
-cargo sqlx migrate run
+cargo run --manifest-path migration/Cargo.toml -- up
 
 # 3. 启动服务
 ./target/release/foxnio
@@ -326,3 +326,5 @@ sqlx = "0.8+"    # 修复未来兼容性
 
 **优化完成时间**: 2026-04-01 23:40  
 **下一步**: 运行数据库迁移，进行性能测试和监控部署
+> 历史优化记录。
+> 本文档中的部署步骤不再是当前权威发布路径；当前以 `deploy.sh` 与 `docs/DEPLOYMENT.md` 为准。

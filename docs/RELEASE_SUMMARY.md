@@ -1,272 +1,75 @@
-# FoxNIO v0.2.1 发布总结
+# FoxNIO 发布总结
 
-**发布日期**: 2026-03-30  
-**版本**: v0.2.1  
-**状态**: 生产就绪 ✅
+**更新时间**: 2026-04-04
+**口径**: 本文档记录当前仓库已完成的发布收口，不再保留旧版本号、旧日期与旧上线结论
 
----
+## 现状
 
-## 🎯 本次发布亮点
+FoxNIO 当前的发布状态可以概括为一句话：
 
-### 功能对齐完成
+主业务链已经大体接真，发布口径已经完成第一轮收口，但还没有完成“干净环境部署 + 最小 smoke + 真实 provider smoke”的最终闭环。
 
-FoxNIO 已完成与 Sub2API 核心功能的 **100% 对齐**，新增 **11 个 API 端点**和 **15+ Prometheus 监控指标**。
+当前真正发生过的进展：
 
-### 开发效率突破
+- 用户 dashboard、`/usage`、管理 dashboard 已接真实后端聚合
+- Realtime/WebSocket、Gemini Native、Sora / prompt enhance 已接真实上游与 usage / audit / quota
+- runtime config、Docker、compose profile、deploy 脚本已收口
 
-通过 **24 个并行 AI Agent** 协同工作，在 **6.5 小时**内完成了 **7,000+ 行代码**的开发和测试。
+当前仍不能下的结论：
 
----
+- 不能写“所有 provider 已可直接上线”
+- 不能写“某个旧版本已发布完成”
+- 不能写“整体功能已全部完成”
 
-## ✅ 核心功能清单
+## 已完成
 
-### 1. Webhook 系统 (100%)
-```
-✅ 7 个 REST 端点
-✅ HMAC-SHA256 签名验证
-✅ 指数退避重试机制
-✅ 12 种事件类型
-✅ 投递状态追踪
-✅ 4 个监控指标
-```
+### 已完成的业务主链
 
-**端点**:
-- `POST /api/v1/webhooks` - 创建 webhook
-- `GET /api/v1/webhooks` - 列出 webhooks
-- `GET /api/v1/webhooks/:id` - 获取详情
-- `PUT /api/v1/webhooks/:id` - 更新 webhook
-- `DELETE /api/v1/webhooks/:id` - 删除 webhook
-- `POST /api/v1/webhooks/:id/test` - 测试 webhook
-- `GET /api/v1/webhooks/:id/deliveries` - 投递日志
+- 用户侧：个人信息、API Key、dashboard、`/usage`
+- 管理侧：`/api/v1/admin/dashboard/*` 与基础控制台查询
+- 网关侧：Realtime、Gemini Native、Sora / prompt enhance
+- 认证侧：注册、登录、刷新、验证码发送、改邮箱验证码消费、密码重置、TOTP
+- 账务侧：usage 写库、quota 消耗、redeem 幂等与 ledger 审计
 
-### 2. 批量操作 API (100%)
-```
-✅ 批量创建 API Keys
-✅ 批量更新账户
-✅ CSV 用户导入
-✅ 批量删除操作
-✅ 错误聚合返回
-✅ 3 个监控指标
-```
+### 已完成的工程收口
 
-**端点**:
-- `POST /api/v1/admin/api-keys/batch-create`
-- `POST /api/v1/admin/accounts/batch-update`
-- `POST /api/v1/admin/users/batch-import`
-- `POST /api/v1/admin/api-keys/batch-delete`
+- backend 已统一 `config.yaml`、`.env`、runtime env 读取
+- frontend Docker 已切回 `adapter-node`
+- compose 已拆为 `core` / `ui` / `edge`
+- `deploy.sh` 已成为统一部署入口
 
-### 3. 窗口费用预取 (100%)
-```
-✅ 双层缓存（Memory + Redis）
-✅ 批量 SQL 查询优化
-✅ 60s TTL 自动过期
-✅ 6 个监控指标
-```
+### 当前已核验证
 
-### 4. API Key 权限系统 (100%)
-```
-✅ 模型访问控制
-✅ IP 白名单验证
-✅ 每日配额管理
-✅ 过期时间检查
-✅ 完整中间件实现
-```
+- backend `cargo check`
+- frontend `npm run check`
+- `git diff --check`
 
-### 5. 等待队列 & RPM 限制 (100%)
-```
-✅ 粘性会话优先级
-✅ 模型级 RPM/TPM 限制
-✅ 自动清理过期请求
-✅ Redis 支持
-✅ 完整测试套件
-```
+## 未完成
 
-### 6. OpenAPI 文档 (100%)
-```
-✅ Swagger UI 集成
-✅ OpenAPI spec 端点
-✅ 15+ 端点完整注解
-✅ 请求/响应 Schema
-```
+### 发布链仍缺最终结论
 
----
+还缺：
 
-## 📊 Prometheus 监控指标
+- backend release image 最终构建结果
+- 干净环境起 `core` 栈并记录 `/health`
+- `ui` 与 `edge` 组合起服验证
+- 最小 smoke 脚本与回滚手册
 
-### Webhook 指标 (4)
-- `foxnio_webhook_events_sent_total`
-- `foxnio_webhook_delivery_success_total`
-- `foxnio_webhook_delivery_failed_total`
-- `foxnio_webhook_retry_total`
+### 真实 provider smoke 未完成
 
-### 批量操作指标 (3)
-- `foxnio_batch_operations_total`
-- `foxnio_batch_items_processed_total`
-- `foxnio_batch_errors_total`
+阻断条件仍然存在：
 
-### API Key 指标 (3)
-- `foxnio_api_key_auth_checks_total`
-- `foxnio_api_key_quota_exceeded_total`
-- `foxnio_api_key_model_denied_total`
+- 缺真实 OpenAI / Gemini 密钥
+- 缺真实 provider account / OAuth token
 
-### 窗口费用指标 (6)
-- `foxnio_window_cache_hits_total`
-- `foxnio_window_cache_misses_total`
-- `foxnio_window_batch_queries_total`
-- `foxnio_window_redis_hits_total`
-- `foxnio_window_redis_misses_total`
-- `foxnio_window_prefetched_accounts`
+所以目前只能说“代码链存在”，还不能说“真实 provider 已回归通过”。
 
----
+### 文档收口未完成
 
-## 📁 新增文件清单
+虽然主文档已重写，但 `docs/` 下仍有其他历史专题文档需要继续清理旧完成度口径。
 
-### 服务层 (5,825 行)
-```
-backend/src/service/webhook.rs          20,309 字节
-backend/src/service/batch.rs            13,698 字节
-backend/src/service/window_cost_cache.rs 15,224 字节
-backend/src/service/wait_queue.rs       12,970 字节
-backend/src/service/model_rate_limit.rs 14,154 字节
-```
+## 下一步
 
-### Handler 层 (2,377 行)
-```
-backend/src/handler/webhook.rs          12,895 字节
-backend/src/handler/batch.rs             7,881 字节
-backend/src/middleware/api_key_auth.rs   完整实现
-```
-
-### 数据库迁移 (3 个)
-```
-backend/migration/src/m20240330_000024_add_api_key_permissions.rs
-backend/migration/src/m20240330_000026_create_webhook_endpoints.rs
-backend/migration/src/m20240330_000027_create_webhook_deliveries.rs
-```
-
-### 实体定义 (2 个)
-```
-backend/src/entity/webhook_endpoints.rs
-backend/src/entity/webhook_deliveries.rs
-```
-
----
-
-## 🔧 技术实现细节
-
-### Webhook 签名
-```rust
-HMAC-SHA256(secret, timestamp + payload)
-格式: t={timestamp},v1={signature}
-```
-
-### 重试机制
-```rust
-指数退避: 1s, 2s, 4s, 8s, 16s
-最大重试次数: 5 次
-```
-
-### 缓存策略
-```rust
-L1: Memory (RwLock<HashMap>)
-L2: Redis (60s TTL)
-批量预取: 单次 SQL 查询多账户
-```
-
----
-
-## 📈 开发统计
-
-| 指标 | 数值 |
-|------|------|
-| 开发时长 | 6.5 小时 |
-| Git 提交 | 17 次 |
-| 并行 Agent | 24 个 |
-| 新增代码 | 7,000+ 行 |
-| 新增文件 | 25+ 个 |
-| 新增端点 | 11 个 |
-| 新增指标 | 15+ 个 |
-
----
-
-## ⚠️ 待完善项目
-
-### P1 - 高优先级 (40% 完成)
-1. **成本优化服务**
-   - 使用分析核心逻辑
-   - 优化建议生成
-   - 替代模型查找
-
-2. **模型自动同步服务**
-   - 各提供商同步实现
-   - 价格变化检测
-   - 定时同步任务
-
-### P2 - 中优先级
-3. **集成测试**
-   - Webhook 集成测试
-   - 批量操作测试
-   - API Key 权限测试
-
-### P3 - 低优先级
-4. **Handler TODO 清理**
-   - 验证码和邀请码
-   - Dashboard 查询
-   - 备份管理
-
----
-
-## 🚀 后续版本规划
-
-### v0.2.2 (本周)
-- [ ] 完成成本优化服务核心实现
-- [ ] 完成模型自动同步服务
-- [ ] 添加基础集成测试
-
-### v0.3.0 (下周)
-- [ ] 完善所有 Handler TODO
-- [ ] 完整测试覆盖
-- [ ] 性能优化和压测
-
-### v1.0.0 (月度)
-- [ ] 生产环境验证
-- [ ] 用户反馈整合
-- [ ] 文档完善
-
----
-
-## 📝 发布检查
-
-### ✅ 已完成
-- [x] 版本号更新 (0.2.1)
-- [x] CHANGELOG 更新
-- [x] 文档清理
-- [x] Git tag 创建
-- [x] GitHub 推送
-
-### ✅ 质量保证
-- [x] 代码审查
-- [x] 错误处理完整
-- [x] 监控指标正常
-- [x] 文档齐全
-
----
-
-## 🎊 致谢
-
-**开发模式**: AI Agent 协同开发  
-**开发团队**: 24 个并行 Agent  
-**技术栈**: Rust/Axum + SvelteKit  
-**特别感谢**: Sub2API 提供的优秀参考实现
-
----
-
-## 📞 支持
-
-- **GitHub**: https://github.com/telagod/foxnio
-- **文档**: /docs 目录
-- **问题反馈**: GitHub Issues
-
----
-
-**FoxNIO v0.2.1 - 生产就绪，功能完备！** 🎉
+1. 先完成发布链最终演练：build、start、`/health`、最小 smoke。
+2. 再补真实 provider smoke，把发布结论从“代码已接真”推进到“真实回归通过”。
+3. 最后继续清理历史专题文档，保证全仓库只保留一套权威状态口径。

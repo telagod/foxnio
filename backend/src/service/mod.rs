@@ -124,6 +124,7 @@ pub mod announcement_service;
 pub mod backup_service;
 pub mod billing_cache_port;
 pub mod dashboard_aggregation_service;
+pub mod dashboard_query_service;
 pub mod dashboard_service;
 pub mod data_management_service;
 pub mod digest_session_store;

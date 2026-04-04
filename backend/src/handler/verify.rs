@@ -255,6 +255,67 @@ fn invitation_benefits(preview: &crate::service::redeem_code::RedeemCodePreview)
     }
 }
 
+pub async fn consume_verify_code(
+    state: &SharedState,
+    email: &str,
+    code: &str,
+    verify_type: &str,
+) -> Result<(), (StatusCode, String)> {
+    let normalized_email = email.trim().to_lowercase();
+    if !is_valid_email(&normalized_email) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid email format".to_string()));
+    }
+
+    let normalized_code = code.trim();
+    if normalized_code.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Verification code is required".to_string(),
+        ));
+    }
+
+    let verify_type = VerifyType::parse(verify_type.trim().to_lowercase().as_str())
+        .map_err(|error| (error.0, error.1))?;
+    let verify_key = build_verify_key(&normalized_email, verify_type);
+
+    let payload = state
+        .redis
+        .get(&verify_key)
+        .await
+        .map_err(internal_verify_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Verification code expired or not found".to_string(),
+            )
+        })?;
+
+    let stored: StoredVerifyCode = serde_json::from_str(&payload).map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to parse verification code payload".to_string(),
+        )
+    })?;
+
+    if stored.email != normalized_email
+        || stored.verify_type != verify_type.as_str()
+        || stored.code != normalized_code
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid verification code".to_string(),
+        ));
+    }
+
+    state
+        .redis
+        .del(&verify_key)
+        .await
+        .map_err(internal_verify_error)?;
+
+    Ok(())
+}
+
 async fn user_exists(state: &SharedState, email: &str) -> Result<bool, ApiError> {
     users::Entity::find()
         .filter(users::Column::Email.eq(email))
@@ -274,4 +335,8 @@ fn build_cooldown_key(email: &str, verify_type: VerifyType) -> String {
 
 fn internal_error(error: impl std::fmt::Display) -> ApiError {
     ApiError(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
+}
+
+fn internal_verify_error(error: impl std::fmt::Display) -> (StatusCode, String) {
+    (StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
 }

@@ -7,6 +7,7 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Router,
 };
+use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use tower_http::{
@@ -965,6 +966,7 @@ async fn handle_completions(
 async fn get_user_usage(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
+    axum::extract::Query(query): axum::extract::Query<UserUsageQuery>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     let user_id = uuid::Uuid::parse_str(&claims.sub)
         .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -972,18 +974,27 @@ async fn get_user_usage(
     let billing_service =
         BillingService::new(state.db.clone(), state.config.gateway.rate_multiplier);
 
-    let stats = billing_service
-        .get_user_stats(user_id, 30)
+    let days = query.days.unwrap_or(30).clamp(1, 90) as i32;
+    let report = billing_service
+        .get_user_usage_report(user_id, days)
         .await
         .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(axum::Json(json!({
-        "total_requests": stats.total_requests,
-        "total_input_tokens": stats.total_input_tokens,
-        "total_output_tokens": stats.total_output_tokens,
-        "total_cost": stats.total_cost,
-        "total_cost_yuan": stats.total_cost as f64 / 100.0,
+        "days": days,
+        "total_requests": report.total_requests,
+        "total_input_tokens": report.total_input_tokens,
+        "total_output_tokens": report.total_output_tokens,
+        "total_tokens": report.total_tokens,
+        "total_cost": report.total_cost,
+        "total_cost_yuan": report.total_cost_yuan,
+        "daily_usage": report.daily_usage,
     })))
+}
+
+#[derive(Deserialize)]
+struct UserUsageQuery {
+    days: Option<u32>,
 }
 
 // ============ API Key 管理 ============

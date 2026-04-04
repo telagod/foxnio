@@ -20,7 +20,7 @@ impl Default for LoadTestConfig {
         Self {
             concurrent_users: 10,
             requests_per_user: 100,
-            target_url: "http://localhost:3000/v1/chat/completions".to_string(),
+            target_url: "http://localhost:8080/v1/chat/completions".to_string(),
             api_key: "foxnio-test-key".to_string(),
         }
     }

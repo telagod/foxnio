@@ -39,4 +39,4 @@ let decrypted = enc.decrypt(&encrypted)?;
 export FOXNIO_MASTER_KEY="new_base64_key:old_base64_key"
 ```
 
-See [ENCRYPTION.md](docs/ENCRYPTION.md) for full documentation.
+See [ENCRYPTION.md](../../docs/ENCRYPTION.md) for full documentation.
