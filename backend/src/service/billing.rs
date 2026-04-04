@@ -194,7 +194,9 @@ impl BillingService {
 
     /// 获取全局统计（管理后台）
     pub async fn get_global_stats(&self, days: i32) -> Result<UserStats> {
-        let usages = self.load_global_usage_since(Self::rolling_start_time(days)).await?;
+        let usages = self
+            .load_global_usage_since(Self::rolling_start_time(days))
+            .await?;
         Ok(Self::summarize_usage(&usages))
     }
 
@@ -210,7 +212,10 @@ impl BillingService {
             .await?)
     }
 
-    async fn load_global_usage_since(&self, start_time: DateTime<Utc>) -> Result<Vec<usages::Model>> {
+    async fn load_global_usage_since(
+        &self,
+        start_time: DateTime<Utc>,
+    ) -> Result<Vec<usages::Model>> {
         Ok(usages::Entity::find()
             .filter(usages::Column::CreatedAt.gte(start_time))
             .all(&self.db)

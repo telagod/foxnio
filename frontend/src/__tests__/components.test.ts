@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, waitFor } from '@testing-library/svelte/svelte5';
+import { render, screen } from '@testing-library/svelte/svelte5';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Dashboard from '../routes/admin/+page.svelte';
 import ApiKeys from '../routes/apikeys/+page.svelte';
@@ -25,13 +25,13 @@ describe('Dashboard', () => {
   it('renders the refresh button', () => {
     mockFetch.mockImplementation(() => new Promise(() => {})); // Never resolves
     render(Dashboard);
-    expect(screen.getByText('Refresh')).toBeTruthy();
+    expect(screen.getByText('刷新')).toBeTruthy();
   });
 
   it('renders the dashboard title', () => {
     mockFetch.mockImplementation(() => new Promise(() => {})); // Never resolves
     render(Dashboard);
-    expect(screen.getByText('Dashboard')).toBeTruthy();
+    expect(screen.getByText('管理控制面')).toBeTruthy();
   });
 });
 
