@@ -40,8 +40,8 @@ services:
       dockerfile: Dockerfile
     container_name: foxnio-backend
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://foxnio:foxnio_secret@postgres:5432/foxnio}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: postgres://foxnio:foxnio_secret@postgres:5432/foxnio
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-in-production}
       JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
       GATEWAY_API_KEY_PREFIX: ${GATEWAY_API_KEY_PREFIX:-sk-}
@@ -72,7 +72,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       backend:
         condition: service_started

@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite';
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
-  const config: any = {
-    plugins: [sveltekit()],
+  const config: Record<string, unknown> = {
+    plugins: [tailwindcss(), sveltekit()],
   };
 
-  // 只在测试模式下添加测试配置
   if (mode === 'test') {
     config.test = {
       environment: 'jsdom',

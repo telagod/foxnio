@@ -57,7 +57,7 @@ setup_env() {
     sed -i "s|^JWT_SECRET=.*$|JWT_SECRET=${jwt_secret}|" .env
 
     local master_key
-    master_key=$(openssl rand -hex 32)
+    master_key=$(openssl rand -base64 32)
     sed -i "s|^FOXNIO_MASTER_KEY=.*$|FOXNIO_MASTER_KEY=${master_key}|" .env
 
     log_info ".env created. Adjust values before production rollout if needed."
@@ -78,8 +78,8 @@ setup_ssl() {
 }
 
 setup_backup() {
-    mkdir -p /var/backups/foxnio
-    chmod 750 /var/backups/foxnio
+    local backup_dir="${BACKUP_DIR:-./backups}"
+    mkdir -p "$backup_dir"
 }
 
 wait_for_backend() {
@@ -144,13 +144,14 @@ logs() {
 backup() {
     setup_backup
 
+    local backup_dir="${BACKUP_DIR:-./backups}"
     local backup_file
-    backup_file="/var/backups/foxnio/backup_$(date +%Y%m%d_%H%M%S).sql"
+    backup_file="${backup_dir}/backup_$(date +%Y%m%d_%H%M%S).sql"
 
     log_info "Backing up database to ${backup_file}.gz ..."
     compose exec -T postgres pg_dump -U foxnio foxnio > "$backup_file"
     gzip "$backup_file"
-    find /var/backups/foxnio -name "*.sql.gz" -mtime +30 -delete
+    find "$backup_dir" -name "*.sql.gz" -mtime +30 -delete
 }
 
 restore() {
