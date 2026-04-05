@@ -21,7 +21,9 @@
   async function loadKeys() {
     loading = true; error = null;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (typeof (api as any).getAdminApiKeys === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const res = await (api as any).getAdminApiKeys();
         keys = res.data ?? [];
       } else { comingSoon = true; }

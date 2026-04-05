@@ -12,8 +12,8 @@ vi.mock('$app/navigation', () => ({
 }));
 
 // Mock $app/stores
-vi.mock('$app/stores', () => {
-  const { readable } = require('svelte/store');
+vi.mock('$app/stores', async () => {
+  const { readable } = await import('svelte/store');
   return {
     page: readable({ url: new URL('http://localhost'), params: {} }),
     navigating: readable(null),
