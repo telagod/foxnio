@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -44,6 +45,19 @@ pub struct MetricAggregation {
     pub p99: f64,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
+}
+
+/// 系统指标快照（从数据库实时查询）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsSnapshot {
+    pub total_users: i64,
+    pub active_users_24h: i64,
+    pub today_requests: i64,
+    pub today_tokens: i64,
+    pub today_cost_cents: i64,
+    pub error_rate_1h: f64,
+    pub avg_response_time_ms: f64,
+    pub snapshot_at: DateTime<Utc>,
 }
 
 /// 指标收集器配置
@@ -91,6 +105,130 @@ impl MetricsCollector {
             histograms: Arc::new(RwLock::new(HashMap::new())),
             stop_signal: Arc::new(RwLock::new(false)),
         }
+    }
+
+    /// 从数据库收集一次完整的指标快照
+    pub async fn collect_snapshot(&self) -> Result<MetricsSnapshot> {
+        let now = Utc::now();
+        let twenty_four_hours_ago = now - Duration::hours(24);
+        let one_hour_ago = now - Duration::hours(1);
+
+        // 1. total users + active users (last 24h via usages)
+        let user_row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    (SELECT COUNT(*) FROM users) AS total_users,
+                    (SELECT COUNT(DISTINCT user_id) FROM usages WHERE created_at >= $1) AS active_users_24h
+                "#,
+                [twenty_four_hours_ago.into()],
+            ))
+            .await?;
+
+        let (total_users, active_users_24h) = match user_row {
+            Some(ref r) => {
+                let t: i64 = r.try_get_by_index(0).unwrap_or(0);
+                let a: i64 = r.try_get_by_index(1).unwrap_or(0);
+                (t, a)
+            }
+            None => (0, 0),
+        };
+
+        // 2. today's requests, tokens, cost
+        let today_start = now.date_naive()
+            .and_hms_opt(0, 0, 0)
+            .expect("valid midnight");
+        let today_start_utc = DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);
+
+        let usage_row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    COUNT(*) AS total_requests,
+                    COALESCE(SUM(input_tokens + output_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(cost), 0) AS total_cost
+                FROM usages
+                WHERE created_at >= $1
+                "#,
+                [today_start_utc.into()],
+            ))
+            .await?;
+
+        let (today_requests, today_tokens, today_cost_cents) = match usage_row {
+            Some(ref r) => {
+                let req: i64 = r.try_get_by_index(0).unwrap_or(0);
+                let tok: i64 = r.try_get_by_index(1).unwrap_or(0);
+                let cost: i64 = r.try_get_by_index(2).unwrap_or(0);
+                (req, tok, cost)
+            }
+            None => (0, 0, 0),
+        };
+
+        // 3. error rate (failed / total in last hour)
+        let error_row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(CASE WHEN success = false THEN 1 ELSE 0 END), 0) AS failed
+                FROM usages
+                WHERE created_at >= $1
+                "#,
+                [one_hour_ago.into()],
+            ))
+            .await?;
+
+        let error_rate_1h = match error_row {
+            Some(ref r) => {
+                let total: i64 = r.try_get_by_index(0).unwrap_or(0);
+                let failed: i64 = r.try_get_by_index(1).unwrap_or(0);
+                if total > 0 {
+                    failed as f64 / total as f64
+                } else {
+                    0.0
+                }
+            }
+            None => 0.0,
+        };
+
+        // 4. avg response time from usages.metadata->>'response_time_ms' (last hour)
+        let rt_row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT AVG((metadata->>'response_time_ms')::float)
+                FROM usages
+                WHERE created_at >= $1
+                  AND metadata IS NOT NULL
+                  AND metadata->>'response_time_ms' IS NOT NULL
+                "#,
+                [one_hour_ago.into()],
+            ))
+            .await?;
+
+        let avg_response_time_ms: f64 = rt_row
+            .as_ref()
+            .and_then(|r| r.try_get_by_index::<Option<f64>>(0).ok())
+            .flatten()
+            .unwrap_or(0.0);
+
+        Ok(MetricsSnapshot {
+            total_users,
+            active_users_24h,
+            today_requests,
+            today_tokens,
+            today_cost_cents,
+            error_rate_1h,
+            avg_response_time_ms,
+            snapshot_at: now,
+        })
     }
 
     /// 启动指标收集

@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -325,36 +326,101 @@ impl OpsAggregationService {
     async fn aggregate_metrics(
         &self,
         start_time: DateTime<Utc>,
-        _end_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
         granularity: &str,
     ) -> Result<Vec<OpsAggregatedMetrics>> {
-        // TODO: 实现实际的聚合查询
-        // 这里需要查询原始指标数据并聚合
+        // date_trunc bucket: 'hour' for hourly, 'day' for daily
+        let trunc_unit = match granularity {
+            "hourly" => "hour",
+            "daily" => "day",
+            other => other,
+        };
 
-        let mut metrics = Vec::new();
+        let sql = format!(
+            r#"
+            SELECT
+                date_trunc('{trunc_unit}', u.created_at) AS bucket,
+                a.provider                                AS platform,
+                u.model                                   AS model,
+                COUNT(*)                                  AS total_requests,
+                COALESCE(SUM(CASE WHEN u.success THEN 1 ELSE 0 END), 0)  AS successful_requests,
+                COALESCE(SUM(CASE WHEN NOT u.success THEN 1 ELSE 0 END), 0) AS failed_requests,
+                COALESCE(SUM(u.input_tokens + u.output_tokens), 0)        AS total_tokens,
+                COALESCE(SUM(u.input_tokens), 0)          AS prompt_tokens,
+                COALESCE(SUM(u.output_tokens), 0)         AS completion_tokens,
+                COALESCE(SUM(u.cost), 0)                  AS total_cost
+            FROM usages u
+            LEFT JOIN accounts a ON a.id = u.account_id
+            WHERE u.created_at >= $1
+              AND u.created_at <  $2
+            GROUP BY bucket, a.provider, u.model
+            ORDER BY bucket, platform, model
+            "#
+        );
 
-        // 示例：按平台聚合
-        let platforms = ["openai", "gemini", "anthropic", "bedrock"];
-        for platform in platforms {
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                &sql,
+                [start_time.into(), end_time.into()],
+            ))
+            .await?;
+
+        let mut metrics = Vec::with_capacity(rows.len());
+
+        for row in &rows {
+            let bucket: DateTime<Utc> = row.try_get_by_index(0).unwrap_or(start_time);
+            let platform: Option<String> = row.try_get_by_index(1).ok();
+            let model: Option<String> = row.try_get_by_index(2).ok();
+            let total_requests: i64 = row.try_get_by_index(3).unwrap_or(0);
+            let successful_requests: i64 = row.try_get_by_index(4).unwrap_or(0);
+            let failed_requests: i64 = row.try_get_by_index(5).unwrap_or(0);
+            let total_tokens: i64 = row.try_get_by_index(6).unwrap_or(0);
+            let prompt_tokens: i64 = row.try_get_by_index(7).unwrap_or(0);
+            let completion_tokens: i64 = row.try_get_by_index(8).unwrap_or(0);
+            let total_cost_raw: i64 = row.try_get_by_index(9).unwrap_or(0);
+
+            let avg_response_time_ms = if total_requests > 0 {
+                // response_time not available in aggregation query; set 0
+                0.0
+            } else {
+                0.0
+            };
+
             let agg = OpsAggregatedMetrics {
-                timestamp: start_time,
+                timestamp: bucket,
                 granularity: granularity.to_string(),
-                platform: Some(platform.to_string()),
-                model: None,
+                platform,
+                model,
                 request_type: None,
-                total_requests: 0,
-                successful_requests: 0,
-                failed_requests: 0,
+                total_requests,
+                successful_requests,
+                failed_requests,
                 total_response_time_ms: 0,
-                avg_response_time_ms: 0.0,
+                avg_response_time_ms,
                 p50_response_time_ms: 0,
                 p95_response_time_ms: 0,
                 p99_response_time_ms: 0,
-                total_tokens: 0,
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_cost_usd: 0.0,
+                total_tokens,
+                prompt_tokens,
+                completion_tokens,
+                total_cost_usd: total_cost_raw as f64 / 100.0,
             };
+
+            tracing::debug!(
+                "[{}] bucket={} platform={:?} model={:?} reqs={} ok={} fail={} tokens={} cost_usd={:.2}",
+                granularity,
+                bucket,
+                agg.platform,
+                agg.model,
+                total_requests,
+                successful_requests,
+                failed_requests,
+                total_tokens,
+                agg.total_cost_usd,
+            );
+
             metrics.push(agg);
         }
 

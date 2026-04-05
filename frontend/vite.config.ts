@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
   };
 
   if (mode === 'test') {
+    config.resolve = {
+      conditions: ['browser'],
+    };
     config.test = {
       environment: 'jsdom',
       globals: true,

@@ -248,6 +248,8 @@ class ApiClient {
     } else {
       this.cache.clear();
     }
+    // 同时清除进行中的请求（防止测试间泄漏）
+    this.pendingRequests.clear();
   }
 
   private async request<T>(

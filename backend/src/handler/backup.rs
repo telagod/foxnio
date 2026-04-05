@@ -8,6 +8,8 @@ use axum::{
 };
 use serde_json::{json, Value};
 
+use uuid::Uuid;
+
 use super::ApiError;
 use crate::gateway::middleware::permission::check_permission;
 use crate::gateway::SharedState;
@@ -15,6 +17,7 @@ use crate::service::backup::{BackupFacade, ExportRequest, ImportRequest};
 use crate::service::backup_service::BackupService;
 use crate::service::permission::Permission;
 use crate::service::user::Claims;
+use crate::service::{AuditEntry, AuditService};
 
 /// Build a [`BackupService`] from shared application state.
 fn make_backup_svc(state: &SharedState) -> BackupService {
@@ -102,6 +105,20 @@ pub async fn create_backup(
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Audit trail for backup creation
+    if let Ok(user_id) = Uuid::parse_str(&claims.sub) {
+        let audit_svc = AuditService::new(state.db.clone());
+        let entry = AuditEntry::admin_action(
+            user_id,
+            "backup_create",
+            "backup",
+            &format!("{:?}", record),
+            None,
+            None,
+        );
+        let _ = audit_svc.log(entry).await;
+    }
+
     Ok(Json(json!({
         "success": true,
         "data": record
@@ -152,6 +169,20 @@ pub async fn delete_backup(
     svc.delete_backup(&filename)
         .await
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    // Audit trail for backup deletion
+    if let Ok(user_id) = Uuid::parse_str(&claims.sub) {
+        let audit_svc = AuditService::new(state.db.clone());
+        let entry = AuditEntry::admin_action(
+            user_id,
+            "backup_delete",
+            "backup",
+            &filename,
+            None,
+            None,
+        );
+        let _ = audit_svc.log(entry).await;
+    }
 
     Ok(Json(json!({
         "success": true,

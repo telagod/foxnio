@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -123,35 +124,40 @@ impl OpsCleanupService {
         tracing::info!("开始执行清理任务");
 
         let start_time = Utc::now();
-        let cutoff = start_time - Duration::days(self.config.default_retention_days as i64);
+        let default_cutoff = start_time - Duration::days(self.config.default_retention_days as i64);
+        let usages_cutoff = start_time - Duration::days(90);
 
-        // 清理各种类型的数据
-        let mut total_deleted = 0i64;
+        let mut usages_deleted = 0i64;
+        let mut audit_logs_deleted = 0i64;
+        let mut tokens_deleted = 0i64;
+        let mut other_deleted = 0i64;
 
-        // 清理错误日志
-        let deleted_errors = self.cleanup_error_logs(cutoff).await?;
-        total_deleted += deleted_errors;
-        tracing::info!("清理了 {} 条错误日志", deleted_errors);
+        // 1. 清理 usages（90 天）
+        let deleted = self.cleanup_usages(usages_cutoff).await?;
+        usages_deleted += deleted;
+        tracing::info!("清理了 {} 条 usages", deleted);
 
-        // 清理请求日志
-        let deleted_requests = self.cleanup_request_logs(cutoff).await?;
-        total_deleted += deleted_requests;
-        tracing::info!("清理了 {} 条请求日志", deleted_requests);
+        // 2. 清理 audit_logs（180 天）
+        let deleted = self.cleanup_audit_logs().await?;
+        audit_logs_deleted += deleted;
+        tracing::info!("清理了 {} 条 audit_logs", deleted);
 
-        // 清理聚合数据
-        let deleted_aggregations = self.cleanup_aggregation_data(cutoff).await?;
-        total_deleted += deleted_aggregations;
-        tracing::info!("清理了 {} 条聚合数据", deleted_aggregations);
+        // 3. 清理过期/已撤销的 refresh_tokens
+        let deleted = self.cleanup_expired_tokens().await?;
+        tokens_deleted += deleted;
+        tracing::info!("清理了 {} 条 refresh_tokens", deleted);
 
-        // 清理指标数据
-        let deleted_metrics = self.cleanup_metrics_data(cutoff).await?;
-        total_deleted += deleted_metrics;
-        tracing::info!("清理了 {} 条指标数据", deleted_metrics);
+        // 4. 清理过期的 password_reset_tokens
+        let deleted = self.cleanup_password_reset_tokens().await?;
+        tokens_deleted += deleted;
+        tracing::info!("清理了 {} 条 password_reset_tokens", deleted);
 
-        // 清理告警历史
-        let deleted_alerts = self.cleanup_alert_history(cutoff).await?;
-        total_deleted += deleted_alerts;
-        tracing::info!("清理了 {} 条告警历史", deleted_alerts);
+        // 5. 清理告警历史
+        let deleted = self.cleanup_alert_history(default_cutoff).await?;
+        other_deleted += deleted;
+        tracing::info!("清理了 {} 条告警历史", deleted);
+
+        let total_deleted = usages_deleted + audit_logs_deleted + tokens_deleted + other_deleted;
 
         // 更新统计
         let mut stats = self.stats.write().await;
@@ -161,68 +167,151 @@ impl OpsCleanupService {
         stats.last_cleanup_at = Some(Utc::now());
 
         tracing::info!(
-            "清理任务完成，总共删除 {} 条记录，耗时 {:?}",
-            total_deleted,
+            "清理任务完成: usages={}, audit_logs={}, tokens={}, other={}, 耗时 {:?}",
+            usages_deleted,
+            audit_logs_deleted,
+            tokens_deleted,
+            other_deleted,
             Utc::now() - start_time
         );
 
         Ok(stats.clone())
     }
 
-    /// 清理错误日志
-    async fn cleanup_error_logs(&self, cutoff: DateTime<Utc>) -> Result<i64> {
-        // TODO: 实现实际的数据库删除
-        // DELETE FROM ops_error_logs WHERE created_at < cutoff LIMIT batch_size
-
-        // 模拟批量删除
+    /// 批量删除指定表中早于 cutoff 的记录（按 created_at）
+    async fn batch_delete_by_cutoff(
+        &self,
+        table: &str,
+        cutoff: DateTime<Utc>,
+    ) -> Result<i64> {
+        let batch_size = self.config.batch_size;
+        let start = Utc::now();
+        let max_runtime = Duration::seconds(self.config.max_runtime_secs as i64);
         let mut total_deleted = 0i64;
-        let mut deleted;
 
         loop {
-            deleted = self
-                .delete_error_logs_batch(cutoff, self.config.batch_size)
-                .await?;
-            total_deleted += deleted;
-
-            if deleted < self.config.batch_size as i64 {
+            // 安全超时检查
+            if Utc::now() - start > max_runtime {
+                tracing::warn!(
+                    "清理 {} 超时，已删除 {} 条",
+                    table,
+                    total_deleted
+                );
                 break;
             }
 
-            // 检查是否超时
-            // TODO: 实现超时检查
+            // 子查询 + LIMIT 避免长时间行锁
+            let sql = format!(
+                "DELETE FROM {table} WHERE id IN (\
+                   SELECT id FROM {table} WHERE created_at < $1 LIMIT $2\
+                 )"
+            );
+            let result = self
+                .db
+                .execute(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    &sql,
+                    [cutoff.into(), (batch_size as i64).into()],
+                ))
+                .await?;
+
+            let deleted = result.rows_affected() as i64;
+            total_deleted += deleted;
+
+            if deleted < batch_size as i64 {
+                break;
+            }
         }
 
         Ok(total_deleted)
     }
 
-    /// 批量删除错误日志
-    async fn delete_error_logs_batch(&self, _cutoff: DateTime<Utc>, _limit: u64) -> Result<i64> {
-        // TODO: 实现实际的数据库操作
-        Ok(0)
+    /// 清理过期的 usages（默认 90 天）
+    async fn cleanup_usages(&self, cutoff: DateTime<Utc>) -> Result<i64> {
+        self.batch_delete_by_cutoff("usages", cutoff).await
     }
 
-    /// 清理请求日志
-    async fn cleanup_request_logs(&self, _cutoff: DateTime<Utc>) -> Result<i64> {
-        // TODO: 实现实际的数据库删除
-        Ok(0)
+    /// 清理过期的 audit_logs（默认 180 天）
+    async fn cleanup_audit_logs(&self) -> Result<i64> {
+        let cutoff = Utc::now() - Duration::days(180);
+        self.batch_delete_by_cutoff("audit_logs", cutoff).await
     }
 
-    /// 清理聚合数据
+    /// 清理过期/已撤销的 refresh_tokens
+    async fn cleanup_expired_tokens(&self) -> Result<i64> {
+        let now = Utc::now();
+        let batch_size = self.config.batch_size;
+        let start = Utc::now();
+        let max_runtime = Duration::seconds(self.config.max_runtime_secs as i64);
+        let mut total_deleted = 0i64;
+
+        loop {
+            if Utc::now() - start > max_runtime {
+                tracing::warn!("清理 tokens 超时，已删除 {} 条", total_deleted);
+                break;
+            }
+
+            let result = self
+                .db
+                .execute(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "DELETE FROM refresh_tokens WHERE id IN (\
+                       SELECT id FROM refresh_tokens \
+                       WHERE expires_at < $1 OR revoked = true \
+                       LIMIT $2\
+                     )",
+                    [now.into(), (batch_size as i64).into()],
+                ))
+                .await?;
+
+            let deleted = result.rows_affected() as i64;
+            total_deleted += deleted;
+
+            if deleted < batch_size as i64 {
+                break;
+            }
+        }
+
+        Ok(total_deleted)
+    }
+
+    /// 清理过期的 password_reset_tokens
+    async fn cleanup_password_reset_tokens(&self) -> Result<i64> {
+        let now = Utc::now();
+        let result = self
+            .db
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "DELETE FROM password_reset_tokens WHERE expires_at < $1 OR used_at IS NOT NULL",
+                [now.into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() as i64)
+    }
+
+    /// 清理错误日志（复用通用批量删除）
+    async fn cleanup_error_logs(&self, cutoff: DateTime<Utc>) -> Result<i64> {
+        self.batch_delete_by_cutoff("alert_history", cutoff).await
+    }
+
+    /// 清理请求日志（usages 的别名入口，cutoff 由调用方控制）
+    async fn cleanup_request_logs(&self, cutoff: DateTime<Utc>) -> Result<i64> {
+        self.cleanup_usages(cutoff).await
+    }
+
+    /// 清理聚合数据（暂无独立聚合表，预留）
     async fn cleanup_aggregation_data(&self, _cutoff: DateTime<Utc>) -> Result<i64> {
-        // TODO: 实现实际的数据库删除
         Ok(0)
     }
 
-    /// 清理指标数据
+    /// 清理指标数据（暂无独立指标表，预留）
     async fn cleanup_metrics_data(&self, _cutoff: DateTime<Utc>) -> Result<i64> {
-        // TODO: 实现实际的数据库删除
         Ok(0)
     }
 
     /// 清理告警历史
-    async fn cleanup_alert_history(&self, _cutoff: DateTime<Utc>) -> Result<i64> {
-        // TODO: 实现实际的数据库删除
-        Ok(0)
+    async fn cleanup_alert_history(&self, cutoff: DateTime<Utc>) -> Result<i64> {
+        self.batch_delete_by_cutoff("alert_history", cutoff).await
     }
 
     /// 手动触发清理
@@ -252,7 +341,13 @@ impl OpsCleanupService {
         for data_type in data_types {
             let deleted = match data_type.as_str() {
                 "error_logs" => self.cleanup_error_logs(cutoff).await?,
-                "request_logs" => self.cleanup_request_logs(cutoff).await?,
+                "request_logs" | "usages" => self.cleanup_usages(cutoff).await?,
+                "audit_logs" => {
+                    let audit_cutoff = Utc::now() - Duration::days(retention_days as i64);
+                    self.batch_delete_by_cutoff("audit_logs", audit_cutoff).await?
+                }
+                "tokens" | "refresh_tokens" => self.cleanup_expired_tokens().await?,
+                "password_reset_tokens" => self.cleanup_password_reset_tokens().await?,
                 "aggregation" => self.cleanup_aggregation_data(cutoff).await?,
                 "metrics" => self.cleanup_metrics_data(cutoff).await?,
                 "alerts" => self.cleanup_alert_history(cutoff).await?,
@@ -286,16 +381,37 @@ impl OpsCleanupService {
         self.stats.read().await.clone()
     }
 
-    /// 获取预估存储大小
+    /// 获取预估存储大小（各表行数）
     pub async fn estimate_storage_size(&self) -> Result<HashMap<String, i64>> {
         let mut sizes = HashMap::new();
 
-        // TODO: 实现实际的存储大小估算
-        sizes.insert("error_logs".to_string(), 0);
-        sizes.insert("request_logs".to_string(), 0);
-        sizes.insert("aggregation".to_string(), 0);
-        sizes.insert("metrics".to_string(), 0);
-        sizes.insert("alerts".to_string(), 0);
+        let tables = [
+            ("usages", "usages"),
+            ("audit_logs", "audit_logs"),
+            ("refresh_tokens", "refresh_tokens"),
+            ("password_reset_tokens", "password_reset_tokens"),
+            ("alert_history", "alert_history"),
+        ];
+
+        for (key, table) in tables {
+            let sql = format!(
+                "SELECT COUNT(*) AS cnt FROM {table}"
+            );
+            let row = self
+                .db
+                .query_one(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    &sql,
+                    [],
+                ))
+                .await?;
+
+            let count: i64 = row
+                .as_ref()
+                .and_then(|r| r.try_get_by_index(0).ok())
+                .unwrap_or(0);
+            sizes.insert(key.to_string(), count);
+        }
 
         Ok(sizes)
     }

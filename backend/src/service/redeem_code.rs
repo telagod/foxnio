@@ -256,6 +256,15 @@ impl RedeemCodeService {
             bail!("Too many redemption attempts, please try again later");
         }
 
+        // Validate user is active before allowing redemption
+        let user = users::Entity::find_by_id(req.user_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        if !user.is_active() {
+            bail!("Account is not active, redemption denied");
+        }
+
         // 使用事务确保原子性
         let txn = self.db.begin().await?;
 
