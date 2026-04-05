@@ -123,12 +123,12 @@
 ### P2 - 运维与异步能力
 
 - [x] `batch.rs` / `batch_operations.rs` 真执行链
-- [ ] scheduled test plan 真执行
-- [ ] `timing_wheel_service.rs` 真任务执行
+- [x] scheduled test plan 真执行
+- [x] `timing_wheel_service.rs` 真任务执行
 - [x] `scheduler_snapshot_service.rs` 恢复能力
 - [x] `token_refresh_service.rs` 真刷新链
-- [ ] 模型级 / 账号级 / 排队层限流统一
-- [ ] 等待队列 Redis 持久化、超时、取消、恢复
+- [x] 模型级 / 账号级 / 排队层限流统一
+- [x] 等待队列 Redis 持久化、超时、取消、恢复
 - [ ] `ops_*` 模块真实写入、聚合、清理、leader lock
 
 ### P2 - 前端产品化
@@ -145,9 +145,9 @@
 ### P3 - 文档与口径清理
 
 - [x] 清理 `docs/` 历史专题文档中的旧完成度表述
-- [ ] 统一 migration 权威路径说明
-- [ ] 统一 frontend 构建 / 运行 / Docker 命令口径
-- [ ] 统一 `npm` / `pnpm` / `make` 的权威命令说明
+- [x] 统一 migration 权威路径说明
+- [x] 统一 frontend 构建 / 运行 / Docker 命令口径
+- [x] 统一 `npm` / `pnpm` / `make` 的权威命令说明
 - [x] 统一 `.env` / `config.yaml` / runtime env 关系说明
 - [x] 输出”最小上线架构图”和”最小回归矩阵”
 
