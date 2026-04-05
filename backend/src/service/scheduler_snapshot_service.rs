@@ -4,9 +4,10 @@
 
 #![allow(dead_code)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -83,6 +84,7 @@ pub struct SnapshotServiceStats {
 /// 调度器快照服务
 pub struct SchedulerSnapshotService {
     config: SnapshotConfig,
+    data_dir: String,
     snapshots: Arc<RwLock<Vec<SchedulerSnapshot>>>,
     stats: Arc<RwLock<SnapshotServiceStats>>,
     next_id: Arc<RwLock<i64>>,
@@ -91,8 +93,14 @@ pub struct SchedulerSnapshotService {
 impl SchedulerSnapshotService {
     /// 创建新的快照服务
     pub fn new(config: SnapshotConfig) -> Self {
+        Self::with_data_dir(config, "data".to_string())
+    }
+
+    /// 创建带数据目录的快照服务
+    pub fn with_data_dir(config: SnapshotConfig, data_dir: String) -> Self {
         Self {
             config,
+            data_dir,
             snapshots: Arc::new(RwLock::new(Vec::new())),
             stats: Arc::new(RwLock::new(SnapshotServiceStats::default())),
             next_id: Arc::new(RwLock::new(1)),
@@ -145,21 +153,118 @@ impl SchedulerSnapshotService {
         Ok(snapshot)
     }
 
-    /// 保存快照
+    /// 保存快照到内存和磁盘
     async fn save_snapshot(&self, snapshot: SchedulerSnapshot) -> Result<()> {
         let mut snapshots = self.snapshots.write().await;
 
         // 计算快照大小
-        let size = serde_json::to_vec(&snapshot)?.len() as u64;
-        let mut stats = self.stats.write().await;
-        stats.snapshot_size_bytes = size;
+        let json_bytes = serde_json::to_vec_pretty(&snapshot)?;
+        let size = json_bytes.len() as u64;
+        {
+            let mut stats = self.stats.write().await;
+            stats.snapshot_size_bytes = size;
+        }
+
+        // 写入磁盘
+        let dir = PathBuf::from(&self.data_dir);
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .context("Failed to create snapshot data directory")?;
+
+        let ts = snapshot.timestamp.timestamp();
+        let filename = format!("scheduler_snapshot_{ts}.json");
+        let filepath = dir.join(&filename);
+        tokio::fs::write(&filepath, &json_bytes)
+            .await
+            .with_context(|| format!("Failed to write snapshot to {}", filepath.display()))?;
+
+        // 删除旧文件，只保留最近 5 个
+        self.prune_disk_snapshots(5).await;
 
         snapshots.push(snapshot);
 
-        // 限制快照数量
+        // 限制内存快照数量
         while snapshots.len() > self.config.max_snapshots {
             snapshots.remove(0);
         }
+
+        Ok(())
+    }
+
+    /// 扫描磁盘上的快照文件，按时间戳排序返回 (timestamp, path)
+    async fn list_snapshot_files(&self) -> Vec<(i64, PathBuf)> {
+        let dir = PathBuf::from(&self.data_dir);
+        let mut entries = match tokio::fs::read_dir(&dir).await {
+            Ok(rd) => rd,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut files: Vec<(i64, PathBuf)> = Vec::new();
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if let Some(ts) = name
+                    .strip_prefix("scheduler_snapshot_")
+                    .and_then(|s| s.strip_suffix(".json"))
+                    .and_then(|s| s.parse::<i64>().ok())
+                {
+                    files.push((ts, path));
+                }
+            }
+        }
+        files.sort_by_key(|(ts, _)| *ts);
+        files
+    }
+
+    /// 删除旧的磁盘快照，只保留最近 keep 个
+    async fn prune_disk_snapshots(&self, keep: usize) {
+        let files = self.list_snapshot_files().await;
+        if files.len() >= keep {
+            let to_remove = files.len() - keep + 1; // +1 because we're about to add one
+            for (_, path) in files.into_iter().take(to_remove) {
+                let _ = tokio::fs::remove_file(&path).await;
+            }
+        }
+    }
+
+    /// 从磁盘加载最新快照
+    pub async fn load_latest_snapshot(&self) -> Result<Option<SchedulerSnapshot>> {
+        let files = self.list_snapshot_files().await;
+        let newest = match files.last() {
+            Some((_, path)) => path.clone(),
+            None => return Ok(None),
+        };
+
+        let data = tokio::fs::read(&newest)
+            .await
+            .with_context(|| format!("Failed to read snapshot {}", newest.display()))?;
+        let snapshot: SchedulerSnapshot = serde_json::from_slice(&data)
+            .with_context(|| format!("Failed to parse snapshot {}", newest.display()))?;
+        Ok(Some(snapshot))
+    }
+
+    /// 从快照恢复账号和分组数据到内存
+    pub async fn restore_from_snapshot(&self, snapshot: SchedulerSnapshot) -> Result<()> {
+        let mut snapshots = self.snapshots.write().await;
+
+        // 更新 next_id 以避免 ID 冲突
+        let max_id = snapshot
+            .accounts
+            .iter()
+            .map(|a| a.id)
+            .chain(snapshot.groups.iter().map(|g| g.id))
+            .max()
+            .unwrap_or(0);
+        {
+            let mut next_id = self.next_id.write().await;
+            if max_id >= *next_id {
+                *next_id = max_id + 1;
+            }
+        }
+
+        // 清空现有快照并用恢复的数据替换
+        snapshots.clear();
+        snapshots.push(snapshot);
 
         Ok(())
     }
@@ -205,14 +310,25 @@ impl SchedulerSnapshotService {
     }
 
     /// 恢复快照
-    pub async fn restore(&self, _version: Option<u64>) -> Result<()> {
-        // TODO: 实现从快照恢复调度器状态
-        // 1. 获取快照
-        // 2. 重建账号状态
-        // 3. 重建分组状态
-        // 4. 更新调度器
+    pub async fn restore(&self, version: Option<u64>) -> Result<()> {
+        let snapshot = match version {
+            Some(v) => self
+                .get_by_version(v)
+                .await
+                .ok_or_else(|| anyhow::anyhow!("Snapshot version {} not found", v))?,
+            None => {
+                // 先尝试内存，再尝试磁盘
+                match self.get_latest().await {
+                    Some(s) => s,
+                    None => self
+                        .load_latest_snapshot()
+                        .await?
+                        .ok_or_else(|| anyhow::anyhow!("No snapshot available to restore"))?,
+                }
+            }
+        };
 
-        Ok(())
+        self.restore_from_snapshot(snapshot).await
     }
 
     /// 启动后台快照任务
@@ -245,7 +361,7 @@ impl SchedulerSnapshotService {
 
 impl Default for SchedulerSnapshotService {
     fn default() -> Self {
-        Self::new(SnapshotConfig::default())
+        Self::with_data_dir(SnapshotConfig::default(), "data".to_string())
     }
 }
 

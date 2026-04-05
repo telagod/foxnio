@@ -4,7 +4,7 @@
 
 #![allow(dead_code)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -175,22 +175,88 @@ impl TokenRefreshService {
     }
 
     /// 执行刷新
-    async fn do_refresh(&self, key: &TokenCacheKey, _token_info: &TokenInfo) -> Result<TokenInfo> {
-        let _refresher = self.refresher.read().await;
+    async fn do_refresh(&self, key: &TokenCacheKey, token_info: &TokenInfo) -> Result<TokenInfo> {
+        let provider = key.provider.to_lowercase();
 
-        // TODO: 实现实际的刷新逻辑
-        // 1. 使用 refresh_token 获取新的 access_token
-        // 2. 更新本地缓存
-        // 3. 通知其他服务
+        let new_token = match provider.as_str() {
+            // API key providers - keys don't expire, just verify they still work
+            "openai" => {
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(10))
+                    .build()?;
 
-        let new_token = TokenInfo {
-            access_token: "new_access_token".to_string(),
-            refresh_token: Some("new_refresh_token".to_string()),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            token_type: "Bearer".to_string(),
-            scope: None,
-            created_at: Utc::now(),
-            refreshed_at: Some(Utc::now()),
+                let resp = client
+                    .get("https://api.openai.com/v1/models")
+                    .header("Authorization", format!("Bearer {}", token_info.access_token))
+                    .send()
+                    .await
+                    .context("OpenAI verification request failed")?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    anyhow::bail!("OpenAI token invalid: {} - {}", status, body);
+                }
+
+                // Token is valid, return as-is with refreshed timestamp
+                TokenInfo {
+                    refreshed_at: Some(Utc::now()),
+                    ..token_info.clone()
+                }
+            }
+
+            "anthropic" => {
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(10))
+                    .build()?;
+
+                let resp = client
+                    .get("https://api.anthropic.com/v1/models")
+                    .header("x-api-key", &token_info.access_token)
+                    .header("anthropic-version", "2023-06-01")
+                    .send()
+                    .await
+                    .context("Anthropic verification request failed")?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    anyhow::bail!("Anthropic token invalid: {} - {}", status, body);
+                }
+
+                TokenInfo {
+                    refreshed_at: Some(Utc::now()),
+                    ..token_info.clone()
+                }
+            }
+
+            // OAuth providers - use refresh_token grant
+            "google" | "gemini" => {
+                let refresh_token = token_info
+                    .refresh_token
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("No refresh_token available for {}", provider))?;
+
+                let refresher = self.refresher.read().await;
+                let result = refresher
+                    .refresh(&provider, refresh_token, token_info.scope.as_deref())
+                    .await
+                    .with_context(|| format!("OAuth refresh failed for {}", provider))?;
+
+                TokenInfo {
+                    access_token: result.access_token,
+                    refresh_token: result.refresh_token.or(token_info.refresh_token.clone()),
+                    expires_at: result.expires_at,
+                    token_type: result.token_type,
+                    scope: result.scope.or(token_info.scope.clone()),
+                    created_at: token_info.created_at,
+                    refreshed_at: Some(Utc::now()),
+                }
+            }
+
+            other => {
+                anyhow::bail!("Refresh not supported for provider: {}", other);
+            }
         };
 
         // 更新 Token
