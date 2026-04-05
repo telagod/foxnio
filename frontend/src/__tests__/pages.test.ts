@@ -27,10 +27,10 @@ global.fetch = mockFetch;
 
 // Import the api singleton so we can clear its cache between tests
 import { api } from '$lib/api';
-import Dashboard from '../routes/dashboard/+page.svelte';
-import Usage from '../routes/usage/+page.svelte';
-import ApiKeys from '../routes/apikeys/+page.svelte';
-import Admin from '../routes/admin/+page.svelte';
+import Dashboard from '../routes/(app)/dashboard/+page.svelte';
+import Usage from '../routes/(app)/usage/+page.svelte';
+import ApiKeys from '../routes/(app)/apikeys/+page.svelte';
+import Admin from '../routes/(app)/admin/+page.svelte';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -3,8 +3,8 @@
  */
 import { render, screen } from '@testing-library/svelte/svelte5';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Dashboard from '../routes/admin/+page.svelte';
-import ApiKeys from '../routes/apikeys/+page.svelte';
+import Dashboard from '../routes/(app)/admin/+page.svelte';
+import ApiKeys from '../routes/(app)/apikeys/+page.svelte';
 
 // Mock fetch
 const mockFetch = vi.fn();
