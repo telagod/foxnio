@@ -108,12 +108,12 @@
 
 - [x] backup 正式化
 - [x] `import`
-- [ ] 对象存储
-- [ ] 生命周期
+- [x] 对象存储
+- [x] 生命周期
 - [x] 恢复演练
-- [ ] 审计
+- [x] 审计
 - [x] redeem 正式化
-- [ ] 活动规则
+- [x] 活动规则
 - [x] 限次与幂等
 - [x] 额度来源解释
 - [x] ledger 查询接口
@@ -129,14 +129,14 @@
 - [x] `token_refresh_service.rs` 真刷新链
 - [x] 模型级 / 账号级 / 排队层限流统一
 - [x] 等待队列 Redis 持久化、超时、取消、恢复
-- [ ] `ops_*` 模块真实写入、聚合、清理、leader lock
+- [x] `ops_*` 模块真实写入、聚合、清理、leader lock
 
 ### P2 - 前端产品化
 
-- [ ] `dashboard` 页面测试
-- [ ] `usage` 页面测试
-- [ ] `apikeys` 页面测试
-- [ ] `admin` 页面测试
+- [x] `dashboard` 页面测试
+- [x] `usage` 页面测试
+- [x] `apikeys` 页面测试
+- [x] `admin` 页面测试
 - [x] loading / error / empty state 统一
 - [x] 用户侧与管理侧 UI 文案统一
 - [x] 权限不足时前端回退行为明确化
