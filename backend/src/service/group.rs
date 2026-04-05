@@ -6,8 +6,8 @@
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    ModelTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, Statement,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -498,9 +498,44 @@ impl GroupService {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Group not found"))?;
 
-        // TODO: 实现实际的使用量统计
-        let daily_used = 0.0;
-        let monthly_used = 0.0;
+        // Query daily / weekly / monthly usage for accounts in this group.
+        // usages.cost is stored in cents; group limits are in USD (f64).
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    COALESCE(SUM(CASE WHEN u.created_at >= CURRENT_DATE THEN u.cost ELSE 0 END), 0) AS daily_cost,
+                    COALESCE(SUM(CASE WHEN u.created_at >= date_trunc('week', CURRENT_DATE) THEN u.cost ELSE 0 END), 0) AS weekly_cost,
+                    COALESCE(SUM(CASE WHEN u.created_at >= date_trunc('month', CURRENT_DATE) THEN u.cost ELSE 0 END), 0) AS monthly_cost
+                FROM usages u
+                INNER JOIN account_groups ag ON ag.account_id = u.account_id
+                WHERE ag.group_id = $1
+                "#,
+                [group_id.into()],
+            ))
+            .await?;
+
+        let (daily_used, weekly_used, monthly_used) = match row {
+            Some(ref r) => {
+                let d: i64 = r.try_get_by_index(0).unwrap_or(0);
+                let w: i64 = r.try_get_by_index(1).unwrap_or(0);
+                let m: i64 = r.try_get_by_index(2).unwrap_or(0);
+                (d as f64 / 100.0, w as f64 / 100.0, m as f64 / 100.0)
+            }
+            None => (0.0, 0.0, 0.0),
+        };
+
+        let is_over_limit = group
+            .daily_limit_usd
+            .map_or(false, |lim| daily_used >= lim)
+            || group
+                .weekly_limit_usd
+                .map_or(false, |lim| weekly_used >= lim)
+            || group
+                .monthly_limit_usd
+                .map_or(false, |lim| monthly_used >= lim);
 
         Ok(GroupQuotaStatus {
             group_id: group.id,
@@ -510,7 +545,7 @@ impl GroupService {
             weekly_limit: group.weekly_limit_usd,
             monthly_limit: group.monthly_limit_usd,
             monthly_used,
-            is_over_limit: false,
+            is_over_limit,
         })
     }
 
@@ -545,39 +580,112 @@ impl GroupService {
 
     /// 获取使用摘要
     pub async fn get_usage_summary(&self) -> Result<Vec<GroupUsageSummary>> {
-        let groups = self.list_groups(None).await?;
+        // Single query: per-group daily + monthly usage, account counts
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    g.id,
+                    g.name,
+                    g.platform,
+                    g.daily_limit_usd,
+                    g.monthly_limit_usd,
+                    COALESCE(SUM(CASE WHEN u.created_at >= CURRENT_DATE THEN u.cost ELSE 0 END), 0) AS daily_cost,
+                    COALESCE(SUM(CASE WHEN u.created_at >= date_trunc('month', CURRENT_DATE) THEN u.cost ELSE 0 END), 0) AS monthly_cost,
+                    COUNT(DISTINCT ag.account_id) AS account_count,
+                    COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) AS active_account_count
+                FROM groups g
+                LEFT JOIN account_groups ag ON ag.group_id = g.id
+                LEFT JOIN accounts a ON a.id = ag.account_id
+                LEFT JOIN usages u ON u.account_id = ag.account_id
+                WHERE g.deleted_at IS NULL
+                GROUP BY g.id, g.name, g.platform, g.daily_limit_usd, g.monthly_limit_usd
+                ORDER BY g.sort_order, g.id
+                "#,
+                [],
+            ))
+            .await?;
 
-        Ok(groups
-            .into_iter()
-            .map(|g| GroupUsageSummary {
-                group_id: g.id,
-                group_name: g.name,
-                platform: g.platform,
-                daily_used_usd: 0.0, // TODO: 实现实际统计
-                daily_limit_usd: g.daily_limit_usd.unwrap_or(0.0),
-                monthly_used_usd: 0.0,
-                monthly_limit_usd: g.monthly_limit_usd.unwrap_or(0.0),
-                account_count: g.account_count,
-                active_account_count: g.account_count,
-            })
-            .collect())
+        let mut result = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let group_id: i64 = row.try_get_by_index(0)?;
+            let group_name: String = row.try_get_by_index(1)?;
+            let platform: String = row.try_get_by_index(2)?;
+            let daily_limit: Option<f64> = row.try_get_by_index(3)?;
+            let monthly_limit: Option<f64> = row.try_get_by_index(4)?;
+            let daily_cost: i64 = row.try_get_by_index(5).unwrap_or(0);
+            let monthly_cost: i64 = row.try_get_by_index(6).unwrap_or(0);
+            let acct_count: i64 = row.try_get_by_index(7).unwrap_or(0);
+            let active_count: i64 = row.try_get_by_index(8).unwrap_or(0);
+
+            result.push(GroupUsageSummary {
+                group_id,
+                group_name,
+                platform,
+                daily_used_usd: daily_cost as f64 / 100.0,
+                daily_limit_usd: daily_limit.unwrap_or(0.0),
+                monthly_used_usd: monthly_cost as f64 / 100.0,
+                monthly_limit_usd: monthly_limit.unwrap_or(0.0),
+                account_count: acct_count,
+                active_account_count: active_count,
+            });
+        }
+        Ok(result)
     }
 
     /// 获取容量摘要
     pub async fn get_capacity_summary(&self) -> Result<Vec<GroupCapacitySummary>> {
-        let groups = self.list_groups(None).await?;
+        // Per-group: total accounts, active accounts, daily usage vs daily limit
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    g.id,
+                    g.name,
+                    g.platform,
+                    g.daily_limit_usd,
+                    COUNT(DISTINCT ag.account_id) AS total_accounts,
+                    COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) AS active_accounts,
+                    COALESCE(SUM(CASE WHEN u.created_at >= CURRENT_DATE THEN u.cost ELSE 0 END), 0) AS daily_cost
+                FROM groups g
+                LEFT JOIN account_groups ag ON ag.group_id = g.id
+                LEFT JOIN accounts a ON a.id = ag.account_id
+                LEFT JOIN usages u ON u.account_id = ag.account_id
+                WHERE g.deleted_at IS NULL
+                GROUP BY g.id, g.name, g.platform, g.daily_limit_usd
+                ORDER BY g.sort_order, g.id
+                "#,
+                [],
+            ))
+            .await?;
 
-        Ok(groups
-            .into_iter()
-            .map(|g| GroupCapacitySummary {
-                group_id: g.id,
-                group_name: g.name,
-                platform: g.platform,
-                total_capacity: g.daily_limit_usd.unwrap_or(0.0),
-                used_capacity: 0.0,
-                account_count: g.account_count,
-            })
-            .collect())
+        let mut result = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let group_id: i64 = row.try_get_by_index(0)?;
+            let group_name: String = row.try_get_by_index(1)?;
+            let platform: String = row.try_get_by_index(2)?;
+            let daily_limit: Option<f64> = row.try_get_by_index(3)?;
+            let total_accounts: i64 = row.try_get_by_index(4).unwrap_or(0);
+            let _active_accounts: i64 = row.try_get_by_index(5).unwrap_or(0);
+            let daily_cost: i64 = row.try_get_by_index(6).unwrap_or(0);
+
+            let total_capacity = daily_limit.unwrap_or(0.0);
+            let used_capacity = daily_cost as f64 / 100.0;
+
+            result.push(GroupCapacitySummary {
+                group_id,
+                group_name,
+                platform,
+                total_capacity,
+                used_capacity,
+                account_count: total_accounts,
+            });
+        }
+        Ok(result)
     }
 
     /// 更新排序顺序
@@ -597,19 +705,53 @@ impl GroupService {
     pub async fn get_group_stats(&self, group_id: i64) -> Result<Option<GroupStats>> {
         let group = self.get_group(group_id).await?;
 
-        if let Some(g) = group {
-            Ok(Some(GroupStats {
-                group_id: g.id,
-                group_name: g.name,
-                total_requests: 0,
-                total_tokens: 0,
-                total_cost: 0.0,
-                average_latency_ms: 0.0,
-                success_rate: 100.0,
-            }))
-        } else {
-            Ok(None)
-        }
+        let g = match group {
+            Some(g) => g,
+            None => return Ok(None),
+        };
+
+        // Aggregate usage stats for all accounts in this group.
+        // latency is not a dedicated column — we derive success_rate from the bool.
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT
+                    COUNT(*)                                          AS total_requests,
+                    COALESCE(SUM(u.input_tokens + u.output_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(u.cost), 0)                          AS total_cost,
+                    CASE WHEN COUNT(*) > 0
+                         THEN COUNT(*) FILTER (WHERE u.success)::float / COUNT(*)::float * 100.0
+                         ELSE 100.0 END                               AS success_rate
+                FROM usages u
+                INNER JOIN account_groups ag ON ag.account_id = u.account_id
+                WHERE ag.group_id = $1
+                "#,
+                [group_id.into()],
+            ))
+            .await?;
+
+        let (total_requests, total_tokens, total_cost, success_rate) = match row {
+            Some(ref r) => {
+                let reqs: i64 = r.try_get_by_index(0).unwrap_or(0);
+                let toks: i64 = r.try_get_by_index(1).unwrap_or(0);
+                let cost: i64 = r.try_get_by_index(2).unwrap_or(0);
+                let sr: f64 = r.try_get_by_index(3).unwrap_or(100.0);
+                (reqs, toks, cost as f64 / 100.0, sr)
+            }
+            None => (0, 0, 0.0, 100.0),
+        };
+
+        Ok(Some(GroupStats {
+            group_id: g.id,
+            group_name: g.name,
+            total_requests,
+            total_tokens,
+            total_cost,
+            average_latency_ms: 0.0, // no latency column in usages table
+            success_rate,
+        }))
     }
 
     /// 获取费率倍数
@@ -627,10 +769,54 @@ impl GroupService {
     }
 
     /// 获取分组 API Keys
+    /// API keys belong to users, not groups directly. We find API keys that have
+    /// been used with accounts in this group (via the usages table).
     pub async fn get_group_api_keys(&self, group_id: i64) -> Result<Vec<ApiKeyInfo>> {
-        // TODO: 实现根据分组查询 API Keys
-        let _ = group_id;
-        Ok(vec![])
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                SELECT DISTINCT
+                    ak.id,
+                    ak.key,
+                    ak.name,
+                    ak.status,
+                    ak.created_at
+                FROM api_keys ak
+                INNER JOIN usages u ON u.api_key_id = ak.id
+                INNER JOIN account_groups ag ON ag.account_id = u.account_id
+                WHERE ag.group_id = $1
+                ORDER BY ak.created_at DESC
+                "#,
+                [group_id.into()],
+            ))
+            .await?;
+
+        let mut result = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let id: Uuid = row.try_get_by_index(0)?;
+            let key: String = row.try_get_by_index(1)?;
+            let name: Option<String> = row.try_get_by_index(2)?;
+            let status: String = row.try_get_by_index(3)?;
+            let created_at: chrono::DateTime<Utc> = row.try_get_by_index(4)?;
+
+            // Mask the key: show first 7 and last 4 chars
+            let key_masked = if key.len() >= 12 {
+                format!("{}...{}", &key[..7], &key[key.len() - 4..])
+            } else {
+                key
+            };
+
+            result.push(ApiKeyInfo {
+                id,
+                key_masked,
+                name,
+                status,
+                created_at,
+            });
+        }
+        Ok(result)
     }
 
     /// 列出所有分组（简化版）

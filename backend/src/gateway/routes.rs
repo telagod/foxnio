@@ -7,6 +7,7 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Router,
 };
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -1111,7 +1112,7 @@ async fn update_user_apikey(
 // ============ 管理端点（遗留兼容） ============
 
 async fn get_account_detail(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
@@ -1120,39 +1121,186 @@ async fn get_account_detail(
         .await
         .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
 
-    // TODO: 实现账号详情
-    Ok(axum::Json(json!({ "id": id })))
+    let account_id = uuid::Uuid::parse_str(&id)
+        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+
+    let account = crate::entity::accounts::Entity::find_by_id(account_id)
+        .one(&state.db)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| handler::ApiError(StatusCode::NOT_FOUND, "Account not found".into()))?;
+
+    Ok(axum::Json(json!({
+        "id": account.id.to_string(),
+        "name": account.name,
+        "provider": account.provider,
+        "credential_type": account.credential_type,
+        "status": account.status,
+        "priority": account.priority,
+        "concurrent_limit": account.concurrent_limit,
+        "rate_limit_rpm": account.rate_limit_rpm,
+        "group_id": account.group_id,
+        "last_error": account.last_error,
+        "metadata": account.metadata,
+        "created_at": account.created_at.to_rfc3339(),
+        "updated_at": account.updated_at.to_rfc3339(),
+    })))
 }
 
 async fn update_account(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    axum::extract::Path(_id): axum::extract::Path<String>,
-    axum::Json(_body): axum::Json<serde_json::Value>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::Json(body): axum::Json<serde_json::Value>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     // 权限检查
     check_permission(&claims, Permission::AccountWrite)
         .await
         .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
 
-    // TODO: 实现账号更新
-    Ok(axum::Json(json!({ "success": true })))
+    let account_id = uuid::Uuid::parse_str(&id)
+        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+
+    let account = crate::entity::accounts::Entity::find_by_id(account_id)
+        .one(&state.db)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| handler::ApiError(StatusCode::NOT_FOUND, "Account not found".into()))?;
+
+    let mut active: crate::entity::accounts::ActiveModel = account.into();
+
+    if let Some(name) = body.get("name").and_then(|v| v.as_str()) {
+        active.name = sea_orm::Set(name.to_string());
+    }
+    if let Some(platform) = body.get("platform").and_then(|v| v.as_str()) {
+        active.provider = sea_orm::Set(platform.to_string());
+    }
+    if let Some(status) = body.get("status").and_then(|v| v.as_str()) {
+        active.status = sea_orm::Set(status.to_string());
+    }
+    if let Some(priority) = body.get("priority").and_then(|v| v.as_i64()) {
+        active.priority = sea_orm::Set(priority as i32);
+    }
+    if let Some(api_key) = body.get("api_key").and_then(|v| v.as_str()) {
+        let encrypted = crate::utils::encryption_global::GlobalEncryption::encrypt(api_key)
+            .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, format!("Encryption error: {e}")))?;
+        active.credential = sea_orm::Set(encrypted);
+    }
+
+    active.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    let updated = sea_orm::ActiveModelTrait::update(active, &state.db)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(axum::Json(json!({
+        "id": updated.id.to_string(),
+        "name": updated.name,
+        "provider": updated.provider,
+        "credential_type": updated.credential_type,
+        "status": updated.status,
+        "priority": updated.priority,
+        "concurrent_limit": updated.concurrent_limit,
+        "rate_limit_rpm": updated.rate_limit_rpm,
+        "group_id": updated.group_id,
+        "last_error": updated.last_error,
+        "metadata": updated.metadata,
+        "created_at": updated.created_at.to_rfc3339(),
+        "updated_at": updated.updated_at.to_rfc3339(),
+    })))
 }
 
 async fn test_account(
-    Extension(_state): Extension<SharedState>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    axum::Json(_body): axum::Json<serde_json::Value>,
+    axum::Json(body): axum::Json<serde_json::Value>,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     // 权限检查
     check_permission(&claims, Permission::AccountWrite)
         .await
         .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
 
-    // TODO: 实现账号测试
-    Ok(axum::Json(
-        json!({ "success": true, "message": "Account test not yet implemented" }),
-    ))
+    let account_id_str = body
+        .get("account_id")
+        .and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| v.as_i64().map(|n| n.to_string())))
+        .ok_or_else(|| handler::ApiError(StatusCode::BAD_REQUEST, "Missing account_id".into()))?;
+
+    let account_id = uuid::Uuid::parse_str(&account_id_str)
+        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+
+    // 查询账号
+    let account = crate::entity::accounts::Entity::find_by_id(account_id)
+        .one(&state.db)
+        .await
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| handler::ApiError(StatusCode::NOT_FOUND, "Account not found".into()))?;
+
+    // 解密凭证
+    let api_key = crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, format!("Decryption error: {e}")))?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let start = std::time::Instant::now();
+    let provider_type = account.provider_type();
+
+    let result = match provider_type {
+        crate::entity::accounts::ProviderType::OpenAI => {
+            client
+                .get("https://api.openai.com/v1/models")
+                .header("Authorization", format!("Bearer {api_key}"))
+                .send()
+                .await
+        }
+        crate::entity::accounts::ProviderType::Anthropic => {
+            client
+                .get("https://api.anthropic.com/v1/models")
+                .header("x-api-key", &api_key)
+                .header("anthropic-version", "2023-06-01")
+                .send()
+                .await
+        }
+        _ => {
+            let latency_ms = start.elapsed().as_millis() as u64;
+            return Ok(axum::Json(json!({
+                "success": true,
+                "message": format!("Test not supported for provider: {}", account.provider),
+                "latency_ms": latency_ms,
+            })));
+        }
+    };
+
+    let latency_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok(resp) => {
+            let status = resp.status();
+            if status.is_success() {
+                Ok(axum::Json(json!({
+                    "success": true,
+                    "message": format!("Connection successful (HTTP {})", status.as_u16()),
+                    "latency_ms": latency_ms,
+                })))
+            } else {
+                let body_text = resp.text().await.unwrap_or_default();
+                Ok(axum::Json(json!({
+                    "success": false,
+                    "message": format!("API returned HTTP {}: {}", status.as_u16(), body_text),
+                    "latency_ms": latency_ms,
+                })))
+            }
+        }
+        Err(e) => {
+            Ok(axum::Json(json!({
+                "success": false,
+                "message": format!("Connection failed: {e}"),
+                "latency_ms": latency_ms,
+            })))
+        }
+    }
 }
 
 // ============ Sora 图片/视频生成端点 ============
