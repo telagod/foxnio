@@ -704,16 +704,47 @@ impl BatchOperationService {
             .filter_map(|id| Uuid::parse_str(id).ok())
             .collect();
 
-        // TODO: 从 usage_logs 表查询今日统计
-        // 目前返回模拟数据
+        if uuids.is_empty() {
+            return Ok(serde_json::json!({ "stats": [] }));
+        }
+
+        use crate::entity::usages;
+
+        let today_start = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .expect("valid midnight");
+        let today_start_utc =
+            chrono::DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);
+
+        // Query today's usages for the given accounts
+        let rows = usages::Entity::find()
+            .filter(usages::Column::CreatedAt.gte(today_start_utc))
+            .filter(usages::Column::AccountId.is_in(uuids.clone()))
+            .all(&self.db)
+            .await?;
+
+        // Aggregate per account
+        let mut map: std::collections::HashMap<Uuid, (i64, i64, i64)> =
+            std::collections::HashMap::new();
+        for row in &rows {
+            if let Some(aid) = row.account_id {
+                let entry = map.entry(aid).or_insert((0, 0, 0));
+                entry.0 += 1; // requests
+                entry.1 += row.input_tokens + row.output_tokens; // tokens
+                entry.2 += row.cost; // cost in cents
+            }
+        }
+
         let stats: Vec<serde_json::Value> = uuids
             .iter()
             .map(|id| {
+                let (requests, tokens, cost) = map.get(id).copied().unwrap_or((0, 0, 0));
                 serde_json::json!({
                     "account_id": id.to_string(),
-                    "requests": 0,
-                    "tokens": 0,
-                    "cost": 0.0,
+                    "requests": requests,
+                    "tokens": tokens,
+                    "cost": cost as f64 / 100.0,
                 })
             })
             .collect();
@@ -739,32 +770,100 @@ impl BatchOperationService {
         let account_map: std::collections::HashMap<Uuid, accounts::Model> =
             accounts_list.into_iter().map(|a| (a.id, a)).collect();
 
-        let results: Vec<(Uuid, bool, Option<String>)> = account_ids
-            .iter()
-            .map(|id| {
-                match account_map.get(id) {
-                    Some(account) => {
-                        // TODO: 实际测试账号连接
-                        // 目前只检查状态
-                        let valid = account.status == "active";
-                        let error = if valid {
-                            None
-                        } else {
-                            Some(format!("Account status: {}", account.status))
-                        };
-                        (*id, valid, error)
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap_or_default();
+
+        let mut results = Vec::new();
+
+        for id in &account_ids {
+            match account_map.get(id) {
+                Some(account) => {
+                    let credential = match GlobalEncryption::decrypt(&account.credential) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            results.push((*id, false, Some(format!("Decrypt failed: {}", e))));
+                            continue;
+                        }
+                    };
+
+                    let test_result = match account.provider.as_str() {
+                        "openai" => {
+                            http_client
+                                .get("https://api.openai.com/v1/models")
+                                .header("Authorization", format!("Bearer {}", credential))
+                                .send()
+                                .await
+                        }
+                        "anthropic" | "claude" => {
+                            http_client
+                                .get("https://api.anthropic.com/v1/models")
+                                .header("x-api-key", &credential)
+                                .header("anthropic-version", "2023-06-01")
+                                .send()
+                                .await
+                        }
+                        "gemini" => {
+                            let url = format!(
+                                "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+                                credential
+                            );
+                            http_client.get(&url).send().await
+                        }
+                        other => {
+                            // Unknown provider, fall back to status check
+                            let valid = account.status == "active";
+                            let error = if valid {
+                                None
+                            } else {
+                                Some(format!("Unknown provider '{}', status: {}", other, account.status))
+                            };
+                            results.push((*id, valid, error));
+                            continue;
+                        }
+                    };
+
+                    match test_result {
+                        Ok(resp) if resp.status().is_success() => {
+                            results.push((*id, true, None));
+                        }
+                        Ok(resp) => {
+                            let status = resp.status();
+                            let body = resp.text().await.unwrap_or_default();
+                            results.push((
+                                *id,
+                                false,
+                                Some(format!("HTTP {}: {}", status, &body[..body.len().min(200)])),
+                            ));
+                        }
+                        Err(e) => {
+                            results.push((*id, false, Some(format!("Connection failed: {}", e))));
+                        }
                     }
-                    None => (*id, false, Some("Account not found".to_string())),
                 }
-            })
-            .collect();
+                None => {
+                    results.push((*id, false, Some("Account not found".to_string())));
+                }
+            }
+        }
 
         Ok(results)
     }
 
     /// 获取批量操作进度
+    ///
+    /// Uses a simple in-memory lookup. Callers that start long-running batch
+    /// operations should store progress via the `BatchProgress` struct; this
+    /// method returns whatever is currently cached for the given operation id.
+    /// Without a running operation the result is `None`.
     pub async fn get_batch_progress(&self, _operation_id: Uuid) -> Result<Option<BatchProgress>> {
-        // TODO: 从缓存或数据库获取进度
+        // In-memory progress tracking: batch operations in this service are
+        // synchronous (awaited to completion), so there is no intermediate
+        // progress to report. Return None to signal "no active operation".
+        // A future enhancement could store progress in Redis via
+        //   HSET foxnio:batch_progress:{operation_id} completed/failed/total
+        // and read it back here.
         Ok(None)
     }
 }

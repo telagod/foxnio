@@ -374,10 +374,13 @@ impl ModelRateLimiter {
     }
 
     /// Redis 重置（内部方法）
-    async fn reset_redis(&self, _client: &redis::Client, _key: &str) -> Result<()> {
-        // TODO: 实现 Redis 重置
-        // redis.del(key)
-
+    async fn reset_redis(&self, client: &redis::Client, key: &str) -> Result<()> {
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        // key format is "account_id:model", derive the Redis sorted-set keys
+        let req_key = format!("model_rl:req:{key}");
+        let tok_key = format!("model_rl:tok:{key}");
+        let _: () = conn.del(&req_key).await?;
+        let _: () = conn.del(&tok_key).await?;
         Ok(())
     }
 

@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::time::Instant;
 
 /// 并发限制配置
 #[derive(Debug, Clone)]
@@ -58,6 +59,9 @@ pub struct ConcurrencySlot {
     _api_key_permit: OwnedSemaphorePermit,
 }
 
+/// Maximum entries per semaphore map before LRU eviction kicks in
+const MAX_SEMAPHORE_MAP_ENTRIES: usize = 10_000;
+
 /// 并发控制器
 pub struct ConcurrencyController {
     config: ConcurrencyConfig,
@@ -65,6 +69,9 @@ pub struct ConcurrencyController {
     user_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
     account_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
     api_key_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
+    user_last_access: Arc<RwLock<HashMap<String, Instant>>>,
+    account_last_access: Arc<RwLock<HashMap<String, Instant>>>,
+    api_key_last_access: Arc<RwLock<HashMap<String, Instant>>>,
 }
 
 impl ConcurrencyController {
@@ -77,12 +84,17 @@ impl ConcurrencyController {
             user_semaphores: Arc::new(RwLock::new(HashMap::new())),
             account_semaphores: Arc::new(RwLock::new(HashMap::new())),
             api_key_semaphores: Arc::new(RwLock::new(HashMap::new())),
+            user_last_access: Arc::new(RwLock::new(HashMap::new())),
+            account_last_access: Arc::new(RwLock::new(HashMap::new())),
+            api_key_last_access: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// 获取用户信号量
     async fn get_user_semaphore(&self, user_id: &str) -> Arc<Semaphore> {
         let mut semaphores = self.user_semaphores.write().await;
+        let mut access = self.user_last_access.write().await;
+        access.insert(user_id.to_string(), Instant::now());
 
         semaphores
             .entry(user_id.to_string())
@@ -93,6 +105,8 @@ impl ConcurrencyController {
     /// 获取账号信号量
     async fn get_account_semaphore(&self, account_id: &str) -> Arc<Semaphore> {
         let mut semaphores = self.account_semaphores.write().await;
+        let mut access = self.account_last_access.write().await;
+        access.insert(account_id.to_string(), Instant::now());
 
         semaphores
             .entry(account_id.to_string())
@@ -105,6 +119,8 @@ impl ConcurrencyController {
     /// 获取 API Key 信号量
     async fn get_api_key_semaphore(&self, api_key_id: &str) -> Arc<Semaphore> {
         let mut semaphores = self.api_key_semaphores.write().await;
+        let mut access = self.api_key_last_access.write().await;
+        access.insert(api_key_id.to_string(), Instant::now());
 
         semaphores
             .entry(api_key_id.to_string())
@@ -323,8 +339,82 @@ impl ConcurrencyController {
     }
 
     /// 清理不活跃的信号量
+    /// When any semaphore map exceeds MAX_SEMAPHORE_MAP_ENTRIES, evict the oldest
+    /// entries (by last access time) that have all permits available (i.e. idle).
     pub async fn cleanup_inactive(&self) {
-        // TODO: 实现 LRU 清理
+        Self::evict_lru(
+            &self.user_semaphores,
+            &self.user_last_access,
+            self.config.user_max_concurrent as usize,
+        )
+        .await;
+        Self::evict_lru(
+            &self.account_semaphores,
+            &self.account_last_access,
+            self.config.account_max_concurrent as usize,
+        )
+        .await;
+        Self::evict_lru(
+            &self.api_key_semaphores,
+            &self.api_key_last_access,
+            self.config.api_key_max_concurrent as usize,
+        )
+        .await;
+    }
+
+    /// Evict idle entries from a semaphore map when it exceeds the threshold.
+    /// Only removes entries whose semaphore has all permits available (no active usage).
+    /// Removes the oldest half (by last access) to amortise cleanup cost.
+    async fn evict_lru(
+        semaphores: &RwLock<HashMap<String, Arc<Semaphore>>>,
+        last_access: &RwLock<HashMap<String, Instant>>,
+        max_permits: usize,
+    ) {
+        let sem_len = semaphores.read().await.len();
+        if sem_len <= MAX_SEMAPHORE_MAP_ENTRIES {
+            return;
+        }
+
+        let target_removals = sem_len - MAX_SEMAPHORE_MAP_ENTRIES / 2;
+
+        // Collect idle keys with their last access time
+        let sems = semaphores.read().await;
+        let access = last_access.read().await;
+        let mut idle_entries: Vec<(String, Instant)> = sems
+            .iter()
+            .filter(|(_, sem)| sem.available_permits() == max_permits)
+            .map(|(key, _)| {
+                let ts = access.get(key).copied().unwrap_or_else(Instant::now);
+                (key.clone(), ts)
+            })
+            .collect();
+        drop(sems);
+        drop(access);
+
+        // Sort oldest first
+        idle_entries.sort_by_key(|(_, ts)| *ts);
+
+        let to_remove: Vec<String> = idle_entries
+            .into_iter()
+            .take(target_removals)
+            .map(|(key, _)| key)
+            .collect();
+
+        if to_remove.is_empty() {
+            return;
+        }
+
+        let mut sems = semaphores.write().await;
+        let mut access = last_access.write().await;
+        for key in &to_remove {
+            // Double-check the semaphore is still fully idle before removing
+            if let Some(sem) = sems.get(key) {
+                if sem.available_permits() == max_permits {
+                    sems.remove(key);
+                    access.remove(key);
+                }
+            }
+        }
     }
 }
 

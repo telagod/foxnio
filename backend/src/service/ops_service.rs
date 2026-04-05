@@ -6,8 +6,14 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::entity::{accounts, audit_logs};
 
 /// 运维监控最大请求体大小（字节）
 const OPS_MAX_STORED_REQUEST_BODY_BYTES: usize = 10 * 1024;
@@ -191,14 +197,46 @@ impl OpsService {
     }
 
     /// 插入错误日志
-    pub async fn insert_error_log(&self, _input: OpsInsertErrorLogInput) -> Result<i64> {
+    pub async fn insert_error_log(&self, input: OpsInsertErrorLogInput) -> Result<i64> {
         self.require_monitoring_enabled()?;
 
-        // TODO: 实现数据库插入
-        // 这里需要实际的数据库实体
-        let id = chrono::Utc::now().timestamp_millis();
+        let log_id = Uuid::new_v4();
 
-        Ok(id)
+        // Pack error details into request_data JSON
+        let request_data = serde_json::json!({
+            "request_id": input.request_id,
+            "api_key_id": input.api_key_id,
+            "account_id": input.account_id,
+            "platform": input.platform,
+            "model": input.model,
+            "request_type": input.request_type,
+            "error_code": input.error_code,
+            "error_message": input.error_message,
+            "error_details": input.error_details,
+            "status_code": input.status_code,
+            "request_body_json": input.request_body_json,
+            "request_body_bytes": input.request_body_bytes,
+            "response_body_json": input.response_body_json,
+            "response_time_ms": input.response_time_ms,
+            "upstream_latency_ms": input.upstream_latency_ms,
+        });
+
+        let record = audit_logs::ActiveModel {
+            id: Set(log_id),
+            user_id: Set(input.user_id.map(|uid| Uuid::from_u128(uid as u128))),
+            action: Set("OPS_ERROR_LOG".to_string()),
+            resource_type: Set(Some(input.platform.clone())),
+            resource_id: Set(input.error_code.clone()),
+            ip_address: Set(None),
+            user_agent: Set(None),
+            request_data: Set(Some(request_data)),
+            response_status: Set(input.status_code.map(|s| s as i32)),
+            created_at: Set(input.created_at),
+        };
+
+        record.insert(&self.db).await?;
+
+        Ok(log_id.as_u128() as i64)
     }
 
     /// 批量插入错误日志
@@ -220,55 +258,160 @@ impl OpsService {
     /// 查询错误日志
     pub async fn query_error_logs(
         &self,
-        _platform: Option<&str>,
-        _model: Option<&str>,
-        _start_time: Option<DateTime<Utc>>,
-        _end_time: Option<DateTime<Utc>>,
-        _limit: u64,
-        _offset: u64,
+        platform: Option<&str>,
+        model: Option<&str>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: u64,
+        offset: u64,
     ) -> Result<Vec<OpsErrorLog>> {
         self.require_monitoring_enabled()?;
 
-        // TODO: 实现数据库查询
-        Ok(Vec::new())
+        let mut query = audit_logs::Entity::find()
+            .filter(audit_logs::Column::Action.eq("OPS_ERROR_LOG"))
+            .order_by_desc(audit_logs::Column::CreatedAt);
+
+        if let Some(p) = platform {
+            query = query.filter(audit_logs::Column::ResourceType.eq(p));
+        }
+        if let Some(start) = start_time {
+            query = query.filter(audit_logs::Column::CreatedAt.gte(start));
+        }
+        if let Some(end) = end_time {
+            query = query.filter(audit_logs::Column::CreatedAt.lte(end));
+        }
+
+        let records = query
+            .paginate(&self.db, limit)
+            .fetch_page(offset / limit.max(1))
+            .await?;
+
+        let mut logs = Vec::with_capacity(records.len());
+        for r in records {
+            let data = r.request_data.unwrap_or_default();
+            let matches_model = match model {
+                Some(m) => data.get("model").and_then(|v| v.as_str()) == Some(m),
+                None => true,
+            };
+            if !matches_model {
+                continue;
+            }
+
+            logs.push(OpsErrorLog {
+                id: r.id.as_u128() as i64,
+                request_id: data.get("request_id").and_then(|v| v.as_str()).map(String::from),
+                user_id: r.user_id.map(|u| u.as_u128() as i64),
+                api_key_id: data.get("api_key_id").and_then(|v| v.as_i64()),
+                account_id: data.get("account_id").and_then(|v| v.as_i64()),
+                platform: data.get("platform").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                model: data.get("model").and_then(|v| v.as_str()).map(String::from),
+                request_type: data.get("request_type").and_then(|v| v.as_i64()).unwrap_or(0) as i16,
+                error_code: data.get("error_code").and_then(|v| v.as_str()).map(String::from),
+                error_message: data.get("error_message").and_then(|v| v.as_str()).map(String::from),
+                error_details: data.get("error_details").and_then(|v| v.as_str()).map(String::from),
+                status_code: r.response_status.map(|s| s as i16),
+                request_body_json: data.get("request_body_json").and_then(|v| v.as_str()).map(String::from),
+                request_body_bytes: data.get("request_body_bytes").and_then(|v| v.as_i64()).map(|v| v as i32),
+                response_body_json: data.get("response_body_json").and_then(|v| v.as_str()).map(String::from),
+                response_time_ms: data.get("response_time_ms").and_then(|v| v.as_i64()).map(|v| v as i32),
+                upstream_latency_ms: data.get("upstream_latency_ms").and_then(|v| v.as_i64()).map(|v| v as i32),
+                created_at: r.created_at,
+            });
+        }
+
+        Ok(logs)
     }
 
     /// 获取账号可用性信息
     pub async fn get_account_availability(
         &self,
-        _platform_filter: Option<&str>,
+        platform_filter: Option<&str>,
         _group_id_filter: Option<i64>,
     ) -> Result<OpsAccountAvailability> {
         self.require_monitoring_enabled()?;
 
-        // TODO: 实现账号查询
+        let mut query = accounts::Entity::find();
+        if let Some(p) = platform_filter {
+            query = query.filter(accounts::Column::Provider.eq(p));
+        }
+
+        let all_accounts = query.all(&self.db).await?;
+
+        let total_accounts = all_accounts.len() as i64;
+        let mut active_accounts = 0i64;
+        let mut error_accounts = 0i64;
+        let mut by_provider: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+
+        for account in &all_accounts {
+            if account.is_active() {
+                active_accounts += 1;
+            } else {
+                error_accounts += 1;
+            }
+            *by_provider.entry(account.provider.clone()).or_insert(0) += 1;
+        }
+
         Ok(OpsAccountAvailability {
-            total_accounts: 0,
-            active_accounts: 0,
-            error_accounts: 0,
-            by_provider: std::collections::HashMap::new(),
+            total_accounts,
+            active_accounts,
+            error_accounts,
+            by_provider,
         })
     }
 
     /// 清理过期的错误日志
-    pub async fn cleanup_expired_logs(&self, _retention_days: i32) -> Result<u64> {
+    pub async fn cleanup_expired_logs(&self, retention_days: i32) -> Result<u64> {
         self.require_monitoring_enabled()?;
 
-        // TODO: 实现清理逻辑
-        Ok(0)
+        let cutoff = Utc::now() - chrono::Duration::days(retention_days as i64);
+
+        let result = audit_logs::Entity::delete_many()
+            .filter(audit_logs::Column::Action.eq("OPS_ERROR_LOG"))
+            .filter(audit_logs::Column::CreatedAt.lt(cutoff))
+            .exec(&self.db)
+            .await?;
+
+        Ok(result.rows_affected)
     }
 
     /// 获取错误统计
     pub async fn get_error_statistics(
         &self,
-        _start_time: DateTime<Utc>,
-        _end_time: DateTime<Utc>,
-        _group_by: &str,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        group_by: &str,
     ) -> Result<std::collections::HashMap<String, i64>> {
         self.require_monitoring_enabled()?;
 
-        // TODO: 实现统计查询
-        Ok(std::collections::HashMap::new())
+        // group_by determines the aggregation key: "platform", "model", "error_code", "status_code"
+        let json_key = match group_by {
+            "platform" | "model" | "error_code" | "status_code" => group_by,
+            _ => "platform",
+        };
+
+        let records = audit_logs::Entity::find()
+            .filter(audit_logs::Column::Action.eq("OPS_ERROR_LOG"))
+            .filter(audit_logs::Column::CreatedAt.gte(start_time))
+            .filter(audit_logs::Column::CreatedAt.lte(end_time))
+            .all(&self.db)
+            .await?;
+
+        let mut stats: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for r in records {
+            let key = r
+                .request_data
+                .as_ref()
+                .and_then(|d| d.get(json_key))
+                .and_then(|v| {
+                    v.as_str()
+                        .map(String::from)
+                        .or_else(|| Some(v.to_string()))
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+            *stats.entry(key).or_insert(0) += 1;
+        }
+
+        Ok(stats)
     }
 
     /// 获取配置

@@ -564,12 +564,21 @@ impl GroupService {
 
         Ok(groups
             .into_iter()
-            .map(|g| GroupRateInfo {
-                group_id: g.id,
-                group_name: g.name,
-                platform: g.platform,
-                rate_multiplier: g.rate_multiplier,
-                models: vec![], // TODO: 从 model_routing 解析
+            .map(|g| {
+                // Extract model names from model_routing keys
+                let models = g
+                    .model_routing
+                    .as_ref()
+                    .map(|routing| routing.keys().cloned().collect::<Vec<String>>())
+                    .unwrap_or_default();
+
+                GroupRateInfo {
+                    group_id: g.id,
+                    group_name: g.name,
+                    platform: g.platform,
+                    rate_multiplier: g.rate_multiplier,
+                    models,
+                }
             })
             .collect())
     }

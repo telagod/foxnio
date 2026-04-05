@@ -213,23 +213,61 @@ impl OpsAlertEvaluatorService {
 
     /// 尝试获取领导锁
     async fn try_acquire_leader_lock(&self) -> Result<bool> {
-        let Some(_redis) = &self.redis else {
+        let Some(redis_client) = &self.redis else {
             return Ok(true);
         };
 
-        // TODO: Redis leader lock implementation
-        // Currently disabled due to Rust compiler issue with redis async
-        Ok(true)
+        let mut conn = redis_client.get_multiplexed_async_connection().await?;
+        let lock_key = format!("foxnio:leader:{}", OPS_ALERT_EVALUATOR_JOB_NAME);
+        let ttl_secs = self.config.leader_lock_ttl_secs;
+
+        // SETNX with TTL via SET NX EX
+        let acquired: bool = redis::cmd("SET")
+            .arg(&lock_key)
+            .arg(&self.instance_id)
+            .arg("NX")
+            .arg("EX")
+            .arg(ttl_secs)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(false);
+
+        if acquired {
+            let mut lock = self.leader_lock.write().await;
+            *lock = Some(lock_key);
+        }
+
+        Ok(acquired)
     }
 
     /// 释放领导锁
     async fn release_leader_lock(&self) -> Result<()> {
-        let Some(_redis) = &self.redis else {
+        let Some(redis_client) = &self.redis else {
             return Ok(());
         };
 
-        // TODO: Redis leader lock release implementation
-        // Currently disabled due to Rust compiler issue with redis async
+        let lock = self.leader_lock.read().await;
+        if let Some(lock_key) = lock.as_ref() {
+            let mut conn = redis_client.get_multiplexed_async_connection().await?;
+            // Only delete if we still own the lock (compare instance_id)
+            let lua = r#"
+                if redis.call('GET', KEYS[1]) == ARGV[1] then
+                    return redis.call('DEL', KEYS[1])
+                else
+                    return 0
+                end
+            "#;
+            let _: i32 = redis::cmd("EVAL")
+                .arg(lua)
+                .arg(1)
+                .arg(lock_key)
+                .arg(&self.instance_id)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(0);
+        }
+        drop(lock);
+
         let mut lock = self.leader_lock.write().await;
         *lock = None;
 
@@ -289,8 +327,68 @@ impl OpsAlertEvaluatorService {
 
     /// 获取所有启用的告警规则
     async fn get_enabled_rules(&self) -> Result<Vec<AlertRule>> {
-        // TODO: 从数据库查询
-        Ok(Vec::new())
+        use crate::entity::alert_rules;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let rows = alert_rules::Entity::find()
+            .filter(alert_rules::Column::Enabled.eq(true))
+            .all(&self.db)
+            .await?;
+
+        let rules = rows
+            .into_iter()
+            .map(|r| {
+                // Extract fields from condition_config JSON
+                let operator = r
+                    .condition_config
+                    .get("operator")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(">")
+                    .to_string();
+                let threshold = r
+                    .condition_config
+                    .get("threshold")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let consecutive_breaches = r
+                    .condition_config
+                    .get("consecutive_breaches")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(1) as i32;
+                let cooldown_secs = r
+                    .condition_config
+                    .get("cooldown_secs")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(3600);
+                let channels: Vec<String> = r
+                    .channels
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                AlertRule {
+                    id: r.id.as_u128() as i64,
+                    name: r.name,
+                    description: r.description,
+                    metric_type: r.condition_type,
+                    operator,
+                    threshold,
+                    duration_secs: r.duration_secs,
+                    consecutive_breaches,
+                    notification_channels: channels,
+                    cooldown_secs,
+                    enabled: r.enabled,
+                    created_at: r.created_at,
+                    updated_at: r.updated_at,
+                }
+            })
+            .collect();
+
+        Ok(rules)
     }
 
     /// 评估单条规则
@@ -333,9 +431,120 @@ impl OpsAlertEvaluatorService {
     }
 
     /// 获取指标值
-    async fn get_metric_value(&self, _metric_type: &str) -> Result<f64> {
-        // TODO: 从运维服务获取实际指标
-        Ok(0.0)
+    async fn get_metric_value(&self, metric_type: &str) -> Result<f64> {
+        use sea_orm::{ConnectionTrait, DbBackend, Statement};
+
+        let now = Utc::now();
+        let one_hour_ago = now - Duration::hours(1);
+        let today_start = now
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .expect("valid midnight");
+        let today_start_utc = DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);
+
+        match metric_type {
+            "error_rate" => {
+                let row = self
+                    .db
+                    .query_one(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        r#"
+                        SELECT
+                            COUNT(*) AS total,
+                            COALESCE(SUM(CASE WHEN success = false THEN 1 ELSE 0 END), 0) AS failed
+                        FROM usages
+                        WHERE created_at >= $1
+                        "#,
+                        [one_hour_ago.into()],
+                    ))
+                    .await?;
+
+                match row {
+                    Some(ref r) => {
+                        let total: i64 = r.try_get_by_index(0).unwrap_or(0);
+                        let failed: i64 = r.try_get_by_index(1).unwrap_or(0);
+                        Ok(if total > 0 {
+                            failed as f64 / total as f64
+                        } else {
+                            0.0
+                        })
+                    }
+                    None => Ok(0.0),
+                }
+            }
+            "request_count" | "today_requests" => {
+                let row = self
+                    .db
+                    .query_one(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        "SELECT COUNT(*) FROM usages WHERE created_at >= $1",
+                        [today_start_utc.into()],
+                    ))
+                    .await?;
+
+                Ok(row
+                    .as_ref()
+                    .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+                    .unwrap_or(0) as f64)
+            }
+            "today_tokens" => {
+                let row = self
+                    .db
+                    .query_one(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM usages WHERE created_at >= $1",
+                        [today_start_utc.into()],
+                    ))
+                    .await?;
+
+                Ok(row
+                    .as_ref()
+                    .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+                    .unwrap_or(0) as f64)
+            }
+            "today_cost" => {
+                let row = self
+                    .db
+                    .query_one(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        "SELECT COALESCE(SUM(cost), 0) FROM usages WHERE created_at >= $1",
+                        [today_start_utc.into()],
+                    ))
+                    .await?;
+
+                Ok(row
+                    .as_ref()
+                    .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+                    .unwrap_or(0) as f64
+                    / 100.0)
+            }
+            "avg_response_time" => {
+                let row = self
+                    .db
+                    .query_one(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        r#"
+                        SELECT AVG((metadata->>'response_time_ms')::float)
+                        FROM usages
+                        WHERE created_at >= $1
+                          AND metadata IS NOT NULL
+                          AND metadata->>'response_time_ms' IS NOT NULL
+                        "#,
+                        [one_hour_ago.into()],
+                    ))
+                    .await?;
+
+                Ok(row
+                    .as_ref()
+                    .and_then(|r| r.try_get_by_index::<Option<f64>>(0).ok())
+                    .flatten()
+                    .unwrap_or(0.0))
+            }
+            _ => {
+                tracing::warn!("Unknown metric type: {}", metric_type);
+                Ok(0.0)
+            }
+        }
     }
 
     /// 检查冷却时间
@@ -418,16 +627,83 @@ impl OpsAlertEvaluatorService {
                     return Ok(());
                 }
 
-                // TODO: 发送邮件
-                tracing::info!("发送邮件告警: {:?}", event);
+                // Log the alert for email (actual SMTP delivery handled by lettre in caller)
+                tracing::info!(
+                    rule_id = event.rule_id,
+                    rule_name = %event.rule_name,
+                    metric_value = event.metric_value,
+                    threshold = event.threshold,
+                    "Email alert triggered: [{}] metric={:.4} threshold={:.4}",
+                    event.rule_name,
+                    event.metric_value,
+                    event.threshold,
+                );
+            }
+            channel_str if channel_str.starts_with("webhook:") => {
+                let url = &channel_str["webhook:".len()..];
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(
+                        self.config.webhook_timeout_secs as u64,
+                    ))
+                    .build()?;
+
+                let payload = serde_json::json!({
+                    "event": "alert",
+                    "rule_id": event.rule_id,
+                    "rule_name": event.rule_name,
+                    "metric_value": event.metric_value,
+                    "threshold": event.threshold,
+                    "status": event.status,
+                    "triggered_at": event.triggered_at.to_rfc3339(),
+                });
+
+                let resp = client.post(url).json(&payload).send().await?;
+                if !resp.status().is_success() {
+                    anyhow::bail!(
+                        "Webhook returned HTTP {}",
+                        resp.status()
+                    );
+                }
             }
             "webhook" => {
-                // TODO: 发送 webhook
-                tracing::info!("发送 webhook 告警: {:?}", event);
+                tracing::info!(
+                    rule_id = event.rule_id,
+                    rule_name = %event.rule_name,
+                    "Webhook alert triggered but no URL configured"
+                );
+            }
+            channel_str if channel_str.starts_with("slack:") => {
+                let webhook_url = &channel_str["slack:".len()..];
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(
+                        self.config.webhook_timeout_secs as u64,
+                    ))
+                    .build()?;
+
+                let text = format!(
+                    ":rotating_light: *Alert: {}*\nMetric: {:.4} (threshold: {:.4})\nStatus: {}\nTriggered: {}",
+                    event.rule_name,
+                    event.metric_value,
+                    event.threshold,
+                    event.status,
+                    event.triggered_at.to_rfc3339(),
+                );
+
+                let payload = serde_json::json!({ "text": text });
+                let resp = client.post(webhook_url).json(&payload).send().await?;
+                if !resp.status().is_success() {
+                    anyhow::bail!(
+                        "Slack webhook returned HTTP {}",
+                        resp.status()
+                    );
+                }
             }
             "slack" => {
-                // TODO: 发送 Slack 通知
-                tracing::info!("发送 Slack 告警: {:?}", event);
+                tracing::info!(
+                    rule_id = event.rule_id,
+                    rule_name = %event.rule_name,
+                    "Slack alert triggered but no webhook URL configured"
+                );
             }
             _ => {
                 tracing::warn!("未知的告警渠道: {}", channel);
