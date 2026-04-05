@@ -5,9 +5,24 @@
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Common task action types for the timing wheel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum TaskAction {
+    /// HTTP health-check: GET the URL and log success/failure.
+    HttpHealthCheck { url: String },
+    /// Clean up expired records (tokens, sessions, etc.).
+    CleanupExpired,
+    /// Refresh authentication tokens.
+    RefreshTokens,
+    /// Generic / custom action — falls back to task_type + payload.
+    Custom { kind: String },
+}
 
 /// 定时任务
 #[derive(Debug, Clone)]
@@ -16,6 +31,7 @@ pub struct TimerTask {
     pub execute_at: DateTime<Utc>,
     pub task_type: String,
     pub payload: serde_json::Value,
+    pub action: Option<TaskAction>,
     pub repeat_interval: Option<std::time::Duration>,
 }
 
@@ -86,6 +102,19 @@ impl TimingWheelService {
         payload: serde_json::Value,
         repeat_interval: Option<std::time::Duration>,
     ) -> u64 {
+        self.add_task_with_action(execute_at, task_type, payload, None, repeat_interval)
+            .await
+    }
+
+    /// 添加带 action 的定时任务
+    pub async fn add_task_with_action(
+        &self,
+        execute_at: DateTime<Utc>,
+        task_type: String,
+        payload: serde_json::Value,
+        action: Option<TaskAction>,
+        repeat_interval: Option<std::time::Duration>,
+    ) -> u64 {
         let task_id = {
             let mut next_id = self.next_task_id.write().await;
             let id = *next_id;
@@ -98,6 +127,7 @@ impl TimingWheelService {
             execute_at,
             task_type,
             payload,
+            action,
             repeat_interval,
         };
 
@@ -178,10 +208,11 @@ impl TimingWheelService {
 
         // 重新调度重复任务
         for task in tasks_to_reschedule {
-            self.add_task(
+            self.add_task_with_action(
                 task.execute_at,
                 task.task_type,
                 task.payload,
+                task.action,
                 task.repeat_interval,
             )
             .await;
@@ -244,18 +275,34 @@ impl TimingWheelService {
 
     /// 启动后台 tick 任务
     pub fn start_background_tick(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let svc = Arc::clone(&self);
+        svc.start_ticker()
+    }
+
+    /// Spawn a tokio task that calls `tick()` at the configured resolution
+    /// and executes each fired task's action.
+    pub fn start_ticker(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let tick_ms = self.config.tick_duration_ms;
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(
-                self.config.tick_duration_ms,
-            ));
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_millis(tick_ms));
 
             loop {
                 interval.tick().await;
                 let tasks = self.tick().await;
 
                 for task in tasks {
-                    // TODO: 执行任务
-                    tracing::debug!("Executing task: {} ({})", task.id, task.task_type);
+                    let action = task.action.clone();
+                    // Fire-and-forget per task so one slow task doesn't block the wheel.
+                    tokio::spawn(async move {
+                        if let Err(e) = execute_task_action(&task, action.as_ref()).await {
+                            tracing::error!(
+                                task_id = task.id,
+                                task_type = %task.task_type,
+                                "task execution failed: {e:#}"
+                            );
+                        }
+                    });
                 }
             }
         })
@@ -266,6 +313,49 @@ impl Default for TimingWheelService {
     fn default() -> Self {
         Self::new(TimingWheelConfig::default())
     }
+}
+
+/// Execute the concrete action associated with a fired timer task.
+async fn execute_task_action(
+    task: &TimerTask,
+    action: Option<&TaskAction>,
+) -> anyhow::Result<()> {
+    match action {
+        Some(TaskAction::HttpHealthCheck { url }) => {
+            tracing::info!(task_id = task.id, url = %url, "http health check");
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()?;
+            let resp = client.get(url).send().await?;
+            let status = resp.status();
+            if status.is_success() {
+                tracing::info!(task_id = task.id, status = %status, "health check ok");
+            } else {
+                tracing::warn!(task_id = task.id, status = %status, "health check failed");
+            }
+        }
+        Some(TaskAction::CleanupExpired) => {
+            tracing::info!(task_id = task.id, "cleanup expired records");
+            // Placeholder — concrete cleanup logic depends on the caller's DB handle.
+            // Integrators should replace this with actual cleanup queries.
+        }
+        Some(TaskAction::RefreshTokens) => {
+            tracing::info!(task_id = task.id, "refresh tokens");
+            // Placeholder — token refresh requires service-specific credentials.
+        }
+        Some(TaskAction::Custom { kind }) => {
+            tracing::info!(task_id = task.id, kind = %kind, "custom task action");
+        }
+        None => {
+            // Legacy path: no structured action, log and move on.
+            tracing::debug!(
+                task_id = task.id,
+                task_type = %task.task_type,
+                "executed task (no action defined)"
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

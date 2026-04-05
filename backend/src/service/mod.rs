@@ -139,6 +139,7 @@ pub mod ratelimit_service;
 pub mod redeem_service;
 pub mod registration_email_policy;
 pub mod scheduled_test_runner_service;
+pub mod scheduled_test_service;
 pub mod session_limit_cache;
 pub mod system_operation_lock_service;
 pub mod tls_fingerprint_profile_service;

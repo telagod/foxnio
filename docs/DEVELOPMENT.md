@@ -155,3 +155,64 @@ npm --prefix frontend run check
 - backend 启动时会自动执行 migration，当前开发文档不再把手工 migration 命令写成权威主路径。
 - `frontend/src/lib/api.ts` 使用的是 `VITE_API_URL`，这是 frontend build-time 变量。
 - 当前项目状态请优先看 [`CURRENT_STATUS.md`](./CURRENT_STATUS.md) 与 [`BUSINESS_LOGIC.md`](./BUSINESS_LOGIC.md)。
+
+## 数据库迁移
+
+- 迁移文件位置：`backend/migration/src/`
+- 当前迁移数量：31（000001 至 000031）
+- 命名规范：`m{date}_{number}_{description}.rs`
+
+运行迁移：
+
+```bash
+cargo run --manifest-path backend/migration/Cargo.toml -- up
+```
+
+回滚迁移：
+
+```bash
+cargo run --manifest-path backend/migration/Cargo.toml -- down
+```
+
+注意：backend 启动时会自动执行迁移，手动运行仅在需要单独操作时使用。
+
+## Authoritative Commands
+
+### Backend
+
+```bash
+cargo run --manifest-path backend/Cargo.toml          # dev server
+cargo check --manifest-path backend/Cargo.toml        # type check
+cargo test --manifest-path backend/Cargo.toml          # tests
+cargo fmt --manifest-path backend/Cargo.toml --all     # format
+```
+
+### Frontend
+
+```bash
+cd frontend && npm run dev      # dev server
+cd frontend && npm run build    # production build
+cd frontend && npm run check    # svelte-check
+cd frontend && npx eslint .     # lint
+```
+
+npm is the authoritative package manager (not pnpm).
+
+### Docker
+
+```bash
+./deploy.sh build       # build core images
+./deploy.sh start       # start postgres + redis + backend
+./deploy.sh build-ui    # build frontend image
+./deploy.sh start-ui    # start frontend
+./deploy.sh build-edge  # build nginx edge
+./deploy.sh start-edge  # start nginx
+```
+
+### Make shortcuts
+
+```bash
+make dev / make run / make build / make test / make lint / make fmt
+make docker-build / make docker-up / make docker-down
+make db-migrate / make db-rollback
+```

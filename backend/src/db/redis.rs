@@ -449,6 +449,18 @@ impl RedisPool {
         Ok(result)
     }
 
+    /// 哈希删除字段
+    pub async fn hdel(&self, key: &str, field: &str) -> Result<bool> {
+        let mut conn = self.get_connection().await?;
+
+        let result: bool = conn
+            .hdel(key, field)
+            .await
+            .context("Failed to delete Redis hash field")?;
+
+        Ok(result)
+    }
+
     /// 添加到集合
     pub async fn sadd(&self, key: &str, member: &str) -> Result<bool> {
         let mut conn = self.get_connection().await?;

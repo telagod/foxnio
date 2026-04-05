@@ -1,6 +1,7 @@
 //! Wait Queue Service
 //!
 //! 等待队列机制，支持粘性会话优先等待
+//! Redis 持久化：每个 account 使用 hash `foxnio:wait_queue:{account_id}`
 
 #![allow(dead_code)]
 
@@ -11,7 +12,9 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
+
+use crate::db::redis::RedisPool;
 
 /// 等待请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,8 +53,8 @@ pub struct QueueStatus {
 pub struct WaitQueueService {
     /// 内存队列（用于快速访问）
     queues: Arc<RwLock<std::collections::HashMap<i64, VecDeque<WaitRequest>>>>,
-    /// Redis 客户端（用于分布式场景）
-    redis: Option<redis::Client>,
+    /// Redis 连接池（用于分布式持久化）
+    redis: Option<Arc<RedisPool>>,
     /// 默认超时时间
     default_timeout: Duration,
     /// 最大队列长度
@@ -60,9 +63,12 @@ pub struct WaitQueueService {
     cleanup_interval: Duration,
 }
 
+/// Redis key prefix for wait queue hashes
+const REDIS_KEY_PREFIX: &str = "foxnio:wait_queue";
+
 impl WaitQueueService {
     pub fn new(
-        redis: Option<redis::Client>,
+        redis: Option<Arc<RedisPool>>,
         default_timeout: Duration,
         max_queue_length: u32,
     ) -> Self {
@@ -73,6 +79,11 @@ impl WaitQueueService {
             max_queue_length,
             cleanup_interval: Duration::from_secs(60),
         }
+    }
+
+    /// Redis hash key for a given account
+    fn redis_key(account_id: i64) -> String {
+        format!("{REDIS_KEY_PREFIX}:{account_id}")
     }
 
     /// 将请求加入队列
@@ -100,17 +111,20 @@ impl WaitQueueService {
                 .iter()
                 .position(|r| r.priority != WaitPriority::StickySession)
                 .unwrap_or(queue.len());
-            queue.insert(pos, req);
+            queue.insert(pos, req.clone());
             pos as u32
         } else {
-            queue.push_back(req);
+            queue.push_back(req.clone());
             (queue.len() - 1) as u32
         };
 
-        // Redis 持久化（如果启用）
-        if let Some(ref _redis_client) = self.redis {
-            // Redis 持久化在插入前完成
-            // self.enqueue_redis(redis_client, &req).await?;
+        // Redis 持久化
+        if let Some(ref redis) = self.redis {
+            let key = Self::redis_key(account_id);
+            let value = serde_json::to_string(&req).unwrap_or_default();
+            if let Err(e) = redis.hset(&key, &req.request_id, &value).await {
+                error!("Failed to persist wait request to Redis: {}", e);
+            }
         }
 
         debug!(
@@ -132,6 +146,10 @@ impl WaitQueueService {
             let elapsed = (now - front.created_at).num_seconds() as u64;
             if elapsed > front.timeout.as_secs() {
                 let expired = queue.pop_front();
+                if let Some(ref expired_req) = expired {
+                    self.remove_from_redis(account_id, &expired_req.request_id)
+                        .await;
+                }
                 warn!("Removed expired request: {:?}", expired);
             } else {
                 break;
@@ -139,7 +157,11 @@ impl WaitQueueService {
         }
 
         // 返回第一个有效的请求
-        queue.pop_front()
+        let acquired = queue.pop_front();
+        if let Some(ref req) = acquired {
+            self.remove_from_redis(account_id, &req.request_id).await;
+        }
+        acquired
     }
 
     /// 获取队列长度
@@ -192,9 +214,18 @@ impl WaitQueueService {
         let mut queues = self.queues.write().await;
         let mut removed = 0;
         let now = Utc::now();
+        let mut expired_ids: Vec<(i64, String)> = Vec::new();
 
-        for (_, queue) in queues.iter_mut() {
+        for (&account_id, queue) in queues.iter_mut() {
             let before = queue.len();
+
+            // Collect expired request IDs before retaining
+            for req in queue.iter() {
+                let elapsed = (now - req.created_at).num_seconds() as u64;
+                if elapsed > req.timeout.as_secs() {
+                    expired_ids.push((account_id, req.request_id.clone()));
+                }
+            }
 
             queue.retain(|req| {
                 let elapsed = (now - req.created_at).num_seconds() as u64;
@@ -202,6 +233,16 @@ impl WaitQueueService {
             });
 
             removed += before - queue.len();
+        }
+
+        // Clean expired entries from Redis
+        if let Some(ref redis) = self.redis {
+            for (account_id, request_id) in &expired_ids {
+                let key = Self::redis_key(*account_id);
+                if let Err(e) = redis.hdel(&key, request_id).await {
+                    error!("Failed to remove expired request from Redis: {}", e);
+                }
+            }
         }
 
         if removed > 0 {
@@ -220,6 +261,7 @@ impl WaitQueueService {
             queue.retain(|req| req.request_id != request_id);
 
             if queue.len() < before {
+                self.remove_from_redis(account_id, request_id).await;
                 debug!(
                     "Cancelled request {} from account {}",
                     request_id, account_id
@@ -244,12 +286,88 @@ impl WaitQueueService {
         statuses
     }
 
-    /// Redis 持久化（内部方法）
-    async fn enqueue_redis(&self, _client: &redis::Client, _req: &WaitRequest) -> Result<()> {
-        // TODO: 实现 Redis 持久化
-        // 使用 Redis List 或 Sorted Set
-        // ZADD wait_queue:{account_id} {timestamp} {request_json}
-        Ok(())
+    /// Remove a single request from Redis
+    async fn remove_from_redis(&self, account_id: i64, request_id: &str) {
+        if let Some(ref redis) = self.redis {
+            let key = Self::redis_key(account_id);
+            if let Err(e) = redis.hdel(&key, request_id).await {
+                error!(
+                    "Failed to remove request {} from Redis: {}",
+                    request_id, e
+                );
+            }
+        }
+    }
+
+    /// Restore queue state from Redis on startup
+    ///
+    /// Reads all `foxnio:wait_queue:*` hashes and rebuilds the in-memory
+    /// queues, skipping entries that have already expired.
+    pub async fn restore_from_redis(&self, account_ids: &[i64]) -> Result<usize> {
+        let redis = match self.redis {
+            Some(ref r) => r,
+            None => return Ok(0),
+        };
+
+        let now = Utc::now();
+        let mut restored = 0usize;
+        let mut queues = self.queues.write().await;
+
+        for &account_id in account_ids {
+            let key = Self::redis_key(account_id);
+            let entries = match redis.hgetall(&key).await {
+                Ok(m) => m,
+                Err(e) => {
+                    error!(
+                        "Failed to read wait queue from Redis for account {}: {}",
+                        account_id, e
+                    );
+                    continue;
+                }
+            };
+
+            let queue = queues.entry(account_id).or_insert_with(VecDeque::new);
+
+            for (request_id, value) in &entries {
+                let req: WaitRequest = match serde_json::from_str(value) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        warn!(
+                            "Skipping malformed wait request {} in Redis: {}",
+                            request_id, e
+                        );
+                        // Remove corrupt entry
+                        let _ = redis.hdel(&key, request_id).await;
+                        continue;
+                    }
+                };
+
+                // Skip expired
+                let elapsed = (now - req.created_at).num_seconds() as u64;
+                if elapsed > req.timeout.as_secs() {
+                    let _ = redis.hdel(&key, request_id).await;
+                    continue;
+                }
+
+                // Insert respecting priority order
+                if req.priority == WaitPriority::StickySession {
+                    let pos = queue
+                        .iter()
+                        .position(|r| r.priority != WaitPriority::StickySession)
+                        .unwrap_or(queue.len());
+                    queue.insert(pos, req);
+                } else {
+                    queue.push_back(req);
+                }
+                restored += 1;
+            }
+        }
+
+        if restored > 0 {
+            info!("Restored {} wait requests from Redis", restored);
+        }
+
+        Ok(restored)
     }
 
     /// 启动后台清理任务

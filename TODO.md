@@ -122,11 +122,11 @@
 
 ### P2 - 运维与异步能力
 
-- [ ] `batch.rs` / `batch_operations.rs` 真执行链
+- [x] `batch.rs` / `batch_operations.rs` 真执行链
 - [ ] scheduled test plan 真执行
 - [ ] `timing_wheel_service.rs` 真任务执行
-- [ ] `scheduler_snapshot_service.rs` 恢复能力
-- [ ] `token_refresh_service.rs` 真刷新链
+- [x] `scheduler_snapshot_service.rs` 恢复能力
+- [x] `token_refresh_service.rs` 真刷新链
 - [ ] 模型级 / 账号级 / 排队层限流统一
 - [ ] 等待队列 Redis 持久化、超时、取消、恢复
 - [ ] `ops_*` 模块真实写入、聚合、清理、leader lock
