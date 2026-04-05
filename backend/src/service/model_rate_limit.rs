@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -278,44 +279,96 @@ impl ModelRateLimiter {
         format!("{account_id}:{model}")
     }
 
-    /// Redis 检查（内部方法）
+    /// Redis 检查（内部方法） — sliding window via sorted set
     async fn check_redis(
         &self,
-        _client: &redis::Client,
+        client: &redis::Client,
         account_id: i64,
         model: &str,
         config: &RateLimitConfig,
     ) -> Result<RateLimitStatus> {
-        // TODO: 实现 Redis 滑动窗口算法
-        // 使用 Redis 的 INCR + EXPIRE 或 Sorted Set
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        let window_ms = (config.duration_secs * 1000) as i64;
+        let window_start = now_ms - window_ms;
 
-        // 伪代码：
-        // let key = format!("ratelimit:{account_id}:{model}");
-        // let count: i64 = redis.get(&key)?;
-        // ...
+        let req_key = format!("model_rl:req:{account_id}:{model}");
+        let tok_key = format!("model_rl:tok:{account_id}:{model}");
+
+        // Remove expired entries and count remaining in one Lua call
+        let lua = r#"
+            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+            redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[1])
+            local req_count = redis.call('ZCARD', KEYS[1])
+            local tok_sum = 0
+            local tok_members = redis.call('ZRANGE', KEYS[2], 0, -1)
+            for _, v in ipairs(tok_members) do
+                local t = tonumber(v:match('^(%d+):'))
+                if t then tok_sum = tok_sum + t end
+            end
+            return {req_count, tok_sum}
+        "#;
+
+        let (req_count, tok_sum): (u32, u64) = redis::cmd("EVAL")
+            .arg(lua)
+            .arg(2)
+            .arg(&req_key)
+            .arg(&tok_key)
+            .arg(window_start)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or((0, 0));
+
+        let rpm_limited = config.requests_per_minute.map_or(false, |rpm| req_count >= rpm);
+        let tpm_limited = config.tokens_per_minute.map_or(false, |tpm| tok_sum >= tpm);
+        let is_limited = rpm_limited || tpm_limited;
+
+        let remaining_requests = config.requests_per_minute.map(|rpm| rpm.saturating_sub(req_count));
+        let remaining_tokens = config.tokens_per_minute.map(|tpm| tpm.saturating_sub(tok_sum));
+
+        let (reset_at, retry_after) = if is_limited {
+            let reset = Utc::now() + chrono::Duration::seconds(config.duration_secs as i64);
+            (Some(reset), Some(Duration::from_secs(config.duration_secs)))
+        } else {
+            (None, None)
+        };
 
         Ok(RateLimitStatus {
             account_id,
             model: model.to_string(),
-            is_limited: false,
-            remaining_requests: config.requests_per_minute,
-            remaining_tokens: config.tokens_per_minute,
-            reset_at: None,
-            retry_after: None,
+            is_limited,
+            remaining_requests,
+            remaining_tokens,
+            reset_at,
+            retry_after,
         })
     }
 
-    /// Redis 记录（内部方法）
+    /// Redis 记录（内部方法） — add entries to sorted sets
     async fn record_redis(
         &self,
-        _client: &redis::Client,
-        _account_id: i64,
-        _model: &str,
-        _tokens: Option<u64>,
-        _config: &RateLimitConfig,
+        client: &redis::Client,
+        account_id: i64,
+        model: &str,
+        tokens: Option<u64>,
+        config: &RateLimitConfig,
     ) -> Result<()> {
-        // TODO: 实现 Redis 记录
-        // 使用 Redis 的 INCRBY + EXPIRE
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        let expire_secs = config.duration_secs * 2; // keep buffer for cleanup
+
+        let req_key = format!("model_rl:req:{account_id}:{model}");
+        // Each request is a unique member scored by timestamp
+        let member = format!("{now_ms}:{}", uuid::Uuid::new_v4());
+        let _: () = conn.zadd(&req_key, &member, now_ms as f64).await?;
+        let _: () = conn.expire(&req_key, expire_secs as i64).await?;
+
+        if let Some(tok) = tokens {
+            let tok_key = format!("model_rl:tok:{account_id}:{model}");
+            let tok_member = format!("{tok}:{now_ms}:{}", uuid::Uuid::new_v4());
+            let _: () = conn.zadd(&tok_key, &tok_member, now_ms as f64).await?;
+            let _: () = conn.expire(&tok_key, expire_secs as i64).await?;
+        }
 
         Ok(())
     }

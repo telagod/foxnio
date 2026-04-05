@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+
   const features = [
     {
       title: 'API Key 管理',
@@ -55,6 +57,8 @@
 <svelte:head>
   <title>FoxNIO - AI API Gateway</title>
 </svelte:head>
+
+<ThemeToggle floating={true} />
 
 <div class="animate-fade-in">
   <!-- Hero -->

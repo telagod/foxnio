@@ -391,6 +391,33 @@ class ApiClient {
     return this.request(`/api/v1/admin/users?${query}`);
   }
 
+  async createUser(data: { email: string; password: string; role: string }): Promise<User> {
+    return this.request('/api/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(id: string, updates: Partial<{ role: string; status: string }>): Promise<User> {
+    return this.request(`/api/v1/admin/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    return this.request(`/api/v1/admin/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateUserBalance(id: string, delta: number, reason: string): Promise<User> {
+    return this.request(`/api/v1/admin/users/${id}/balance`, {
+      method: 'POST',
+      body: JSON.stringify({ delta, reason }),
+    });
+  }
+
   // Admin - Accounts (带分页)
   async listAccounts(params?: PaginationParams): Promise<PaginatedResponse<Account>> {
     const query = this.buildQuery(params);

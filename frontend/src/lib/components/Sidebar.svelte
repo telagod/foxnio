@@ -6,7 +6,7 @@
   interface NavItem { href: string; label: string; icon: string; }
 
   let navItems: NavItem[] = [
-    { href: '/', label: 'Dashboard', icon: 'chart-bar' },
+    { href: '/dashboard', label: 'Dashboard', icon: 'chart-bar' },
     { href: '/apikeys', label: 'API Keys', icon: 'key' },
     { href: '/usage', label: 'Usage', icon: 'trending-up' },
     { href: '/alerts', label: 'Alerts', icon: 'bell' },

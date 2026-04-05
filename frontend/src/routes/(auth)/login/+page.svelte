@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
   let email = $state('');
   let password = $state('');
@@ -31,6 +32,8 @@
 <svelte:head>
   <title>登录 - FoxNIO</title>
 </svelte:head>
+
+<ThemeToggle floating={true} />
 
 <div class="min-h-[80vh] flex items-center justify-center animate-fade-in">
   <div class="glass-card p-8 w-full max-w-md">
