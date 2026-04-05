@@ -287,6 +287,21 @@ class ApiClient {
         });
 
         if (!response.ok) {
+          // 401: token expired or invalid — clear session and redirect to login
+          if (response.status === 401) {
+            this.token = null;
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('token');
+              window.location.href = '/login';
+            }
+            throw new Error('Session expired');
+          }
+
+          // 403: permission denied — throw specific message for UI to catch
+          if (response.status === 403) {
+            throw new Error('Permission denied');
+          }
+
           const error = await response.json().catch(() => ({ error: 'Unknown error' }));
           throw new Error(error.error || `HTTP ${response.status}`);
         }

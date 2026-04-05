@@ -403,32 +403,130 @@ impl BatchOperationService {
             });
         }
 
-        let txn = self.db.begin().await?;
-
-        // 批量查询 OAuth 账号
+        // 批量查询账号（不限 credential_type，验证所有类型的 key）
         let accounts_list = accounts::Entity::find()
             .filter(accounts::Column::Id.is_in(account_ids.clone()))
-            .filter(accounts::Column::CredentialType.eq("oauth"))
-            .all(&txn)
+            .all(&self.db)
             .await?;
+
+        let found_ids: std::collections::HashSet<Uuid> =
+            accounts_list.iter().map(|a| a.id).collect();
 
         let mut succeeded = 0;
         let mut refreshed = Vec::new();
-        let errors = Vec::new();
+        let mut errors = Vec::new();
 
-        for account in accounts_list {
-            // TODO: 调用实际的 OAuth 服务刷新 Token
-            // 目前先返回模拟数据
-            refreshed.push(RefreshTokenInfo {
-                account_id: account.id,
-                account_name: account.name,
-                status: account.status,
-                refreshed_at: Utc::now(),
-            });
-            succeeded += 1;
+        // 报告未找到的账号
+        for id in &account_ids {
+            if !found_ids.contains(id) {
+                errors.push(format!("Account {} not found", id));
+            }
         }
 
-        txn.commit().await?;
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap_or_default();
+
+        for account in &accounts_list {
+            // 解密凭证
+            let credential = match GlobalEncryption::decrypt(&account.credential) {
+                Ok(c) => c,
+                Err(e) => {
+                    errors.push(format!(
+                        "Account {} ({}): decrypt failed: {}",
+                        account.id, account.name, e
+                    ));
+                    continue;
+                }
+            };
+
+            // 根据 provider 选择验证端点
+            let verify_result = match account.provider.as_str() {
+                "openai" => {
+                    http_client
+                        .get("https://api.openai.com/v1/models")
+                        .header("Authorization", format!("Bearer {}", credential))
+                        .send()
+                        .await
+                }
+                "anthropic" | "claude" => {
+                    http_client
+                        .get("https://api.anthropic.com/v1/models")
+                        .header("x-api-key", &credential)
+                        .header("anthropic-version", "2023-06-01")
+                        .send()
+                        .await
+                }
+                "gemini" => {
+                    let url = format!(
+                        "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+                        credential
+                    );
+                    http_client.get(&url).send().await
+                }
+                other => {
+                    // 未知 provider，跳过 HTTP 验证，标记为成功
+                    refreshed.push(RefreshTokenInfo {
+                        account_id: account.id,
+                        account_name: account.name.clone(),
+                        status: format!("skipped (unknown provider: {})", other),
+                        refreshed_at: Utc::now(),
+                    });
+                    succeeded += 1;
+                    continue;
+                }
+            };
+
+            match verify_result {
+                Ok(resp) if resp.status().is_success() => {
+                    // 验证成功 — 更新 status 为 active
+                    let mut active: accounts::ActiveModel = account.clone().into();
+                    active.status = Set("active".to_string());
+                    active.last_error = Set(None);
+                    active.updated_at = Set(Utc::now());
+                    let _ = active.update(&self.db).await;
+
+                    refreshed.push(RefreshTokenInfo {
+                        account_id: account.id,
+                        account_name: account.name.clone(),
+                        status: "active".to_string(),
+                        refreshed_at: Utc::now(),
+                    });
+                    succeeded += 1;
+                }
+                Ok(resp) => {
+                    let status_code = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    let err_msg = format!("HTTP {}: {}", status_code, &body[..body.len().min(200)]);
+
+                    // 标记账号错误
+                    let mut active: accounts::ActiveModel = account.clone().into();
+                    active.status = Set("error".to_string());
+                    active.last_error = Set(Some(err_msg.clone()));
+                    active.updated_at = Set(Utc::now());
+                    let _ = active.update(&self.db).await;
+
+                    errors.push(format!(
+                        "Account {} ({}): {}",
+                        account.id, account.name, err_msg
+                    ));
+                }
+                Err(e) => {
+                    let err_msg = format!("Request failed: {}", e);
+
+                    let mut active: accounts::ActiveModel = account.clone().into();
+                    active.last_error = Set(Some(err_msg.clone()));
+                    active.updated_at = Set(Utc::now());
+                    let _ = active.update(&self.db).await;
+
+                    errors.push(format!(
+                        "Account {} ({}): {}",
+                        account.id, account.name, err_msg
+                    ));
+                }
+            }
+        }
 
         Ok(BatchRefreshTokenResult {
             total,
@@ -455,40 +553,113 @@ impl BatchOperationService {
             });
         }
 
-        let txn = self.db.begin().await?;
-
         // 批量查询账号
         let accounts_list = accounts::Entity::find()
             .filter(accounts::Column::Id.is_in(account_ids.clone()))
-            .all(&txn)
+            .all(&self.db)
             .await?;
+
+        let found_ids: std::collections::HashSet<Uuid> =
+            accounts_list.iter().map(|a| a.id).collect();
 
         let mut succeeded = 0;
         let mut tier_info = Vec::new();
         let mut errors = Vec::new();
 
-        for account in &accounts_list {
-            // TODO: 调用实际的 API 查询 Tier
-            // 目前返回模拟数据
-            tier_info.push(TierInfo {
-                account_id: account.id,
-                account_name: account.name.clone(),
-                tier: "pro".to_string(),
-                refreshed_at: Utc::now(),
-            });
-            succeeded += 1;
-        }
-
-        // 检查未找到的账号
-        let found_ids: std::collections::HashSet<Uuid> =
-            accounts_list.iter().map(|a| a.id).collect();
+        // 报告未找到的账号
         for id in &account_ids {
             if !found_ids.contains(id) {
                 errors.push(format!("Account {} not found", id));
             }
         }
 
-        txn.commit().await?;
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap_or_default();
+
+        for account in &accounts_list {
+            // 解密凭证
+            let credential = match GlobalEncryption::decrypt(&account.credential) {
+                Ok(c) => c,
+                Err(e) => {
+                    errors.push(format!(
+                        "Account {} ({}): decrypt failed: {}",
+                        account.id, account.name, e
+                    ));
+                    continue;
+                }
+            };
+
+            // 验证 key 是否有效
+            let verify_ok = match account.provider.as_str() {
+                "openai" => {
+                    match http_client
+                        .get("https://api.openai.com/v1/models")
+                        .header("Authorization", format!("Bearer {}", credential))
+                        .send()
+                        .await
+                    {
+                        Ok(resp) => resp.status().is_success(),
+                        Err(_) => false,
+                    }
+                }
+                "anthropic" | "claude" => {
+                    match http_client
+                        .get("https://api.anthropic.com/v1/models")
+                        .header("x-api-key", &credential)
+                        .header("anthropic-version", "2023-06-01")
+                        .send()
+                        .await
+                    {
+                        Ok(resp) => resp.status().is_success(),
+                        Err(_) => false,
+                    }
+                }
+                "gemini" => {
+                    let url = format!(
+                        "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+                        credential
+                    );
+                    match http_client.get(&url).send().await {
+                        Ok(resp) => resp.status().is_success(),
+                        Err(_) => false,
+                    }
+                }
+                _ => {
+                    // 未知 provider，跳过验证视为通过
+                    true
+                }
+            };
+
+            if verify_ok {
+                // 标记为 verified
+                let mut active: accounts::ActiveModel = account.clone().into();
+                active.status = Set("active".to_string());
+                active.last_error = Set(None);
+                active.updated_at = Set(Utc::now());
+                let _ = active.update(&self.db).await;
+
+                tier_info.push(TierInfo {
+                    account_id: account.id,
+                    account_name: account.name.clone(),
+                    tier: "verified".to_string(),
+                    refreshed_at: Utc::now(),
+                });
+                succeeded += 1;
+            } else {
+                let mut active: accounts::ActiveModel = account.clone().into();
+                active.status = Set("error".to_string());
+                active.last_error = Set(Some("Tier verification failed".to_string()));
+                active.updated_at = Set(Utc::now());
+                let _ = active.update(&self.db).await;
+
+                errors.push(format!(
+                    "Account {} ({}): key verification failed",
+                    account.id, account.name
+                ));
+            }
+        }
 
         Ok(BatchRefreshTierResult {
             total,

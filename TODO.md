@@ -118,7 +118,7 @@
 - [x] 额度来源解释
 - [x] ledger 查询接口
 - [x] 账务 / quota / subscription / redeem 解释统一
-- [ ] account / group / control-plane 查询链继续接真
+- [x] account / group / control-plane 查询链继续接真
 
 ### P2 - 运维与异步能力
 
@@ -139,17 +139,17 @@
 - [ ] `admin` 页面测试
 - [x] loading / error / empty state 统一
 - [x] 用户侧与管理侧 UI 文案统一
-- [ ] 权限不足时前端回退行为明确化
+- [x] 权限不足时前端回退行为明确化
 - [x] 现有 a11y warnings 逐页清理
 
 ### P3 - 文档与口径清理
 
-- [ ] 清理 `docs/` 历史专题文档中的旧完成度表述
+- [x] 清理 `docs/` 历史专题文档中的旧完成度表述
 - [ ] 统一 migration 权威路径说明
 - [ ] 统一 frontend 构建 / 运行 / Docker 命令口径
 - [ ] 统一 `npm` / `pnpm` / `make` 的权威命令说明
 - [x] 统一 `.env` / `config.yaml` / runtime env 关系说明
-- [ ] 输出“最小上线架构图”和“最小回归矩阵”
+- [x] 输出”最小上线架构图”和”最小回归矩阵”
 
 ## 下一步
 

@@ -132,23 +132,81 @@ impl BatchOperationService {
     pub async fn batch_create_api_keys(
         &self,
         requests: Vec<CreateApiKeyRequest>,
-        _stop_on_error: bool,
+        stop_on_error: bool,
     ) -> Result<BatchResult<ApiKeyInfo>> {
+        use crate::entity::api_keys;
+        use crate::utils::crypto::random_hex;
+        use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
+
         let mut results = Vec::new();
-        let success = 0;
+        let mut success = 0;
         let mut failed = 0;
 
-        for (index, _req) in requests.into_iter().enumerate() {
-            // TODO: 实现使用 SeaORM 的 API Key 创建
-            let error_msg = "API Key creation not yet implemented with SeaORM".to_string();
-            failed += 1;
-            results.push(BatchItemResult {
-                index,
-                data: None,
-                error: Some(error_msg),
-            });
-            BATCH_ERRORS.inc();
+        let txn = self.db.begin().await?;
+
+        for (index, req) in requests.into_iter().enumerate() {
+            let id = Uuid::new_v4();
+            let prefix = "sk-fox";
+            let hex_part = random_hex(32);
+            let key_string = format!("{prefix}_{hex_part}");
+            let now = chrono::Utc::now();
+
+            let model = api_keys::ActiveModel {
+                id: Set(id),
+                user_id: Set(req.user_id),
+                key: Set(key_string.clone()),
+                name: Set(if req.name.is_empty() {
+                    None
+                } else {
+                    Some(req.name.clone())
+                }),
+                prefix: Set(prefix.to_string()),
+                status: Set("active".to_string()),
+                concurrent_limit: Set(None),
+                rate_limit_rpm: Set(None),
+                allowed_models: Set(None),
+                ip_whitelist: Set(None),
+                expires_at: Set(None),
+                daily_quota: Set(None),
+                daily_used_quota: Set(None),
+                quota_reset_at: Set(None),
+                last_used_at: Set(None),
+                created_at: Set(now),
+            };
+
+            match model.insert(&txn).await {
+                Ok(_) => {
+                    success += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: Some(ApiKeyInfo {
+                            id,
+                            user_id: req.user_id,
+                            name: req.name,
+                            prefix: prefix.to_string(),
+                            status: "active".to_string(),
+                            key: Some(key_string),
+                            created_at: now,
+                        }),
+                        error: None,
+                    });
+                }
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Insert failed: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                    if stop_on_error {
+                        break;
+                    }
+                }
+            }
         }
+
+        txn.commit().await?;
 
         BATCH_ITEMS_PROCESSED.inc_by(results.len() as u64);
         BATCH_OPERATIONS_TOTAL.inc();
@@ -165,22 +223,82 @@ impl BatchOperationService {
     pub async fn batch_create_users(
         &self,
         requests: Vec<CreateUserRequest>,
-        _stop_on_error: bool,
+        stop_on_error: bool,
     ) -> Result<BatchResult<UserInfo>> {
+        use crate::entity::users;
+        use crate::utils::crypto::hash_password;
+        use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
+
         let mut results = Vec::new();
-        let success = 0;
+        let mut success = 0;
         let mut failed = 0;
 
-        for (index, _req) in requests.into_iter().enumerate() {
-            let error_msg = "User creation not yet implemented with SeaORM".to_string();
-            failed += 1;
-            results.push(BatchItemResult {
-                index,
-                data: None,
-                error: Some(error_msg),
-            });
-            BATCH_ERRORS.inc();
+        let txn = self.db.begin().await?;
+
+        for (index, req) in requests.into_iter().enumerate() {
+            let password_hash = match hash_password(&req.password) {
+                Ok(h) => h,
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Password hash failed: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                    if stop_on_error {
+                        break;
+                    }
+                    continue;
+                }
+            };
+
+            let id = Uuid::new_v4();
+            let now = chrono::Utc::now();
+
+            let model = users::ActiveModel {
+                id: Set(id),
+                email: Set(req.email.clone()),
+                password_hash: Set(password_hash),
+                balance: Set(0),
+                role: Set("user".to_string()),
+                status: Set("active".to_string()),
+                totp_secret: Set(None),
+                totp_enabled: Set(false),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+
+            match model.insert(&txn).await {
+                Ok(_) => {
+                    success += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: Some(UserInfo {
+                            id,
+                            email: req.email,
+                            role: "user".to_string(),
+                            created_at: now,
+                        }),
+                        error: None,
+                    });
+                }
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Insert failed: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                    if stop_on_error {
+                        break;
+                    }
+                }
+            }
         }
+
+        txn.commit().await?;
 
         BATCH_ITEMS_PROCESSED.inc_by(results.len() as u64);
         BATCH_OPERATIONS_TOTAL.inc();
@@ -195,29 +313,81 @@ impl BatchOperationService {
 
     /// 从 CSV 文件批量导入用户
     pub async fn batch_import_users_csv(&self, csv_content: &str) -> Result<BatchResult<UserInfo>> {
+        use crate::entity::users;
+        use crate::utils::crypto::hash_password;
+        use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
+
         let mut results = Vec::new();
-        let success = 0;
+        let mut success = 0;
         let mut failed = 0;
 
         let mut reader = ReaderBuilder::new()
             .has_headers(true)
             .from_reader(csv_content.as_bytes());
 
+        let txn = self.db.begin().await?;
+
         for (index, record) in reader.deserialize().enumerate() {
             match record {
                 Ok(CreateUserCsvRecord {
-                    email: _,
-                    password: _,
+                    email,
+                    password,
                     role: _,
                 }) => {
-                    let error_msg = "User creation not yet implemented with SeaORM".to_string();
-                    failed += 1;
-                    results.push(BatchItemResult {
-                        index,
-                        data: None,
-                        error: Some(error_msg),
-                    });
-                    BATCH_ERRORS.inc();
+                    let password_hash = match hash_password(&password) {
+                        Ok(h) => h,
+                        Err(e) => {
+                            failed += 1;
+                            results.push(BatchItemResult {
+                                index,
+                                data: None,
+                                error: Some(format!("Password hash failed: {e}")),
+                            });
+                            BATCH_ERRORS.inc();
+                            continue;
+                        }
+                    };
+
+                    let id = Uuid::new_v4();
+                    let now = chrono::Utc::now();
+
+                    let model = users::ActiveModel {
+                        id: Set(id),
+                        email: Set(email.clone()),
+                        password_hash: Set(password_hash),
+                        balance: Set(0),
+                        role: Set("user".to_string()),
+                        status: Set("active".to_string()),
+                        totp_secret: Set(None),
+                        totp_enabled: Set(false),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+
+                    match model.insert(&txn).await {
+                        Ok(_) => {
+                            success += 1;
+                            results.push(BatchItemResult {
+                                index,
+                                data: Some(UserInfo {
+                                    id,
+                                    email,
+                                    role: "user".to_string(),
+                                    created_at: now,
+                                }),
+                                error: None,
+                            });
+                        }
+                        Err(e) => {
+                            failed += 1;
+                            results.push(BatchItemResult {
+                                index,
+                                data: None,
+                                error: Some(format!("Insert failed: {e}")),
+                            });
+                            BATCH_ERRORS.inc();
+                        }
+                    }
                 }
                 Err(e) => {
                     failed += 1;
@@ -230,6 +400,8 @@ impl BatchOperationService {
                 }
             }
         }
+
+        txn.commit().await?;
 
         BATCH_ITEMS_PROCESSED.inc_by(results.len() as u64);
         BATCH_OPERATIONS_TOTAL.inc();
@@ -247,20 +419,89 @@ impl BatchOperationService {
         &self,
         request: BatchUpdateRequest,
     ) -> Result<BatchResult<AccountInfo>> {
+        use crate::entity::accounts;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait};
+
         let mut results = Vec::new();
-        let success = 0;
+        let mut success = 0;
         let mut failed = 0;
 
-        for (index, _id) in request.ids.iter().enumerate() {
-            let error_msg = "Account update not yet implemented with SeaORM".to_string();
-            failed += 1;
-            results.push(BatchItemResult {
-                index,
-                data: None,
-                error: Some(error_msg.clone()),
-            });
-            BATCH_ERRORS.inc();
+        let txn = self.db.begin().await?;
+
+        for (index, id) in request.ids.iter().enumerate() {
+            let account = match accounts::Entity::find_by_id(*id).one(&txn).await {
+                Ok(Some(a)) => a,
+                Ok(None) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Account {id} not found")),
+                    });
+                    BATCH_ERRORS.inc();
+                    continue;
+                }
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Query failed for {id}: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                    continue;
+                }
+            };
+
+            let mut active: accounts::ActiveModel = account.clone().into();
+            let updates = &request.updates;
+
+            if let Some(v) = updates.get("status").and_then(|v| v.as_str()) {
+                active.status = Set(v.to_string());
+            }
+            if let Some(v) = updates.get("priority").and_then(|v| v.as_i64()) {
+                active.priority = Set(v as i32);
+            }
+            if let Some(v) = updates.get("concurrency").and_then(|v| v.as_i64()) {
+                active.concurrent_limit = Set(Some(v as i32));
+            }
+            if let Some(v) = updates.get("rate_limit_rpm").and_then(|v| v.as_i64()) {
+                active.rate_limit_rpm = Set(Some(v as i32));
+            }
+            if let Some(v) = updates.get("group_id").and_then(|v| v.as_i64()) {
+                active.group_id = Set(Some(v));
+            }
+            active.updated_at = Set(chrono::Utc::now());
+
+            match active.update(&txn).await {
+                Ok(updated) => {
+                    success += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: Some(AccountInfo {
+                            id: 0, // UUID-based, use 0 as placeholder for i64 field
+                            name: updated.name,
+                            provider: updated.provider,
+                            status: updated.status,
+                            priority: updated.priority,
+                            concurrency: updated.concurrent_limit.unwrap_or(0),
+                        }),
+                        error: None,
+                    });
+                }
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Update failed for {id}: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                }
+            }
         }
+
+        txn.commit().await?;
 
         BATCH_ITEMS_PROCESSED.inc_by(results.len() as u64);
         BATCH_OPERATIONS_TOTAL.inc();
@@ -277,22 +518,69 @@ impl BatchOperationService {
     pub async fn batch_delete_api_keys(
         &self,
         ids: Vec<Uuid>,
-        _stop_on_error: bool,
+        stop_on_error: bool,
     ) -> Result<BatchResult<()>> {
+        use crate::entity::api_keys;
+        use sea_orm::{EntityTrait, ModelTrait, TransactionTrait};
+
         let mut results = Vec::new();
-        let success = 0;
+        let mut success = 0;
         let mut failed = 0;
 
-        for (index, _id) in ids.into_iter().enumerate() {
-            let error_msg = "API Key deletion not yet implemented with SeaORM".to_string();
-            failed += 1;
-            results.push(BatchItemResult {
-                index,
-                data: None,
-                error: Some(error_msg.clone()),
-            });
-            BATCH_ERRORS.inc();
+        let txn = self.db.begin().await?;
+
+        for (index, id) in ids.into_iter().enumerate() {
+            match api_keys::Entity::find_by_id(id).one(&txn).await {
+                Ok(Some(key)) => match key.delete(&txn).await {
+                    Ok(_) => {
+                        success += 1;
+                        results.push(BatchItemResult {
+                            index,
+                            data: Some(()),
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        results.push(BatchItemResult {
+                            index,
+                            data: None,
+                            error: Some(format!("Delete failed for {id}: {e}")),
+                        });
+                        BATCH_ERRORS.inc();
+                        if stop_on_error {
+                            break;
+                        }
+                    }
+                },
+                Ok(None) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("API Key {id} not found")),
+                    });
+                    BATCH_ERRORS.inc();
+                    if stop_on_error {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    failed += 1;
+                    results.push(BatchItemResult {
+                        index,
+                        data: None,
+                        error: Some(format!("Query failed for {id}: {e}")),
+                    });
+                    BATCH_ERRORS.inc();
+                    if stop_on_error {
+                        break;
+                    }
+                }
+            }
         }
+
+        txn.commit().await?;
 
         BATCH_ITEMS_PROCESSED.inc_by(results.len() as u64);
         BATCH_OPERATIONS_TOTAL.inc();

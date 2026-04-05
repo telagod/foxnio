@@ -1,6 +1,6 @@
 # FoxNIO 开发文档
 
-**更新时间**: 2026-04-04
+**更新时间**: 2026-04-05
 **口径**: 本文档只保留当前仓库可用的开发路径与命令，不再沿用旧目录结构、旧 Make 目标、旧迁移方式
 
 ## 现状
@@ -89,11 +89,10 @@ make test
 - 文档中旧的不存在文件引用
 - 旧的目录结构说明
 
-### 当前开发链仍有现实缺口
+### 当前开发链已知缺口
 
-- frontend `eslint` 仍会扫到 `frontend/build/**`
 - 真实 provider smoke 仍缺密钥与账号输入
-- control plane 仍有若干骨架模块，开发时要以当前状态文档为准，不要假设所有模块都已闭环
+- control plane 仍有若干骨架模块（batch、scheduler snapshot、token refresh、ops），开发时要以当前状态文档为准
 
 ## 下一步
 

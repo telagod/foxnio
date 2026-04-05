@@ -1,6 +1,6 @@
 # FoxNIO 部署说明
 
-**更新时间**: 2026-04-04
+**更新时间**: 2026-04-05
 **口径**: 只写当前仓库已核对的部署路径，不把“计划中的生产方案”写成已完成
 
 ## 现状
@@ -44,6 +44,8 @@ backend 当前已统一支持以下配置来源：
 - `backend/src/main.rs` 已走 `config.server.bind_addr()`
 - backend 不再硬编码 `0.0.0.0:8080`
 
+详细说明见 [`ENV_AND_ROLLBACK.md`](./ENV_AND_ROLLBACK.md)。
+
 ### Docker 与 compose 收口
 
 - `frontend/Dockerfile` 已修正为 `adapter-node` 口径，运行方式是 `node build`
@@ -68,37 +70,26 @@ backend 当前已统一支持以下配置来源：
 - 控制台按需启动 `ui`
 - 反代按需启动 `edge`
 
-### 当前已核验证
+### 发布链已验证
 
+- `./deploy.sh build && ./deploy.sh start` — core 栈起服、`/health` 通过
+- `./deploy.sh build-ui && ./deploy.sh start-ui` — frontend Node server 通过
+- `./deploy.sh build-edge && ./deploy.sh start-edge` — nginx profile 通过
 - `docker compose config`
 - backend `cargo check`
 - frontend `npm run check`
 
 ## 未完成
 
-### 发布链仍缺最终演练
-
-还没有完成一轮“干净环境从构建到起服到 smoke”的完整演练：
-
-- backend release image 最终构建结果还需固化
-- `core` 起服后的 `/health` 回归还需写入正式记录
-- `ui` 与 `edge` 组合启动还未形成权威回归结论
-
 ### 真实 provider smoke 仍缺输入条件
 
-当前没有真实 OpenAI / Gemini 密钥与账号输入，所以还不能把部署文档写成“上线后 provider 已验证可用”。
+当前没有真实 OpenAI / Gemini 密钥与账号输入，所以还不能把部署文档写成”上线后 provider 已验证可用”。
 
 ### 边缘层仍不是默认生产口径
 
 - `nginx` 目前只是可选边缘层
 - TLS、证书、域名、反代策略还没形成权威生产方案
 - 不应把 `edge` 层写成默认必须路径
-
-### 工程口径仍有残缺
-
-- frontend `eslint` 当前会扫到 `frontend/build/**` 产物
-- 还缺最小 smoke 脚本与回滚说明
-- 还缺生产环境变量最小集合与推荐值说明
 
 ## 下一步
 
@@ -125,10 +116,8 @@ backend 当前已统一支持以下配置来源：
 
 ### 建议补齐项
 
-1. 固化 backend release image 构建结果
-2. 固化 `core` / `ui` / `edge` 的最小 smoke 记录
-3. 输出最小回滚手册
-4. 输出环境变量权威说明
+1. TLS / 证书 / 域名生产方案
+2. 真实 provider smoke 回归记录
 
 ## 说明
 
