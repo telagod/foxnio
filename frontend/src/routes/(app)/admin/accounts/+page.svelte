@@ -639,8 +639,12 @@
     }
   }
 
-  function handleModalKeydown(e: KeyboardEvent, closeFn: () => void) {
-    if (e.key === 'Escape') closeFn();
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showImportModal) return closeImportModal();
+    if (showDeleteConfirm) return closeDeleteConfirm();
+    if (showEditModal) return closeEditModal();
+    if (showCreateModal) return closeCreateModal();
   }
 
   function closeCreateModal() { showCreateModal = false; }
@@ -653,6 +657,8 @@
     importPreviewInput = '';
   }
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <!-- Toast -->
 {#if toast}
@@ -1029,8 +1035,9 @@
 
 <!-- Create Modal -->
 {#if showCreateModal}
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="create-modal-title" tabindex="-1" onkeydown={(e) => handleModalKeydown(e, closeCreateModal)} onclick={closeCreateModal}>
-    <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="document">
+  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="create-modal-title">
+    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭添加渠道弹窗" onclick={closeCreateModal}></button>
+    <div class="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
       <h2 id="create-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">添加渠道</h2>
       <form onsubmit={(e) => { e.preventDefault(); submitCreate(); }} class="mt-5 space-y-4">
         <div>
@@ -1074,8 +1081,9 @@
 
 <!-- Edit Modal -->
 {#if showEditModal && editTarget}
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" tabindex="-1" onkeydown={(e) => handleModalKeydown(e, closeEditModal)} onclick={closeEditModal}>
-    <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="document">
+  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭编辑渠道弹窗" onclick={closeEditModal}></button>
+    <div class="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
       <h2 id="edit-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">编辑渠道</h2>
       <form onsubmit={(e) => { e.preventDefault(); submitEdit(); }} class="mt-5 space-y-4">
         <div>
@@ -1119,8 +1127,9 @@
 
 <!-- Delete Confirmation -->
 {#if showDeleteConfirm && deleteTarget}
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" tabindex="-1" onkeydown={(e) => handleModalKeydown(e, closeDeleteConfirm)} onclick={closeDeleteConfirm}>
-    <div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="document">
+  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭删除渠道弹窗" onclick={closeDeleteConfirm}></button>
+    <div class="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
       <div class="flex items-start gap-3">
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
           <svg class="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -1140,8 +1149,9 @@
 
 <!-- Import Modal -->
 {#if showImportModal}
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" tabindex="-1" onkeydown={(e) => handleModalKeydown(e, closeImportModal)} onclick={closeImportModal}>
-    <div class="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="document">
+  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭批量导入弹窗" onclick={closeImportModal}></button>
+    <div class="relative w-full max-w-xl rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
       <h2 id="import-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">批量导入</h2>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Paste a JSON array of accounts below.</p>
       <form onsubmit={(e) => { e.preventDefault(); submitImport(); }} class="mt-4 space-y-4">
