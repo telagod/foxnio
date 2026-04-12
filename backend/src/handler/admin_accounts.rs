@@ -14,20 +14,58 @@ use uuid::Uuid;
 use super::ApiError;
 use crate::entity::accounts;
 use crate::gateway::middleware::permission::check_permission;
+use crate::gateway::providers::default_provider_registry;
 use crate::gateway::SharedState;
+use crate::metrics::BatchMetrics;
 use crate::service::account::AccountService;
 use crate::service::batch_import::{BatchImportConfig, BatchImportService, ImportAccountItem};
 use crate::service::batch_operations::{
-    BatchCreateAccountsRequest, BatchOperationService, CreateAccountItem,
+    BatchClearRateLimitResult, BatchCreateAccountsRequest, BatchOperationService, CreateAccountItem,
 };
-use crate::service::permission::Permission;
+use crate::service::permission::{Permission, PermissionService};
 use crate::service::user::Claims;
+use crate::service::{AuditEntry, AuditService};
+
+const MAX_FAST_IMPORT_BATCH_SIZE: usize = 5_000;
+const MIN_FAST_IMPORT_BATCH_SIZE: usize = 1;
+const MAX_VALIDATION_CONCURRENCY: usize = 256;
+const MIN_VALIDATION_CONCURRENCY: usize = 1;
 
 /// 批量更新凭证请求
 #[derive(Debug, Deserialize)]
 pub struct BatchUpdateCredentialsRequest {
     pub account_ids: Vec<String>,
     pub credential: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchStatusRequest {
+    pub account_ids: Option<Vec<String>>,
+    pub status: String,
+    pub clear_error: Option<bool>,
+    pub filter_status: Option<String>,
+    pub filter_provider: Option<String>,
+    pub filter_search: Option<String>,
+    pub filter_group_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchGroupRequest {
+    pub account_ids: Option<Vec<String>>,
+    pub group_id: Option<i64>,
+    pub filter_status: Option<String>,
+    pub filter_provider: Option<String>,
+    pub filter_search: Option<String>,
+    pub filter_group_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchClearRateLimitRequest {
+    pub account_ids: Option<Vec<String>>,
+    pub filter_status: Option<String>,
+    pub filter_provider: Option<String>,
+    pub filter_search: Option<String>,
+    pub filter_group_id: Option<i64>,
 }
 
 /// 高性能批量导入请求
@@ -47,10 +85,105 @@ pub struct FastImportRequest {
     /// 是否快速导入（跳过验证，默认 false）
     #[serde(default)]
     pub fast_mode: bool,
+    /// 是否仅做预检，不落库
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 fn default_skip_duplicates() -> bool {
     true
+}
+
+fn summarize_batch_scope(
+    account_ids: Option<&Vec<String>>,
+    filter_status: Option<&str>,
+    filter_provider: Option<&str>,
+    filter_search: Option<&str>,
+    filter_group_id: Option<i64>,
+) -> Value {
+    match account_ids {
+        Some(ids) if !ids.is_empty() => json!({
+            "mode": "explicit_ids",
+            "account_id_count": ids.len(),
+            "account_id_sample": ids.iter().take(5).cloned().collect::<Vec<_>>(),
+        }),
+        _ => json!({
+            "mode": "filter_scope",
+            "filter_status": filter_status,
+            "filter_provider": filter_provider,
+            "filter_search": filter_search,
+            "filter_group_id": filter_group_id,
+        }),
+    }
+}
+
+fn record_batch_metrics(
+    operation: &str,
+    mode: &str,
+    total: usize,
+    failed: usize,
+    started_at: std::time::Instant,
+) {
+    BatchMetrics::record(
+        operation,
+        mode,
+        total,
+        failed,
+        started_at.elapsed().as_millis() as u64,
+    );
+}
+
+async fn log_batch_audit(
+    state: &SharedState,
+    claims: &Claims,
+    resource_id: &str,
+    request_data: Value,
+) {
+    let Ok(admin_id) = Uuid::parse_str(&claims.sub) else {
+        return;
+    };
+
+    let audit_svc = AuditService::new(state.db.clone());
+    let entry = AuditEntry::admin_action(
+        admin_id,
+        "account_batch_operation",
+        "account_batch",
+        resource_id,
+        None,
+        Some(request_data),
+    );
+    let _ = audit_svc.log(entry).await;
+}
+
+/// GET /api/v1/admin/accounts/providers - 获取可用 provider 描述
+pub async fn list_account_providers(
+    Extension(_state): Extension<SharedState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Value>, ApiError> {
+    check_permission(&claims, Permission::AccountRead)
+        .await
+        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+
+    let providers = default_provider_registry()
+        .descriptors()
+        .into_iter()
+        .filter(|provider| provider.key != "google")
+        .map(|provider| {
+            json!({
+                "key": provider.key,
+                "display_name": provider.display_name,
+                "base_url": provider.base_url,
+                "auth_header": provider.auth_header,
+                "requires_version_header": provider.requires_version_header,
+                "api_version": provider.api_version,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(Json(json!({
+        "success": true,
+        "providers": providers,
+    })))
 }
 
 /// POST /api/v1/admin/accounts/batch - 批量创建账号
@@ -77,12 +210,22 @@ pub async fn batch_create_accounts(
         ));
     }
 
+    let started_at = std::time::Instant::now();
+    let total = items.len();
     let batch_service = BatchOperationService::new(state.db.clone());
     let req = BatchCreateAccountsRequest { accounts: items };
     let results = batch_service
         .batch_create_accounts(req)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "batch_create_accounts",
+        "explicit_ids",
+        total,
+        results.failed.max(0) as usize,
+        started_at,
+    );
 
     Ok(Json(json!({
         "success": true,
@@ -473,12 +616,22 @@ pub async fn import_accounts_data(
         ));
     }
 
+    let started_at = std::time::Instant::now();
+    let total = accounts.len();
     let batch_service = BatchOperationService::new(state.db.clone());
     let req = BatchCreateAccountsRequest { accounts };
     let results = batch_service
         .batch_create_accounts(req)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "import_accounts_data",
+        "explicit_ids",
+        total,
+        results.failed.max(0) as usize,
+        started_at,
+    );
 
     Ok(Json(json!({
         "success": true,
@@ -504,17 +657,334 @@ pub async fn batch_update_credentials(
         ));
     }
 
+    let started_at = std::time::Instant::now();
+    let total = req.account_ids.len();
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
         .batch_update_credentials(&req.account_ids, &req.credential)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    record_batch_metrics(
+        "batch_update_credentials",
+        "explicit_ids",
+        total,
+        results.iter().filter(|ok| !**ok).count(),
+        started_at,
+    );
+
     Ok(Json(json!({
         "success": true,
         "updated": results.iter().filter(|r| **r).count(),
         "total": results.len(),
         "results": results,
+    })))
+}
+
+/// POST /api/v1/admin/accounts/batch-set-status - 批量设置账号状态
+pub async fn batch_set_status(
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<BatchStatusRequest>,
+) -> Result<Json<Value>, ApiError> {
+    check_permission(&claims, Permission::AccountWrite)
+        .await
+        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+
+    if req.status.trim().is_empty() {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "status is required".into(),
+        ));
+    }
+
+    let started_at = std::time::Instant::now();
+    let batch_service = BatchOperationService::new(state.db.clone());
+    let clear_error = req.clear_error.unwrap_or(false);
+    let has_filter = req.filter_status.is_some()
+        || req.filter_provider.is_some()
+        || req.filter_search.is_some()
+        || req.filter_group_id.is_some();
+
+    let scope = summarize_batch_scope(
+        req.account_ids.as_ref(),
+        req.filter_status.as_deref(),
+        req.filter_provider.as_deref(),
+        req.filter_search.as_deref(),
+        req.filter_group_id,
+    );
+
+    let result = match req.account_ids {
+        Some(account_ids) if !account_ids.is_empty() => {
+            batch_service
+                .batch_set_status(&account_ids, req.status.as_str(), clear_error)
+                .await
+        }
+        Some(account_ids) if account_ids.is_empty() => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids provided".into(),
+            ))
+        }
+        _ if has_filter => {
+            batch_service
+                .batch_set_status_by_filter(
+                    req.status.as_str(),
+                    clear_error,
+                    req.filter_status.as_deref(),
+                    req.filter_provider.as_deref(),
+                    req.filter_search.as_deref(),
+                    req.filter_group_id,
+                )
+                .await
+        }
+        _ => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids or filter conditions provided".into(),
+            ))
+        }
+    }
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "batch_set_status",
+        if has_filter {
+            "filter_scope"
+        } else {
+            "explicit_ids"
+        },
+        result.total.max(0) as usize,
+        result.failed.max(0) as usize,
+        started_at,
+    );
+
+    log_batch_audit(
+        &state,
+        &claims,
+        "batch_set_status",
+        json!({
+            "operation": "batch_set_status",
+            "scope": scope,
+            "request": {
+                "status": req.status,
+                "clear_error": clear_error,
+            },
+            "result": {
+                "total": result.total,
+                "succeeded": result.succeeded,
+                "failed": result.failed,
+                "error_sample": result.errors.iter().take(5).cloned().collect::<Vec<_>>(),
+            }
+        }),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "success": true,
+        "total": result.total,
+        "succeeded": result.succeeded,
+        "failed": result.failed,
+        "scope": scope,
+        "errors": result.errors,
+    })))
+}
+
+/// POST /api/v1/admin/accounts/batch-set-group - 批量切换账号分组
+pub async fn batch_set_group(
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<BatchGroupRequest>,
+) -> Result<Json<Value>, ApiError> {
+    check_permission(&claims, Permission::AccountWrite)
+        .await
+        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+
+    let started_at = std::time::Instant::now();
+    let batch_service = BatchOperationService::new(state.db.clone());
+    let has_filter = req.filter_status.is_some()
+        || req.filter_provider.is_some()
+        || req.filter_search.is_some()
+        || req.filter_group_id.is_some();
+
+    let scope = summarize_batch_scope(
+        req.account_ids.as_ref(),
+        req.filter_status.as_deref(),
+        req.filter_provider.as_deref(),
+        req.filter_search.as_deref(),
+        req.filter_group_id,
+    );
+
+    let result = match req.account_ids {
+        Some(account_ids) if !account_ids.is_empty() => {
+            batch_service
+                .batch_set_group(&account_ids, req.group_id)
+                .await
+        }
+        Some(account_ids) if account_ids.is_empty() => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids provided".into(),
+            ))
+        }
+        _ if has_filter => {
+            batch_service
+                .batch_set_group_by_filter(
+                    req.group_id,
+                    req.filter_status.as_deref(),
+                    req.filter_provider.as_deref(),
+                    req.filter_search.as_deref(),
+                    req.filter_group_id,
+                )
+                .await
+        }
+        _ => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids or filter conditions provided".into(),
+            ))
+        }
+    }
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "batch_set_group",
+        if has_filter {
+            "filter_scope"
+        } else {
+            "explicit_ids"
+        },
+        result.total.max(0) as usize,
+        result.failed.max(0) as usize,
+        started_at,
+    );
+
+    log_batch_audit(
+        &state,
+        &claims,
+        "batch_set_group",
+        json!({
+            "operation": "batch_set_group",
+            "scope": scope,
+            "request": {
+                "group_id": req.group_id,
+            },
+            "result": {
+                "total": result.total,
+                "succeeded": result.succeeded,
+                "failed": result.failed,
+                "error_sample": result.errors.iter().take(5).cloned().collect::<Vec<_>>(),
+            }
+        }),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "success": true,
+        "total": result.total,
+        "succeeded": result.succeeded,
+        "failed": result.failed,
+        "group_id": req.group_id,
+        "scope": scope,
+        "errors": result.errors,
+    })))
+}
+
+/// POST /api/v1/admin/accounts/batch-clear-rate-limit - 批量清理限流 key
+pub async fn batch_clear_rate_limit(
+    Extension(state): Extension<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<BatchClearRateLimitRequest>,
+) -> Result<Json<Value>, ApiError> {
+    check_permission(&claims, Permission::AccountWrite)
+        .await
+        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+
+    let started_at = std::time::Instant::now();
+    let batch_service = BatchOperationService::new(state.db.clone());
+    let has_filter = req.filter_status.is_some()
+        || req.filter_provider.is_some()
+        || req.filter_search.is_some()
+        || req.filter_group_id.is_some();
+
+    let scope = summarize_batch_scope(
+        req.account_ids.as_ref(),
+        req.filter_status.as_deref(),
+        req.filter_provider.as_deref(),
+        req.filter_search.as_deref(),
+        req.filter_group_id,
+    );
+
+    let result: BatchClearRateLimitResult = match req.account_ids {
+        Some(account_ids) if !account_ids.is_empty() => {
+            batch_service
+                .batch_clear_rate_limit_keys(&state.redis, &account_ids)
+                .await
+        }
+        Some(account_ids) if account_ids.is_empty() => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids provided".into(),
+            ))
+        }
+        _ if has_filter => {
+            batch_service
+                .batch_clear_rate_limit_keys_by_filter(
+                    &state.redis,
+                    req.filter_status.as_deref(),
+                    req.filter_provider.as_deref(),
+                    req.filter_search.as_deref(),
+                    req.filter_group_id,
+                )
+                .await
+        }
+        _ => {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                "No account_ids or filter conditions provided".into(),
+            ))
+        }
+    }
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "batch_clear_rate_limit",
+        if has_filter {
+            "filter_scope"
+        } else {
+            "explicit_ids"
+        },
+        result.total.max(0) as usize,
+        (result.missing + result.invalid).max(0) as usize,
+        started_at,
+    );
+
+    log_batch_audit(
+        &state,
+        &claims,
+        "batch_clear_rate_limit",
+        json!({
+            "operation": "batch_clear_rate_limit",
+            "scope": scope,
+            "result": {
+                "total": result.total,
+                "processed": result.processed,
+                "missing": result.missing,
+                "invalid": result.invalid,
+                "deleted_keys": result.deleted_keys,
+            }
+        }),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "success": true,
+        "total": result.total,
+        "processed": result.processed,
+        "missing": result.missing,
+        "invalid": result.invalid,
+        "deleted_keys": result.deleted_keys,
+        "scope": scope,
     })))
 }
 
@@ -543,11 +1013,20 @@ pub async fn batch_refresh_tier(
         ));
     }
 
+    let started_at = std::time::Instant::now();
     let batch_service = BatchOperationService::new(state.db.clone());
     let results = batch_service
         .batch_refresh_tier(&account_ids)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    record_batch_metrics(
+        "batch_refresh_tier",
+        "explicit_ids",
+        account_ids.len(),
+        results.failed.max(0) as usize,
+        started_at,
+    );
 
     Ok(Json(json!({
         "success": true,
@@ -585,9 +1064,12 @@ pub async fn fast_import_accounts(
     Extension(claims): Extension<Claims>,
     Json(req): Json<FastImportRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    check_permission(&claims, Permission::AccountWrite)
-        .await
-        .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
+    if !PermissionService::is_manager_or_higher(&claims) {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            format!("Permission '{}' is required", Permission::AccountWrite),
+        ));
+    }
 
     if req.accounts.is_empty() {
         return Err(ApiError(
@@ -604,29 +1086,58 @@ pub async fn fast_import_accounts(
         ));
     }
 
+    let started_at = std::time::Instant::now();
     let config = BatchImportConfig {
-        batch_size: req.batch_size.unwrap_or(1000),
-        validation_concurrency: req.validation_concurrency.unwrap_or(50),
+        batch_size: req
+            .batch_size
+            .unwrap_or(1000)
+            .clamp(MIN_FAST_IMPORT_BATCH_SIZE, MAX_FAST_IMPORT_BATCH_SIZE),
+        validation_concurrency: req
+            .validation_concurrency
+            .unwrap_or(50)
+            .clamp(MIN_VALIDATION_CONCURRENCY, MAX_VALIDATION_CONCURRENCY),
         skip_duplicates: req.skip_duplicates,
         continue_on_error: true,
     };
 
     let db = state.db.clone();
-    let result = if req.fast_mode {
-        // 快速模式：跳过验证，直接导入
-        let import_service = BatchImportService::with_config(db, config);
-        import_service
-            .fast_import(req.accounts)
+    let fast_mode = req.fast_mode;
+    let dry_run = req.dry_run;
+    let accounts = req.accounts;
+    let import_service = BatchImportService::with_config(db, config);
+    if dry_run {
+        let preview = import_service
+            .preview_import(&accounts, fast_mode)
             .await
-            .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        return Ok(Json(json!({
+            "success": true,
+            "dry_run": true,
+            "preview": {
+                "total": preview.total,
+                "valid": preview.valid,
+                "invalid": preview.invalid,
+                "duplicate": preview.duplicate,
+                "will_import": preview.will_import,
+                "skip_duplicates": preview.skip_duplicates,
+                "fast_mode": preview.fast_mode,
+                "batch_size": preview.batch_size,
+                "validation_concurrency": preview.validation_concurrency,
+                "duration_ms": preview.duration_ms,
+                "throughput_items_per_sec": preview.throughput_items_per_sec,
+                "providers": preview.providers,
+                "errors": preview.errors,
+            }
+        })));
+    }
+
+    let result = if fast_mode {
+        import_service.fast_import(accounts).await
     } else {
-        // 正常模式：验证 + 导入
-        let import_service = BatchImportService::with_config(db, config);
-        import_service
-            .import_accounts(req.accounts)
-            .await
-            .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    };
+        import_service.import_accounts(accounts).await
+    }
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(json!({
         "success": true,
@@ -635,6 +1146,9 @@ pub async fn fast_import_accounts(
         "skipped": result.skipped,
         "failed": result.failed,
         "duration_ms": result.duration_ms,
+        "throughput_items_per_sec": result.throughput_items_per_sec,
+        "wall_clock_duration_ms": started_at.elapsed().as_millis() as u64,
+        "providers": result.providers,
         "errors": result.errors.iter().take(10).collect::<Vec<_>>(), // 只返回前 10 个错误
         "account_ids": result.account_ids.iter().take(100).collect::<Vec<_>>(), // 只返回前 100 个 ID
     })))

@@ -8,6 +8,7 @@ pub mod gemini;
 pub mod handler;
 pub mod middleware;
 pub mod models;
+pub mod providers;
 pub mod proxy;
 pub mod request_rectifier;
 pub mod responses;

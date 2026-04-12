@@ -188,6 +188,8 @@ pub struct Scheduler {
     config: SchedulerConfig,
     /// 轮询索引
     round_robin_index: AtomicUsize,
+    /// Provider 维度快速选择索引（避免跨 Provider 争用同一原子计数器）
+    provider_round_robin_indices: RwLock<HashMap<String, Arc<AtomicUsize>>>,
     /// 粘性会话
     sticky_sessions: RwLock<HashMap<String, StickySession>>,
     /// 账号冷却状态
@@ -221,6 +223,7 @@ impl Scheduler {
             cost_optimizer: Arc::new(CostOptimizer::new(CostConfig::default())),
             config,
             round_robin_index: AtomicUsize::new(0),
+            provider_round_robin_indices: RwLock::new(HashMap::new()),
             sticky_sessions: RwLock::new(HashMap::new()),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
@@ -244,6 +247,7 @@ impl Scheduler {
             cost_optimizer: Arc::new(CostOptimizer::new(CostConfig::default())),
             config,
             round_robin_index: AtomicUsize::new(0),
+            provider_round_robin_indices: RwLock::new(HashMap::new()),
             sticky_sessions: RwLock::new(HashMap::new()),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
@@ -269,6 +273,7 @@ impl Scheduler {
             cost_optimizer: Arc::new(CostOptimizer::new(CostConfig::default())),
             config,
             round_robin_index: AtomicUsize::new(0),
+            provider_round_robin_indices: RwLock::new(HashMap::new()),
             sticky_sessions: RwLock::new(HashMap::new()),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
@@ -302,6 +307,14 @@ impl Scheduler {
             }
         }
 
+        let mut provider_indices = self.provider_round_robin_indices.write().await;
+        provider_indices.retain(|provider, _| by_provider.contains_key(provider));
+        for provider in by_provider.keys() {
+            provider_indices
+                .entry(provider.clone())
+                .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
+        }
+
         // 2. 更新缓存
         *self.accounts_by_provider.write().await = by_provider;
         *self.candidate_cache.write().await = candidates;
@@ -312,11 +325,18 @@ impl Scheduler {
     ///
     /// 适用场景：高并发下需要快速选择账号，不需要精确的负载均衡
     pub async fn select_fast(&self, provider: &str) -> Option<AccountInfo> {
+        let provider_index = {
+            let indices = self.provider_round_robin_indices.read().await;
+            indices.get(provider).cloned()
+        };
+
         // 优先从缓存选择
         let by_provider = self.accounts_by_provider.read().await;
         if let Some(candidates) = by_provider.get(provider) {
             if !candidates.is_empty() {
-                let index = self.round_robin_index.fetch_add(1, Ordering::SeqCst);
+                let index = provider_index
+                    .unwrap_or_else(|| Arc::new(AtomicUsize::new(0)))
+                    .fetch_add(1, Ordering::Relaxed);
                 return Some(candidates[index % candidates.len()].clone());
             }
         }
@@ -1056,6 +1076,43 @@ mod tests {
 
         // 验证轮询顺序
         assert_ne!(result1.unwrap().account.id, result2.unwrap().account.id);
+    }
+
+    #[tokio::test]
+    async fn test_fast_selection_uses_provider_local_round_robin() {
+        let scheduler = Scheduler::new(SchedulerConfig::default());
+
+        let anthropic_a = AccountInfo {
+            provider: "anthropic".to_string(),
+            ..create_test_account(Uuid::new_v4(), "anthropic-a", 1)
+        };
+        let anthropic_b = AccountInfo {
+            provider: "anthropic".to_string(),
+            ..create_test_account(Uuid::new_v4(), "anthropic-b", 1)
+        };
+        let openai_a = AccountInfo {
+            provider: "openai".to_string(),
+            ..create_test_account(Uuid::new_v4(), "openai-a", 1)
+        };
+        let openai_b = AccountInfo {
+            provider: "openai".to_string(),
+            ..create_test_account(Uuid::new_v4(), "openai-b", 1)
+        };
+
+        scheduler.add_account(anthropic_a.clone()).await;
+        scheduler.add_account(anthropic_b.clone()).await;
+        scheduler.add_account(openai_a.clone()).await;
+        scheduler.add_account(openai_b.clone()).await;
+
+        let a1 = scheduler.select_fast("anthropic").await.unwrap();
+        let a2 = scheduler.select_fast("anthropic").await.unwrap();
+        let o1 = scheduler.select_fast("openai").await.unwrap();
+        let o2 = scheduler.select_fast("openai").await.unwrap();
+
+        assert_eq!(a1.id, anthropic_a.id);
+        assert_eq!(a2.id, anthropic_b.id);
+        assert_eq!(o1.id, openai_a.id);
+        assert_eq!(o2.id, openai_b.id);
     }
 
     #[tokio::test]

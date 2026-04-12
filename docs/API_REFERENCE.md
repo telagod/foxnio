@@ -136,6 +136,7 @@
 - `GET /api/v1/admin/accounts`
 - `POST /api/v1/admin/accounts`
 - `POST /api/v1/admin/accounts/batch`
+- `GET /api/v1/admin/accounts/providers`
 - `GET /api/v1/admin/accounts/:id`
 - `PUT /api/v1/admin/accounts/:id`
 - `DELETE /api/v1/admin/accounts/:id`
@@ -154,6 +155,10 @@
 - `POST /api/v1/admin/accounts/data`
 - `POST /api/v1/admin/accounts/batch-update-credentials`
 - `POST /api/v1/admin/accounts/batch-refresh-tier`
+- `POST /api/v1/admin/accounts/batch-set-status`
+- `POST /api/v1/admin/accounts/batch-set-group`
+- `POST /api/v1/admin/accounts/batch-clear-rate-limit`
+- `POST /api/v1/admin/accounts/fast-import`
 - `GET /api/v1/admin/apikeys`
 - `GET /api/v1/admin/stats`
 - `GET /api/v1/admin/dashboard`
@@ -256,6 +261,62 @@
 - `POST /api/v1/admin/accounts/batch-update`
 - `POST /api/v1/admin/users/batch-import`
 - `POST /api/v1/admin/api-keys/batch-delete`
+
+### 批量运营操作（按 ID / 筛选）
+
+以下 3 个接口支持两种模式：
+
+- 直接按 `account_ids` 批量处理（精确目标列表）
+- 仅按筛选条件批量处理（不传 `account_ids`，改用 `filter_*`）：
+  - `filter_status`（可选）
+  - `filter_provider`（可选）
+  - `filter_search`（可选）
+  - `filter_group_id`（可选）
+
+- `POST /api/v1/admin/accounts/batch-set-status`
+  - 请求：`{ account_ids?: string[], status: string, clear_error?: bool, filter_status?: string, filter_provider?: string, filter_search?: string, filter_group_id?: number }`
+  - 返回：`{ success, total, succeeded, failed, scope, errors[] }`
+- `POST /api/v1/admin/accounts/batch-set-group`
+  - 请求：`{ account_ids?: string[], group_id: number|null, filter_status?: string, filter_provider?: string, filter_search?: string, filter_group_id?: number }`
+  - 返回：`{ success, total, succeeded, failed, group_id, scope, errors[] }`
+- `POST /api/v1/admin/accounts/batch-clear-rate-limit`
+  - 请求：`{ account_ids?: string[], filter_status?: string, filter_provider?: string, filter_search?: string, filter_group_id?: number }`
+  - 返回：`{ success, total, processed, missing, invalid, deleted_keys, scope }`
+
+示例（按当前筛选清空限流）：
+
+- 请求示例：`{ "filter_provider":"openai", "filter_status":"error", "filter_group_id":12 }`
+- 返回示例：`{ "success": true, "total": 1024, "processed": 1024, "missing": 0, "invalid": 0, "deleted_keys": 5120, "scope": { "mode":"filter_scope", "filter_provider":"openai", "filter_status":"error", "filter_group_id":12 } }`
+
+补充说明：
+
+- 接口会同步写入 `audit_logs`
+- `scope.mode=explicit_ids` 表示按显式 ID 执行，`scope.mode=filter_scope` 表示按筛选范围执行
+- 审计数据会记录操作名、筛选条件/ID 样本、结果统计，便于大规模运维回溯
+
+### 高性能批量导入（含预检）
+
+- `POST /api/v1/admin/accounts/fast-import`
+  - 请求：`{ accounts: ImportAccountItem[], batch_size?: number, validation_concurrency?: number, skip_duplicates?: boolean, fast_mode?: boolean, dry_run?: boolean }`
+  - 当 `dry_run=false` 或不传：
+    - 返回：`{ success, total, imported, skipped, failed, duration_ms, errors[], account_ids[] }`
+  - 当 `dry_run=true`：
+    - 返回：`{ success, dry_run: true, preview: { total, valid, invalid, duplicate, will_import, skip_duplicates, fast_mode, batch_size, validation_concurrency, duration_ms, providers[], errors[] } }`
+
+补充说明：
+
+- `dry_run=true` 只做预检，不写数据库。
+- `providers[]` 会按 provider 聚合，返回 `total / will_import / duplicate / invalid`。
+- 当前 `skip_duplicates` 预检口径与导入口径一致，主要针对“名称已存在”的账号做跳过预估。
+
+### Provider 元数据
+
+- `GET /api/v1/admin/accounts/providers`
+  - 返回：`{ success, providers: [{ key, display_name, base_url, auth_header, requires_version_header, api_version }] }`
+
+补充说明：
+
+- 该接口用于管理端 provider 下拉与展示元数据，来源已开始改为后端 provider registry，而不是前端硬编码。
 
 ## 未完成
 

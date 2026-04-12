@@ -23,6 +23,7 @@
     '/admin': 'Admin Dashboard',
     '/admin/users': 'Users',
     '/admin/accounts': 'Accounts',
+    '/admin/groups': 'Groups',
     '/admin/apikeys': 'All API Keys',
     '/admin/stats': 'Statistics',
   };

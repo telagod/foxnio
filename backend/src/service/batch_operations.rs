@@ -7,12 +7,14 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    sea_query::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+use crate::db::RedisPool;
 use crate::entity::accounts;
 use crate::utils::encryption_global::GlobalEncryption;
 
@@ -67,6 +69,16 @@ pub struct BatchUpdateResult {
     pub errors: Vec<String>,
 }
 
+/// 批量清理限流结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchClearRateLimitResult {
+    pub total: i32,
+    pub processed: i32,
+    pub missing: i32,
+    pub invalid: i32,
+    pub deleted_keys: u64,
+}
+
 /// 批量刷新 Token 结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchRefreshTokenResult {
@@ -118,6 +130,9 @@ pub struct BatchOperationService {
     db: DatabaseConnection,
     concurrency_limit: usize,
 }
+
+const BATCH_SQL_ID_CHUNK_SIZE: usize = 500;
+const MAX_BATCH_OPERATION_ERROR_DETAILS: usize = 80;
 
 impl BatchOperationService {
     pub fn new(db: DatabaseConnection) -> Self {
@@ -229,51 +244,61 @@ impl BatchOperationService {
         }
 
         let txn = self.db.begin().await?;
-        let mut succeeded = 0;
-        let mut errors = Vec::new();
 
-        // 批量查询现有账号
         let existing = accounts::Entity::find()
             .filter(accounts::Column::Id.is_in(req.account_ids.clone()))
             .all(&txn)
             .await?;
+        let existing_ids: HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
+        let mut errors = Vec::new();
 
-        let existing_ids: std::collections::HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
-
-        // 更新账号
         for id in &req.account_ids {
             if !existing_ids.contains(id) {
                 errors.push(format!("Account {} not found", id));
-                continue;
             }
+        }
 
-            let account = existing.iter().find(|a| &a.id == id).unwrap();
-            let mut active: accounts::ActiveModel = account.clone().into();
+        if !existing_ids.is_empty() {
+            let now = Utc::now();
+            let mut updater = accounts::Entity::update_many()
+                .filter(accounts::Column::Id.is_in(existing_ids.iter().copied()))
+                .col_expr(accounts::Column::UpdatedAt, Expr::value(now));
 
             if let Some(ref status) = req.updates.status {
-                active.status = Set(status.clone());
+                updater = updater.col_expr(accounts::Column::Status, Expr::value(status.clone()));
             }
             if let Some(priority) = req.updates.priority {
-                active.priority = Set(priority);
+                updater = updater.col_expr(accounts::Column::Priority, Expr::value(priority));
             }
             if let Some(group_id) = req.updates.group_id {
-                active.group_id = Set(Some(group_id));
+                updater = updater.col_expr(accounts::Column::GroupId, Expr::value(group_id));
             }
             if let Some(concurrent_limit) = req.updates.concurrent_limit {
-                active.concurrent_limit = Set(Some(concurrent_limit));
+                updater = updater.col_expr(
+                    accounts::Column::ConcurrentLimit,
+                    Expr::value(concurrent_limit),
+                );
             }
             if let Some(rate_limit_rpm) = req.updates.rate_limit_rpm {
-                active.rate_limit_rpm = Set(Some(rate_limit_rpm));
+                updater =
+                    updater.col_expr(accounts::Column::RateLimitRpm, Expr::value(rate_limit_rpm));
             }
-            active.updated_at = Set(Utc::now());
 
-            match active.update(&txn).await {
-                Ok(_) => succeeded += 1,
-                Err(e) => errors.push(format!("Failed to update {}: {}", id, e)),
+            if let Err(e) = updater.exec(&txn).await {
+                errors.push(format!("Batch update failed: {}", e));
             }
         }
 
         txn.commit().await?;
+
+        let succeeded = if errors
+            .iter()
+            .any(|err| err.starts_with("Batch update failed:"))
+        {
+            0
+        } else {
+            existing_ids.len() as i32
+        };
 
         Ok(BatchUpdateResult {
             total,
@@ -335,11 +360,19 @@ impl BatchOperationService {
         let encrypted_credential = GlobalEncryption::encrypt(credential)
             .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
 
-        // 解析 UUID
-        let uuids: Vec<Uuid> = account_ids
-            .iter()
-            .filter_map(|id| Uuid::parse_str(id).ok())
-            .collect();
+        // 解析 UUID（保留重复 ID 映射，保持返回与输入顺序一致）
+        let mut positions_by_uuid: HashMap<Uuid, Vec<usize>> = HashMap::new();
+        let mut invalid_count = 0usize;
+        for (idx, id_str) in account_ids.iter().enumerate() {
+            match Uuid::parse_str(id_str) {
+                Ok(id) => {
+                    positions_by_uuid.entry(id).or_default().push(idx);
+                }
+                Err(_) => invalid_count += 1,
+            }
+        }
+
+        let uuids: Vec<Uuid> = positions_by_uuid.keys().copied().collect();
 
         if uuids.is_empty() {
             return Ok(account_ids.iter().map(|_| false).collect());
@@ -347,44 +380,566 @@ impl BatchOperationService {
 
         let txn = self.db.begin().await?;
 
-        // 批量查询现有账号
-        let existing = accounts::Entity::find()
-            .filter(accounts::Column::Id.is_in(uuids.clone()))
-            .all(&txn)
-            .await?;
+        let mut results = vec![false; account_ids.len()];
+        let mut start = 0usize;
+        while start < uuids.len() {
+            let end = usize::min(start + BATCH_SQL_ID_CHUNK_SIZE, uuids.len());
+            let chunk = &uuids[start..end];
 
-        let existing_ids: std::collections::HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
+            let existing = accounts::Entity::find()
+                .filter(accounts::Column::Id.is_in(chunk.to_vec()))
+                .all(&txn)
+                .await?;
 
-        // 更新凭证
-        let mut results = Vec::new();
-        for id_str in account_ids {
-            let id = match Uuid::parse_str(id_str) {
-                Ok(id) => id,
-                Err(_) => {
-                    results.push(false);
-                    continue;
-                }
+            let existing_ids: HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
+            let update_success = if existing_ids.is_empty() {
+                false
+            } else {
+                accounts::Entity::update_many()
+                    .filter(accounts::Column::Id.is_in(existing_ids.iter().copied()))
+                    .col_expr(
+                        accounts::Column::Credential,
+                        Expr::value(encrypted_credential.clone()),
+                    )
+                    .col_expr(accounts::Column::UpdatedAt, Expr::value(Utc::now()))
+                    .exec(&txn)
+                    .await
+                    .is_ok()
             };
 
-            if !existing_ids.contains(&id) {
-                results.push(false);
-                continue;
+            for id in chunk {
+                if let Some(indices) = positions_by_uuid.get(id) {
+                    for index in indices {
+                        results[*index] = update_success;
+                    }
+                }
             }
 
-            let account = existing.iter().find(|a| a.id == id).unwrap();
-            let mut active: accounts::ActiveModel = account.clone().into();
-            active.credential = Set(encrypted_credential.clone());
-            active.updated_at = Set(Utc::now());
-
-            match active.update(&txn).await {
-                Ok(_) => results.push(true),
-                Err(_) => results.push(false),
-            }
+            start += BATCH_SQL_ID_CHUNK_SIZE;
         }
 
         txn.commit().await?;
 
+        if invalid_count > 0 {
+            for (idx, raw) in account_ids.iter().enumerate() {
+                if Uuid::parse_str(raw).is_err() {
+                    results[idx] = false;
+                }
+            }
+        }
+
         Ok(results)
+    }
+
+    pub async fn batch_set_status(
+        &self,
+        account_ids: &[String],
+        status: &str,
+        clear_error: bool,
+    ) -> Result<BatchUpdateResult> {
+        let total = account_ids.len() as i32;
+        if account_ids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let mut errors = Vec::new();
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+
+        let invalid_count = total as usize - uuids.len();
+        if invalid_count > 0 {
+            for id in account_ids.iter().filter(|id| Uuid::parse_str(id).is_err()) {
+                errors.push(format!("Invalid UUID: {}", id));
+            }
+        }
+
+        if uuids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total,
+                succeeded: 0,
+                failed: total,
+                errors,
+            });
+        }
+
+        let txn = self.db.begin().await?;
+        let mut has_error = false;
+        let mut updated_count = 0i32;
+        let mut start = 0usize;
+        while start < uuids.len() {
+            let end = usize::min(start + BATCH_SQL_ID_CHUNK_SIZE, uuids.len());
+            let chunk = &uuids[start..end];
+
+            let existing = accounts::Entity::find()
+                .filter(accounts::Column::Id.is_in(chunk.to_vec()))
+                .all(&txn)
+                .await?;
+
+            let existing_ids: HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
+            for id in chunk.iter().copied() {
+                if !existing_ids.contains(&id) {
+                    if errors.len() < MAX_BATCH_OPERATION_ERROR_DETAILS {
+                        errors.push(format!("Account {} not found", id));
+                    }
+                }
+            }
+            if !existing_ids.is_empty() {
+                let mut updater = accounts::Entity::update_many()
+                    .filter(accounts::Column::Id.is_in(existing_ids.iter().copied()))
+                    .col_expr(accounts::Column::Status, Expr::value(status.to_string()))
+                    .col_expr(accounts::Column::UpdatedAt, Expr::value(Utc::now()));
+
+                if clear_error {
+                    updater = updater.col_expr(
+                        accounts::Column::LastError,
+                        Expr::value(Option::<String>::None),
+                    );
+                }
+
+                if let Err(e) = updater.exec(&txn).await {
+                    has_error = true;
+                    errors.push(format!("Batch set status failed: {}", e));
+                } else {
+                    updated_count += existing_ids.len() as i32;
+                }
+            }
+
+            start += BATCH_SQL_ID_CHUNK_SIZE;
+        }
+
+        txn.commit().await?;
+
+        let mut succeeded = if has_error { 0 } else { updated_count };
+        if errors
+            .iter()
+            .any(|err| err.starts_with("Batch set status failed"))
+        {
+            succeeded = 0;
+        }
+        let failed = total - succeeded;
+
+        Ok(BatchUpdateResult {
+            total,
+            succeeded,
+            failed,
+            errors,
+        })
+    }
+
+    pub async fn batch_set_status_by_filter(
+        &self,
+        status: &str,
+        clear_error: bool,
+        filter_status: Option<&str>,
+        filter_provider: Option<&str>,
+        filter_search: Option<&str>,
+        filter_group_id: Option<i64>,
+    ) -> Result<BatchUpdateResult> {
+        let mut query = accounts::Entity::find();
+        if let Some(s) = filter_status {
+            query = query.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(provider) = filter_provider {
+            query = query.filter(accounts::Column::Provider.eq(provider));
+        }
+        if let Some(search) = filter_search {
+            query = query.filter(accounts::Column::Name.contains(search));
+        }
+        if let Some(group_id) = filter_group_id {
+            query = query.filter(accounts::Column::GroupId.eq(group_id));
+        }
+
+        let total = query.clone().count(&self.db).await? as i32;
+        if total == 0 {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let mut updater = accounts::Entity::update_many();
+        updater = updater.col_expr(accounts::Column::Status, Expr::value(status.to_string()));
+        updater = updater.col_expr(accounts::Column::UpdatedAt, Expr::value(Utc::now()));
+        if let Some(s) = filter_status {
+            updater = updater.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(provider) = filter_provider {
+            updater = updater.filter(accounts::Column::Provider.eq(provider));
+        }
+        if let Some(search) = filter_search {
+            updater = updater.filter(accounts::Column::Name.contains(search));
+        }
+        if let Some(group_id) = filter_group_id {
+            updater = updater.filter(accounts::Column::GroupId.eq(group_id));
+        }
+
+        if clear_error {
+            updater = updater.col_expr(
+                accounts::Column::LastError,
+                Expr::value(Option::<String>::None),
+            );
+        }
+
+        let result = updater.exec(&self.db).await?;
+        let succeeded = result.rows_affected as i32;
+        let failed = (total - succeeded).max(0);
+
+        Ok(BatchUpdateResult {
+            total,
+            succeeded,
+            failed,
+            errors: Vec::new(),
+        })
+    }
+
+    pub async fn batch_set_group(
+        &self,
+        account_ids: &[String],
+        group_id: Option<i64>,
+    ) -> Result<BatchUpdateResult> {
+        let total = account_ids.len() as i32;
+        if account_ids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let mut errors = Vec::new();
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+
+        let invalid_count = total as usize - uuids.len();
+        if invalid_count > 0 {
+            for id in account_ids.iter().filter(|id| Uuid::parse_str(id).is_err()) {
+                errors.push(format!("Invalid UUID: {}", id));
+            }
+        }
+
+        if uuids.is_empty() {
+            return Ok(BatchUpdateResult {
+                total,
+                succeeded: 0,
+                failed: total,
+                errors,
+            });
+        }
+
+        let txn = self.db.begin().await?;
+        let mut has_error = false;
+        let mut updated_count = 0i32;
+        let mut start = 0usize;
+        while start < uuids.len() {
+            let end = usize::min(start + BATCH_SQL_ID_CHUNK_SIZE, uuids.len());
+            let chunk = &uuids[start..end];
+
+            let existing = accounts::Entity::find()
+                .filter(accounts::Column::Id.is_in(chunk.to_vec()))
+                .all(&txn)
+                .await?;
+
+            let existing_ids: HashSet<Uuid> = existing.iter().map(|a| a.id).collect();
+            for id in chunk.iter().copied() {
+                if !existing_ids.contains(&id) {
+                    if errors.len() < MAX_BATCH_OPERATION_ERROR_DETAILS {
+                        errors.push(format!("Account {} not found", id));
+                    }
+                }
+            }
+
+            if !existing_ids.is_empty() {
+                if let Err(e) = accounts::Entity::update_many()
+                    .filter(accounts::Column::Id.is_in(existing_ids.iter().copied()))
+                    .col_expr(accounts::Column::GroupId, Expr::value(group_id))
+                    .col_expr(accounts::Column::UpdatedAt, Expr::value(Utc::now()))
+                    .exec(&txn)
+                    .await
+                {
+                    has_error = true;
+                    errors.push(format!("Batch set group failed: {}", e));
+                } else {
+                    updated_count += existing_ids.len() as i32;
+                }
+            }
+
+            start += BATCH_SQL_ID_CHUNK_SIZE;
+        }
+
+        txn.commit().await?;
+
+        let succeeded = if has_error { 0 } else { updated_count };
+        let failed = total - succeeded;
+
+        Ok(BatchUpdateResult {
+            total,
+            succeeded,
+            failed,
+            errors,
+        })
+    }
+
+    pub async fn batch_set_group_by_filter(
+        &self,
+        group_id: Option<i64>,
+        filter_status: Option<&str>,
+        filter_provider: Option<&str>,
+        filter_search: Option<&str>,
+        filter_group_id: Option<i64>,
+    ) -> Result<BatchUpdateResult> {
+        let mut query = accounts::Entity::find();
+        if let Some(s) = filter_status {
+            query = query.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(provider) = filter_provider {
+            query = query.filter(accounts::Column::Provider.eq(provider));
+        }
+        if let Some(search) = filter_search {
+            query = query.filter(accounts::Column::Name.contains(search));
+        }
+        if let Some(group_id) = filter_group_id {
+            query = query.filter(accounts::Column::GroupId.eq(group_id));
+        }
+
+        let total = query.clone().count(&self.db).await? as i32;
+        if total == 0 {
+            return Ok(BatchUpdateResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let mut updater = accounts::Entity::update_many();
+        if let Some(s) = filter_status {
+            updater = updater.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(provider) = filter_provider {
+            updater = updater.filter(accounts::Column::Provider.eq(provider));
+        }
+        if let Some(search) = filter_search {
+            updater = updater.filter(accounts::Column::Name.contains(search));
+        }
+        if let Some(group_id_filter) = filter_group_id {
+            updater = updater.filter(accounts::Column::GroupId.eq(group_id_filter));
+        }
+
+        let result = updater
+            .col_expr(accounts::Column::GroupId, Expr::value(group_id))
+            .col_expr(accounts::Column::UpdatedAt, Expr::value(Utc::now()))
+            .exec(&self.db)
+            .await?;
+
+        let succeeded = result.rows_affected as i32;
+        let failed = (total - succeeded).max(0);
+
+        Ok(BatchUpdateResult {
+            total,
+            succeeded,
+            failed,
+            errors: Vec::new(),
+        })
+    }
+
+    pub async fn batch_clear_rate_limit_keys(
+        &self,
+        redis: &RedisPool,
+        account_ids: &[String],
+    ) -> Result<BatchClearRateLimitResult> {
+        let total = account_ids.len() as i32;
+        if account_ids.is_empty() {
+            return Ok(BatchClearRateLimitResult {
+                total: 0,
+                processed: 0,
+                missing: 0,
+                invalid: 0,
+                deleted_keys: 0,
+            });
+        }
+
+        let mut invalid = 0i32;
+        let uuids: Vec<Uuid> = account_ids
+            .iter()
+            .filter_map(|id| match Uuid::parse_str(id) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    invalid += 1;
+                    None
+                }
+            })
+            .collect();
+
+        if uuids.is_empty() {
+            return Ok(BatchClearRateLimitResult {
+                total,
+                processed: 0,
+                missing: total,
+                invalid,
+                deleted_keys: 0,
+            });
+        }
+
+        let mut accounts_list = Vec::new();
+        let mut offset = 0usize;
+        while offset < uuids.len() {
+            let end = usize::min(offset + BATCH_SQL_ID_CHUNK_SIZE, uuids.len());
+            let chunk = &uuids[offset..end];
+
+            let mut chunk_accounts = accounts::Entity::find()
+                .filter(accounts::Column::Id.is_in(chunk.to_vec()))
+                .all(&self.db)
+                .await?;
+            accounts_list.append(&mut chunk_accounts);
+
+            offset += BATCH_SQL_ID_CHUNK_SIZE;
+        }
+
+        let existing: std::collections::HashSet<Uuid> =
+            accounts_list.iter().map(|a| a.id).collect();
+
+        let existing_len = existing.len() as i32;
+        let missing = uuids.len() as i32 - existing_len;
+
+        let mut keys = Vec::new();
+        for id in existing {
+            let account_id = id;
+            keys.extend_from_slice(&[
+                format!("rate_limit:{}", account_id),
+                format!("ratelimit:{}", account_id),
+                format!("account_rate_limit:{}", account_id),
+                format!("account:{}:rate_limit", account_id),
+                format!("account:{}:rpm", account_id),
+            ]);
+        }
+
+        let deleted_keys = if keys.is_empty() {
+            0
+        } else {
+            redis.del_many(&keys).await?
+        };
+
+        let processed = existing_len;
+
+        Ok(BatchClearRateLimitResult {
+            total,
+            processed,
+            missing: missing + invalid,
+            invalid,
+            deleted_keys,
+        })
+    }
+
+    pub async fn batch_clear_rate_limit_keys_by_filter(
+        &self,
+        redis: &RedisPool,
+        filter_status: Option<&str>,
+        filter_provider: Option<&str>,
+        filter_search: Option<&str>,
+        filter_group_id: Option<i64>,
+    ) -> Result<BatchClearRateLimitResult> {
+        let mut query = accounts::Entity::find();
+        if let Some(s) = filter_status {
+            query = query.filter(accounts::Column::Status.eq(s));
+        }
+        if let Some(provider) = filter_provider {
+            query = query.filter(accounts::Column::Provider.eq(provider));
+        }
+        if let Some(search) = filter_search {
+            query = query.filter(accounts::Column::Name.contains(search));
+        }
+        if let Some(group_id) = filter_group_id {
+            query = query.filter(accounts::Column::GroupId.eq(group_id));
+        }
+
+        let total = query.clone().count(&self.db).await? as i32;
+        if total == 0 {
+            return Ok(BatchClearRateLimitResult {
+                total: 0,
+                processed: 0,
+                missing: 0,
+                invalid: 0,
+                deleted_keys: 0,
+            });
+        }
+
+        let mut last_id: Option<Uuid> = None;
+        let mut deleted_keys = 0u64;
+        let mut processed = 0i32;
+        loop {
+            let mut page_query = accounts::Entity::find();
+            if let Some(s) = filter_status {
+                page_query = page_query.filter(accounts::Column::Status.eq(s));
+            }
+            if let Some(provider) = filter_provider {
+                page_query = page_query.filter(accounts::Column::Provider.eq(provider));
+            }
+            if let Some(search) = filter_search {
+                page_query = page_query.filter(accounts::Column::Name.contains(search));
+            }
+            if let Some(group_id) = filter_group_id {
+                page_query = page_query.filter(accounts::Column::GroupId.eq(group_id));
+            }
+            if let Some(after) = last_id {
+                page_query = page_query.filter(accounts::Column::Id.gt(after));
+            }
+
+            let page_ids = page_query
+                .order_by_asc(accounts::Column::Id)
+                .select_only()
+                .column(accounts::Column::Id)
+                .limit(BATCH_SQL_ID_CHUNK_SIZE as u64)
+                .into_tuple::<Uuid>()
+                .all(&self.db)
+                .await?;
+
+            if page_ids.is_empty() {
+                break;
+            }
+
+            let mut keys = Vec::new();
+            for account_id in page_ids.iter() {
+                keys.extend_from_slice(&[
+                    format!("rate_limit:{}", account_id),
+                    format!("ratelimit:{}", account_id),
+                    format!("account_rate_limit:{}", account_id),
+                    format!("account:{}:rate_limit", account_id),
+                    format!("account:{}:rpm", account_id),
+                ]);
+            }
+
+            if !keys.is_empty() {
+                deleted_keys += redis.del_many(&keys).await?;
+            }
+
+            let page_count = page_ids.len() as i32;
+            processed += page_count;
+            last_id = page_ids.last().copied();
+
+            if page_count < BATCH_SQL_ID_CHUNK_SIZE as i32 {
+                break;
+            }
+        }
+
+        Ok(BatchClearRateLimitResult {
+            total,
+            processed,
+            missing: 0,
+            invalid: 0,
+            deleted_keys,
+        })
     }
 
     /// 批量刷新 Token
@@ -714,8 +1269,7 @@ impl BatchOperationService {
             .date_naive()
             .and_hms_opt(0, 0, 0)
             .expect("valid midnight");
-        let today_start_utc =
-            chrono::DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);
+        let today_start_utc = chrono::DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);
 
         // Query today's usages for the given accounts
         let rows = usages::Entity::find()
@@ -817,7 +1371,10 @@ impl BatchOperationService {
                             let error = if valid {
                                 None
                             } else {
-                                Some(format!("Unknown provider '{}', status: {}", other, account.status))
+                                Some(format!(
+                                    "Unknown provider '{}', status: {}",
+                                    other, account.status
+                                ))
                             };
                             results.push((*id, valid, error));
                             continue;

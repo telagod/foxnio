@@ -335,7 +335,7 @@
     <!-- Quick links -->
     <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">快速入口</h2>
-      <nav class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="管理快速入口">
+      <nav class="grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="管理快速入口">
         <a href="/admin/users" class="group flex flex-col items-center rounded-lg bg-gray-50 p-4 text-center transition-colors hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700">
           <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 transition-colors group-hover:bg-blue-500/20">
             <svg class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -359,6 +359,12 @@
             <svg class="h-5 w-5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           </div>
           <div class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Usage</div>
+        </a>
+        <a href="/admin/groups" class="group flex flex-col items-center rounded-lg bg-gray-50 p-4 text-center transition-colors hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700">
+          <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-fuchsia-500/10 transition-colors group-hover:bg-fuchsia-500/20">
+            <svg class="h-5 w-5 text-fuchsia-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 6.75h4.5a.75.75 0 01.75.75v10.5a.75.75 0 01-.75.75H3.75m0-12v12m5.25-12h11.5A1.75 1.75 0 0121 8v8.5a1.75 1.75 0 01-1.75 1.75H8.999m-2.25 0h.001M8.999 5.25v13.5"/></svg>
+          </div>
+          <div class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Groups</div>
         </a>
       </nav>
     </div>

@@ -30,7 +30,65 @@ export interface Account {
   status: string;
   priority?: number;
   last_error?: string | null;
+  group_id?: number | null;
   created_at: string;
+}
+
+export interface GroupInfo {
+  id: number;
+  name: string;
+  platform: string;
+  status: string;
+  sort_order: number;
+  description?: string | null;
+  account_count?: number;
+}
+
+export interface ProviderInfo {
+  key: string;
+  display_name: string;
+  base_url: string;
+  auth_header: string;
+  requires_version_header: boolean;
+  api_version?: string | null;
+}
+
+export interface GroupUpdatePayload {
+  name?: string;
+  description?: string | null;
+  status?: string;
+  daily_limit_usd?: number;
+  weekly_limit_usd?: number;
+  monthly_limit_usd?: number;
+  rate_multiplier?: number;
+  model_routing_enabled?: boolean;
+  claude_code_only?: boolean;
+  is_exclusive?: boolean;
+}
+
+export interface GroupUsageSummary {
+  group_id: number;
+  group_name: string;
+  platform: string;
+  daily_used_usd: number;
+  daily_limit_usd: number;
+  daily_usage_percent: number;
+  monthly_used_usd: number;
+  monthly_limit_usd: number;
+  monthly_usage_percent: number;
+  account_count: number;
+  active_account_count: number;
+}
+
+export interface GroupCapacitySummary {
+  group_id: number;
+  group_name: string;
+  platform: string;
+  total_capacity: number;
+  used_capacity: number;
+  available_capacity: number;
+  capacity_percent: number;
+  account_count: number;
 }
 
 export interface Usage {
@@ -166,6 +224,7 @@ export interface PaginationParams {
   status?: string;
   provider?: string;
   search?: string;
+  group_id?: number | string;
 }
 
 // 分页响应接口
@@ -463,8 +522,97 @@ class ApiClient {
   }> {
     return this.request('/api/v1/admin/accounts/batch', {
       method: 'POST',
+      body: JSON.stringify(accounts),
+    });
+  }
+
+  async importAccountsData(accounts: Array<Partial<Account> & { credential: string }>): Promise<{
+    success: boolean;
+    imported: number;
+    total: number;
+  }> {
+    return this.request('/api/v1/admin/accounts/data', {
+      method: 'POST',
       body: JSON.stringify({ accounts }),
     });
+  }
+
+  async fastImportAccounts(
+    accounts: Array<Partial<Account> & { credential: string }>,
+    options: {
+      batch_size?: number;
+      validation_concurrency?: number;
+      skip_duplicates?: boolean;
+      fast_mode?: boolean;
+      dry_run?: boolean;
+    } = {}
+  ): Promise<{
+    success: boolean;
+    total: number;
+    imported: number;
+    skipped: number;
+    failed: number;
+    duration_ms: number;
+    providers: Array<{
+      provider: string;
+      total: number;
+      imported: number;
+      skipped: number;
+      failed: number;
+    }>;
+    errors: Array<{ index?: number; name?: string; error?: string }>;
+    account_ids: string[];
+  }> {
+    return this.request('/api/v1/admin/accounts/fast-import', {
+      method: 'POST',
+      body: JSON.stringify({ accounts, ...options }),
+    });
+  }
+
+  async previewFastImportAccounts(
+    accounts: Array<Partial<Account> & { credential: string }>,
+    options: {
+      batch_size?: number;
+      validation_concurrency?: number;
+      skip_duplicates?: boolean;
+      fast_mode?: boolean;
+    } = {}
+  ): Promise<{
+    success: boolean;
+    dry_run: boolean;
+    preview: {
+      total: number;
+      valid: number;
+      invalid: number;
+      duplicate: number;
+      will_import: number;
+      skip_duplicates: boolean;
+      fast_mode: boolean;
+      batch_size: number;
+      validation_concurrency: number;
+      duration_ms: number;
+      providers: Array<{
+        provider: string;
+        total: number;
+        valid: number;
+        invalid: number;
+        duplicate: number;
+        will_import: number;
+      }>;
+      errors: Array<{ index?: number; name?: string; error?: string }>;
+    };
+  }> {
+    return this.request('/api/v1/admin/accounts/fast-import', {
+      method: 'POST',
+      body: JSON.stringify({ accounts, ...options, dry_run: true }),
+    });
+  }
+
+  async listAccountProviders(): Promise<{
+    success: boolean;
+    providers: ProviderInfo[];
+  }> {
+    return this.request('/api/v1/admin/accounts/providers');
   }
 
   async batchDeleteAccounts(ids: string[]): Promise<{
@@ -479,6 +627,145 @@ class ApiClient {
     });
   }
 
+  async batchSetAccountStatus(
+    accountIds: string[] | null,
+    status: string,
+    clearError = false,
+    filters?: {
+      filter_status?: string;
+      filter_provider?: string;
+      filter_search?: string;
+      filter_group_id?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    total: number;
+    succeeded: number;
+    failed: number;
+    errors: string[];
+  }> {
+    return this.request('/api/v1/admin/accounts/batch-set-status', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(accountIds ? { account_ids: accountIds } : {}),
+        status,
+        clear_error: clearError,
+        ...(filters ?? {}),
+      }),
+    });
+  }
+
+  async batchSetAccountGroup(
+    accountIds: string[] | null,
+    groupId: number | null,
+    filters?: {
+      filter_status?: string;
+      filter_provider?: string;
+      filter_search?: string;
+      filter_group_id?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    total: number;
+    succeeded: number;
+    failed: number;
+    group_id: number | null;
+    errors: string[];
+  }> {
+    return this.request('/api/v1/admin/accounts/batch-set-group', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(accountIds ? { account_ids: accountIds } : {}),
+        group_id: groupId,
+        ...(filters ?? {}),
+      }),
+    });
+  }
+
+  async batchClearRateLimits(
+    accountIds: string[] | null,
+    filters?: {
+      filter_status?: string;
+      filter_provider?: string;
+      filter_search?: string;
+      filter_group_id?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    total: number;
+    processed: number;
+    missing: number;
+    invalid: number;
+    deleted_keys: number;
+  }> {
+    return this.request('/api/v1/admin/accounts/batch-clear-rate-limit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(accountIds ? { account_ids: accountIds } : {}),
+        ...(filters ?? {}),
+      }),
+    });
+  }
+
+  async listAllGroups(): Promise<{
+    object: string;
+    data: GroupInfo[];
+  }> {
+    return this.request('/api/v1/admin/groups/all');
+  }
+
+  async getGroupUsageSummary(): Promise<{
+    object: string;
+    data: GroupUsageSummary[];
+  }> {
+    return this.request('/api/v1/admin/groups/usage-summary');
+  }
+
+  async getGroupCapacitySummary(): Promise<{
+    object: string;
+    data: GroupCapacitySummary[];
+  }> {
+    return this.request('/api/v1/admin/groups/capacity-summary');
+  }
+
+  async createGroup(payload: {
+    name: string;
+    platform: string;
+    description?: string;
+    daily_limit_usd?: number;
+    weekly_limit_usd?: number;
+    monthly_limit_usd?: number;
+    rate_multiplier?: number;
+    sort_order?: number;
+  }): Promise<{
+    id: number;
+    name: string;
+    platform: string;
+    status: string;
+    created_at: string;
+  }> {
+    return this.request('/api/v1/admin/groups', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteGroup(id: number): Promise<{ success: boolean }> {
+    return this.request(`/api/v1/admin/groups/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateGroup(
+    id: number,
+    payload: GroupUpdatePayload
+  ): Promise<GroupInfo> {
+    return this.request(`/api/v1/admin/groups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // 构建查询字符串
   private buildQuery(params?: PaginationParams): string {
     if (!params) return '';
@@ -490,6 +777,7 @@ class ApiClient {
     if (params.status) searchParams.set('status', params.status);
     if (params.provider) searchParams.set('provider', params.provider);
     if (params.search) searchParams.set('search', params.search);
+    if (params.group_id !== undefined && params.group_id !== '') searchParams.set('group_id', params.group_id.toString());
     
     return searchParams.toString();
   }

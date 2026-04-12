@@ -390,6 +390,46 @@ pub static BATCH_ERRORS: Lazy<IntCounter> = Lazy::new(|| {
     register_int_counter!(opts!("foxnio_batch_errors_total", "Batch operation errors")).unwrap()
 });
 
+/// 按操作类型统计的批量操作次数
+pub static BATCH_OPERATIONS_BY_TYPE: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
+        "foxnio_batch_operations_by_type_total",
+        "Batch operations grouped by operation and mode",
+        &["operation", "mode"]
+    )
+    .unwrap()
+});
+
+/// 批量操作耗时
+pub static BATCH_OPERATION_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
+        "foxnio_batch_operation_duration_seconds",
+        "Batch operation duration in seconds",
+        &["operation", "mode"]
+    )
+    .unwrap()
+});
+
+/// 最近一次批量操作吞吐
+pub static BATCH_OPERATION_THROUGHPUT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
+        "foxnio_batch_operation_throughput_items_per_second",
+        "Last observed throughput for batch operations",
+        &["operation", "mode"]
+    )
+    .unwrap()
+});
+
+/// 最近一次批量操作规模
+pub static BATCH_OPERATION_LAST_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
+        "foxnio_batch_operation_last_size",
+        "Last observed batch size",
+        &["operation", "mode"]
+    )
+    .unwrap()
+});
+
 // ============================================================================
 // API Key 权限指标
 // ============================================================================
@@ -621,6 +661,52 @@ impl CacheMetrics {
     /// 更新缓存条目数
     pub fn update_entries(count: i64) {
         CACHE_ENTRIES.set(count);
+    }
+}
+
+/// 批量操作指标工具
+pub struct BatchMetrics;
+
+impl BatchMetrics {
+    pub fn record(
+        operation: &str,
+        mode: &str,
+        total_items: usize,
+        failed_items: usize,
+        duration_ms: u64,
+    ) {
+        BATCH_OPERATIONS_TOTAL.inc();
+        BATCH_OPERATIONS_BY_TYPE
+            .with_label_values(&[operation, mode])
+            .inc();
+        BATCH_ITEMS_PROCESSED.inc_by(total_items as u64);
+        if failed_items > 0 {
+            BATCH_ERRORS.inc_by(failed_items as u64);
+        }
+
+        BATCH_OPERATION_DURATION
+            .with_label_values(&[operation, mode])
+            .observe(duration_ms as f64 / 1000.0);
+        BATCH_OPERATION_LAST_SIZE
+            .with_label_values(&[operation, mode])
+            .set(total_items as i64);
+        BATCH_OPERATION_THROUGHPUT
+            .with_label_values(&[operation, mode])
+            .set(batch_throughput(total_items, duration_ms));
+    }
+}
+
+/// 根据总量与耗时计算吞吐（items/s）
+pub fn batch_throughput(total_items: usize, duration_ms: u64) -> f64 {
+    if total_items == 0 {
+        return 0.0;
+    }
+
+    let duration_secs = duration_ms as f64 / 1000.0;
+    if duration_secs <= f64::EPSILON {
+        total_items as f64
+    } else {
+        total_items as f64 / duration_secs
     }
 }
 

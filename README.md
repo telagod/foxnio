@@ -1,10 +1,16 @@
 # FoxNIO
 
-FoxNIO 是一个 Rust + SvelteKit 的 AI gateway / control plane 项目。它统一多家上游模型服务的入口，同时提供用户自助面、管理后台、配额、审计、Webhook、告警与部分运维能力。
+FoxNIO 是一个面向大规模号池运营的 **高性能 AI API Gateway / Control Plane**。它用 Rust 承载代理热路径，用 SvelteKit 承载运营控制面，目标不是只做“多模型转发”，而是把 **批量导入、号池调度、配额治理、审计追踪** 压成一套可运营产品。
 
 ## 现状
 
 P0 发布链与 P1 failure chain / 控制面已完成。P2 运维异步能力部分完成。前端已完成 Tailwind v4、ESLint v10、全页面重设计与 401/403 统一处理。
+
+当前北极星：
+
+- **对齐 Sub2API**：补齐多账号管理、计费、调度、控制台与原生工具接入。
+- **吸收 LiteLLM**：补 router policy、观测、预算与 fallback 经验。
+- **走 FoxNIO 自己的差异化**：把批量操作性能与大规模号池运营做成核心卖点，而不是附属功能。
 
 - 主服务链路：dashboard、`/usage`、admin dashboard、Realtime、Gemini Native、Sora / prompt enhance 已接真。
 - 部署链路：release image、compose 起服、smoke、回滚手册、环境变量说明均已完成。
@@ -86,12 +92,16 @@ npm --prefix frontend run dev
 - 真实 OpenAI / Gemini smoke 仍缺真实密钥与账号输入。
 - P2 运维异步能力（batch、scheduler snapshot、token refresh、ops）仍偏骨架。
 - 前端页面测试尚未补齐。
+- 大批量账号导入、批量凭证轮换、批量状态治理仍需继续压性能和回显质量。
+- 批量基准与 Prometheus 观测已开始收口，执行口径见 `docs/BENCHMARKS.md`。
 
 ## 文档入口
 
 - [当前状态](docs/CURRENT_STATUS.md)
 - [架构总览](docs/ARCHITECTURE.md)
 - [业务逻辑](docs/BUSINESS_LOGIC.md)
+- [进化路线](docs/EVOLUTION_TRACK_2026-04.md)
+- [性能基准](docs/BENCHMARKS.md)
 - [部署说明](docs/DEPLOYMENT.md)
 - [开发文档](docs/DEVELOPMENT.md)
 - [环境变量与回滚](docs/ENV_AND_ROLLBACK.md)

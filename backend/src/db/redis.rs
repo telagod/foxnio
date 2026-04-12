@@ -356,6 +356,41 @@ impl RedisPool {
         Ok(result > 0)
     }
 
+    /// 批量删除键（同时清除本地缓存）
+    ///
+    /// 适用于账号批量限流清理、会话回收等高频批处理场景
+    pub async fn del_many(&self, keys: &[String]) -> Result<u64> {
+        if keys.is_empty() {
+            return Ok(0);
+        }
+
+        let start = Instant::now();
+
+        // 先清理本地缓存
+        if self.config.enable_local_cache {
+            let mut cache = self.local_cache.write().await;
+            for key in keys {
+                cache.pop(key);
+            }
+        }
+
+        // 批量 DEL（比逐条 del 更适合大规模号池清理）
+        let mut conn = self.get_connection().await?;
+        let mut cmd = redis::cmd("DEL");
+        for key in keys {
+            cmd.arg(key);
+        }
+
+        let result: i64 = cmd
+            .query_async(&mut conn)
+            .await
+            .context("Failed to batch delete Redis keys")?;
+
+        self.stats
+            .record_request(start.elapsed().as_millis() as u64);
+        Ok(result as u64)
+    }
+
     /// 检查键是否存在
     pub async fn exists(&self, key: &str) -> Result<bool> {
         let mut conn = self.get_connection().await?;

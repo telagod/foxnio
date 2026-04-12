@@ -396,6 +396,8 @@ pub struct ListAccountsQuery {
     pub provider: Option<String>,
     /// 名称搜索
     pub search: Option<String>,
+    /// 分组过滤（group_id）
+    pub group_id: Option<i64>,
 }
 
 fn default_page() -> Option<u64> {
@@ -417,6 +419,7 @@ fn default_per_page() -> Option<u64> {
         ("status" = Option<String>, Query, description = "状态过滤"),
         ("provider" = Option<String>, Query, description = "Provider 过滤"),
         ("search" = Option<String>, Query, description = "名称搜索"),
+        ("group_id" = Option<i64>, Query, description = "分组ID过滤"),
     ),
     responses(
         (status = 200, description = "账号列表"),
@@ -451,6 +454,7 @@ pub async fn list_accounts(
             query.status.as_deref(),
             query.provider.as_deref(),
             query.search.as_deref(),
+            query.group_id,
         )
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -467,6 +471,7 @@ pub async fn list_accounts(
             "status": a.status,
             "priority": a.priority,
             "last_error": a.last_error,
+            "group_id": a.group_id,
             "created_at": a.created_at.to_rfc3339(),
         })).collect::<Vec<_>>(),
         "pagination": {

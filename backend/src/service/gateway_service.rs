@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::gateway::providers::{default_provider_registry, ProviderAdapter};
+
 use super::account::AccountService;
 use super::gateway_request::{GatewayRequestService, ParsedRequest};
 use super::scheduler::SchedulerService;
@@ -275,9 +277,11 @@ impl GatewayService {
         // 3. 获取账号凭证
         let account_id = uuid::Uuid::parse_str(&account.id)?;
         let credential = self.get_account_credential(account_id).await?;
+        let adapter = self.provider_adapter(&account.provider)?;
 
         // 4. 构建上游请求
-        let upstream_url = self.get_upstream_url(&account.provider);
+        let upstream_url =
+            adapter.build_chat_completions_url(Some(&route.mapped_model), &credential);
         let mut req_builder = self
             .http_client
             .post(&upstream_url)
@@ -285,13 +289,7 @@ impl GatewayService {
             .header("Content-Type", "application/json");
 
         // 设置认证头
-        if account.provider.to_lowercase() == "anthropic" {
-            req_builder = req_builder
-                .header("x-api-key", &credential)
-                .header("anthropic-version", "2023-06-01");
-        } else {
-            req_builder = req_builder.header("Authorization", format!("Bearer {}", credential));
-        }
+        req_builder = adapter.apply_auth(req_builder, &credential);
 
         // 5. 发送请求
         let response = req_builder.send().await?;
@@ -343,18 +341,14 @@ impl GatewayService {
 
     /// 获取上游 URL
     fn get_upstream_url(&self, provider: &str) -> String {
-        match provider.to_lowercase().as_str() {
-            "openai" => "https://api.openai.com/v1/chat/completions".to_string(),
-            "anthropic" => "https://api.anthropic.com/v1/messages".to_string(),
-            "gemini" => "https://generativelanguage.googleapis.com/v1/chat/completions".to_string(),
-            "deepseek" => "https://api.deepseek.com/v1/chat/completions".to_string(),
-            "mistral" => "https://api.mistral.ai/v1/chat/completions".to_string(),
-            "cohere" => "https://api.cohere.ai/v1/chat/completions".to_string(),
-            _ => format!(
-                "https://api.{}/v1/chat/completions",
-                provider.to_lowercase()
-            ),
-        }
+        self.provider_adapter(provider)
+            .map(|adapter| adapter.build_chat_completions_url(None, ""))
+            .unwrap_or_else(|_| {
+                format!(
+                    "https://api.{}/v1/chat/completions",
+                    provider.to_lowercase()
+                )
+            })
     }
 
     /// 转发 Responses 请求 (OpenAI Responses API)
@@ -369,17 +363,18 @@ impl GatewayService {
 
         let account_id = uuid::Uuid::parse_str(&account.id)?;
         let credential = self.get_account_credential(account_id).await?;
+        let adapter = self.provider_adapter(&account.provider)?;
 
         // 构建请求
-        let upstream_url = "https://api.openai.com/v1/responses";
+        let upstream_url = adapter
+            .build_responses_url(&credential)
+            .unwrap_or_else(|| format!("{}/v1/responses", adapter.base_url()));
         let response = self
             .http_client
             .post(upstream_url)
-            .header("Authorization", format!("Bearer {}", credential))
             .header("Content-Type", "application/json")
-            .body(parsed.body.clone())
-            .send()
-            .await?;
+            .body(parsed.body.clone());
+        let response = adapter.apply_auth(response, &credential).send().await?;
 
         let status = response.status().as_u16();
         let response_body = response.bytes().await?;
@@ -405,9 +400,10 @@ impl GatewayService {
     ) -> Result<ForwardResult> {
         let account_id = uuid::Uuid::parse_str(&account.id)?;
         let credential = self.get_account_credential(account_id).await?;
+        let adapter = self.provider_adapter(&account.provider)?;
 
         // 构建通用请求 URL
-        let upstream_url = self.get_upstream_url(&account.provider);
+        let upstream_url = adapter.build_chat_completions_url(None, &credential);
 
         // 构建请求
         let mut req = self
@@ -417,11 +413,7 @@ impl GatewayService {
             .body(parsed.body.clone());
 
         // 设置认证
-        if account.provider.to_lowercase() == "anthropic" {
-            req = req.header("x-api-key", &credential);
-        } else {
-            req = req.header("Authorization", format!("Bearer {}", credential));
-        }
+        req = adapter.apply_auth(req, &credential);
 
         let response = req.send().await?;
         let status = response.status().as_u16();
@@ -437,6 +429,12 @@ impl GatewayService {
             usage: None,
             cached: false,
         })
+    }
+
+    fn provider_adapter(&self, provider: &str) -> Result<Arc<dyn ProviderAdapter>> {
+        default_provider_registry()
+            .get(provider)
+            .ok_or_else(|| anyhow!("Unsupported provider adapter: {}", provider))
     }
 
     /// 更新统计

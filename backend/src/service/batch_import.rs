@@ -16,6 +16,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::entity::accounts;
+use crate::metrics::{batch_throughput, BatchMetrics};
 use crate::utils::encryption_global::GlobalEncryption;
 
 /// 批量导入配置
@@ -105,6 +106,60 @@ pub struct ImportResult {
     pub errors: Vec<ImportError>,
     /// 处理耗时（毫秒）
     pub duration_ms: u64,
+    /// 吞吐（items/s）
+    pub throughput_items_per_sec: f64,
+    /// Provider 维度导入汇总
+    pub providers: Vec<ImportResultProvider>,
+}
+
+/// 导入预检结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportPreview {
+    /// 原始输入总数
+    pub total: usize,
+    /// 通过校验数
+    pub valid: usize,
+    /// 校验失败数
+    pub invalid: usize,
+    /// 命中已存在名称的重复数
+    pub duplicate: usize,
+    /// 预计实际导入数
+    pub will_import: usize,
+    /// 是否跳过重复
+    pub skip_duplicates: bool,
+    /// 是否为 fast mode
+    pub fast_mode: bool,
+    /// 实际生效批次大小
+    pub batch_size: usize,
+    /// 实际生效验证并发
+    pub validation_concurrency: usize,
+    /// 处理耗时（毫秒）
+    pub duration_ms: u64,
+    /// 吞吐（items/s）
+    pub throughput_items_per_sec: f64,
+    /// Provider 维度预估
+    pub providers: Vec<ImportPreviewProvider>,
+    /// 错误样本
+    pub errors: Vec<ImportError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportPreviewProvider {
+    pub provider: String,
+    pub total: usize,
+    pub valid: usize,
+    pub invalid: usize,
+    pub duplicate: usize,
+    pub will_import: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResultProvider {
+    pub provider: String,
+    pub total: usize,
+    pub imported: usize,
+    pub skipped: usize,
+    pub failed: usize,
 }
 
 /// 导入错误
@@ -154,9 +209,127 @@ impl BatchImportService {
         Self { db, config }
     }
 
+    /// 批量导入预检（不落库）
+    pub async fn preview_import(
+        &self,
+        items: &[ImportAccountItem],
+        fast_mode: bool,
+    ) -> Result<ImportPreview> {
+        let start = std::time::Instant::now();
+        let total = items.len();
+
+        let validation_meta = if fast_mode {
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, _)| ValidationResult {
+                    index,
+                    valid: true,
+                    error: None,
+                })
+                .collect::<Vec<_>>()
+        } else {
+            self.collect_validation_meta(items).await
+        };
+
+        let mut existing_name_set = std::collections::HashSet::new();
+        if self.config.skip_duplicates {
+            let names: Vec<&str> = items
+                .iter()
+                .zip(validation_meta.iter())
+                .filter_map(|(item, meta)| meta.valid.then_some(item.name.as_str()))
+                .collect();
+
+            if !names.is_empty() {
+                let existing = accounts::Entity::find()
+                    .filter(accounts::Column::Name.is_in(names))
+                    .all(&self.db)
+                    .await?;
+                existing_name_set = existing
+                    .into_iter()
+                    .map(|account| account.name)
+                    .collect::<std::collections::HashSet<_>>();
+            }
+        }
+
+        let mut provider_stats = std::collections::BTreeMap::<String, ImportPreviewProvider>::new();
+        let mut errors = Vec::new();
+        let mut valid = 0usize;
+        let mut invalid = 0usize;
+        let mut duplicate = 0usize;
+        let mut will_import = 0usize;
+
+        for (idx, item) in items.iter().enumerate() {
+            let stat = provider_stats
+                .entry(item.provider.clone())
+                .or_insert_with(|| ImportPreviewProvider {
+                    provider: item.provider.clone(),
+                    total: 0,
+                    valid: 0,
+                    invalid: 0,
+                    duplicate: 0,
+                    will_import: 0,
+                });
+            stat.total += 1;
+
+            let meta = &validation_meta[idx];
+            if meta.valid {
+                valid += 1;
+                stat.valid += 1;
+
+                let is_duplicate =
+                    self.config.skip_duplicates && existing_name_set.contains(&item.name);
+                if is_duplicate {
+                    duplicate += 1;
+                    stat.duplicate += 1;
+                } else {
+                    will_import += 1;
+                    stat.will_import += 1;
+                }
+            } else {
+                invalid += 1;
+                stat.invalid += 1;
+                errors.push(ImportError {
+                    index: idx,
+                    name: item.name.clone(),
+                    error: meta
+                        .error
+                        .clone()
+                        .unwrap_or_else(|| "Invalid item".to_string()),
+                });
+            }
+        }
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        BatchMetrics::record(
+            "fast_import_preview",
+            if fast_mode { "fast" } else { "validated" },
+            total,
+            invalid,
+            duration_ms,
+        );
+
+        Ok(ImportPreview {
+            total,
+            valid,
+            invalid,
+            duplicate,
+            will_import,
+            skip_duplicates: self.config.skip_duplicates,
+            fast_mode,
+            batch_size: self.config.batch_size,
+            validation_concurrency: self.config.validation_concurrency,
+            duration_ms,
+            throughput_items_per_sec: batch_throughput(total, duration_ms),
+            providers: provider_stats.into_values().collect(),
+            errors: errors.into_iter().take(20).collect(),
+        })
+    }
+
     /// 批量导入账号（带进度回调）
     pub async fn import_accounts_with_progress(
-        &self,
+        self,
         items: Vec<ImportAccountItem>,
         progress_tx: Option<mpsc::Sender<ImportProgress>>,
     ) -> Result<ImportResult> {
@@ -188,28 +361,30 @@ impl BatchImportService {
         // 阶段 1: 并行验证
         send_progress(ImportPhase::Validating, 0, 0, 0, "验证账号格式...");
 
-        let validation_results = self.validate_items_parallel(&items).await;
+        let validation_meta = self.collect_validation_meta(&items).await;
 
-        let valid_items: Vec<(usize, ImportAccountItem)> = items
-            .into_iter()
-            .enumerate()
-            .zip(validation_results.iter())
-            .filter_map(|((idx, item), result)| {
-                if result.valid {
-                    Some((idx, item))
-                } else {
-                    None
+        let mut valid_items = Vec::new();
+        for (idx, item) in items.iter().enumerate() {
+            if let Some(meta) = validation_meta.get(idx) {
+                if meta.valid {
+                    valid_items.push((idx, item.clone()));
                 }
-            })
-            .collect();
+            }
+        }
 
-        let validation_errors: Vec<ImportError> = validation_results
+        let validation_errors: Vec<ImportError> = validation_meta
             .iter()
-            .filter(|r| !r.valid)
-            .map(|r| ImportError {
-                index: r.index,
-                name: String::new(), // 原始 items 已经 move
-                error: r.error.clone().unwrap_or_default(),
+            .enumerate()
+            .filter_map(|(idx, result)| {
+                if result.valid {
+                    None
+                } else {
+                    Some(ImportError {
+                        index: idx,
+                        name: items[idx].name.clone(),
+                        error: result.error.clone().unwrap_or_default(),
+                    })
+                }
             })
             .collect();
 
@@ -231,6 +406,10 @@ impl BatchImportService {
         };
 
         let skipped = valid_items.len() - unique_items.len();
+        let unique_indices = unique_items
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect::<std::collections::HashSet<_>>();
 
         send_progress(
             ImportPhase::CheckingDuplicates,
@@ -256,6 +435,41 @@ impl BatchImportService {
             .await?;
 
         let duration_ms = start.elapsed().as_millis() as u64;
+        let import_error_indices = import_errors
+            .iter()
+            .map(|error| error.index)
+            .collect::<std::collections::HashSet<_>>();
+        let mut provider_stats = std::collections::BTreeMap::<String, ImportResultProvider>::new();
+
+        for (idx, item) in items.iter().enumerate() {
+            let stat = provider_stats
+                .entry(item.provider.clone())
+                .or_insert_with(|| ImportResultProvider {
+                    provider: item.provider.clone(),
+                    total: 0,
+                    imported: 0,
+                    skipped: 0,
+                    failed: 0,
+                });
+            stat.total += 1;
+
+            let meta = &validation_meta[idx];
+            if !meta.valid {
+                stat.failed += 1;
+                continue;
+            }
+
+            if !unique_indices.contains(&idx) {
+                stat.skipped += 1;
+                continue;
+            }
+
+            if import_error_indices.contains(&idx) {
+                stat.failed += 1;
+            } else {
+                stat.imported += 1;
+            }
+        }
 
         let result = ImportResult {
             total,
@@ -265,7 +479,17 @@ impl BatchImportService {
             account_ids: imported_ids,
             errors: [validation_errors, import_errors].concat(),
             duration_ms,
+            throughput_items_per_sec: batch_throughput(total, duration_ms),
+            providers: provider_stats.into_values().collect(),
         };
+
+        BatchMetrics::record(
+            "fast_import",
+            "validated",
+            total,
+            result.failed,
+            result.duration_ms,
+        );
 
         send_progress(
             ImportPhase::Completed,
@@ -282,36 +506,48 @@ impl BatchImportService {
     }
 
     /// 批量导入账号（简化版，无进度回调）
-    pub async fn import_accounts(&self, items: Vec<ImportAccountItem>) -> Result<ImportResult> {
+    pub async fn import_accounts(self, items: Vec<ImportAccountItem>) -> Result<ImportResult> {
         self.import_accounts_with_progress(items, None).await
     }
 
     /// 并行验证账号项
     async fn validate_items_parallel(&self, items: &[ImportAccountItem]) -> Vec<ValidationResult> {
         let concurrency = self.config.validation_concurrency;
-        stream::iter(items.iter().enumerate())
-            .map(|(index, item)| {
-                let name_len = item.name.len();
-                let cred_len = item.credential.len();
-                let _cred_type = item.credential_type.clone(); // Reserved for future validation
-                async move {
-                    // 简单验证逻辑
-                    let valid = !name_len == 0 && !cred_len == 0;
-                    let error = if valid {
-                        None
-                    } else {
-                        Some("Invalid name or credential".to_string())
-                    };
-                    ValidationResult {
-                        index,
-                        valid,
-                        error,
-                    }
+        stream::iter(items.iter().cloned().enumerate())
+            .map(|(index, item)| async move {
+                let (valid, error) = self.validate_item(&item).await;
+                ValidationResult {
+                    index,
+                    valid,
+                    error,
                 }
             })
             .buffer_unordered(concurrency)
             .collect()
             .await
+    }
+
+    async fn collect_validation_meta(&self, items: &[ImportAccountItem]) -> Vec<ValidationResult> {
+        let mut validation_results = self.validate_items_parallel(items).await;
+        validation_results.sort_by_key(|result| result.index);
+
+        let mut validation_meta = vec![
+            ValidationResult {
+                index: 0,
+                valid: false,
+                error: Some("Validation result missing".to_string()),
+            };
+            items.len()
+        ];
+
+        for result in validation_results {
+            let idx = result.index;
+            if idx < items.len() {
+                validation_meta[idx] = result;
+            }
+        }
+
+        validation_meta
     }
 
     /// 验证单个账号项
@@ -465,12 +701,14 @@ impl BatchImportService {
 
         // 构建批量插入模型（带凭证加密）
         let mut models = Vec::with_capacity(items.len());
+        let mut inserted_ids = Vec::with_capacity(items.len());
         for (_, item) in items {
             // 加密凭证
             let encrypted_credential = GlobalEncryption::encrypt(&item.credential)
                 .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
 
             let id = Uuid::new_v4();
+            inserted_ids.push(id.to_string());
             models.push(accounts::ActiveModel {
                 id: Set(id),
                 name: Set(item.name.clone()),
@@ -494,17 +732,11 @@ impl BatchImportService {
 
         txn.commit().await?;
 
-        // 返回插入的 ID
-        let ids: Vec<String> = items
-            .iter()
-            .map(|_| Uuid::new_v4().to_string()) // SeaORM insert_many 不返回 ID，需要用 RETURNING
-            .collect();
-
-        Ok(ids)
+        Ok(inserted_ids)
     }
 
     /// 快速批量导入（无验证，适用于可信数据源）
-    pub async fn fast_import(&self, items: Vec<ImportAccountItem>) -> Result<ImportResult> {
+    pub async fn fast_import(self, items: Vec<ImportAccountItem>) -> Result<ImportResult> {
         let start = std::time::Instant::now();
         let total = items.len();
 
@@ -513,13 +745,28 @@ impl BatchImportService {
 
         // 构建批量插入模型（带凭证加密）
         let mut models = Vec::with_capacity(items.len());
+        let mut account_ids = Vec::with_capacity(items.len());
+        let mut provider_stats = std::collections::BTreeMap::<String, ImportResultProvider>::new();
         for item in &items {
             // 加密凭证
             let encrypted_credential = GlobalEncryption::encrypt(&item.credential)
                 .map_err(|e| anyhow::anyhow!("Failed to encrypt credential: {}", e))?;
 
+            let stat = provider_stats
+                .entry(item.provider.clone())
+                .or_insert_with(|| ImportResultProvider {
+                    provider: item.provider.clone(),
+                    total: 0,
+                    imported: 0,
+                    skipped: 0,
+                    failed: 0,
+                });
+            stat.total += 1;
+
+            let id = Uuid::new_v4();
+            account_ids.push(id.to_string());
             models.push(accounts::ActiveModel {
-                id: Set(Uuid::new_v4()),
+                id: Set(id),
                 name: Set(item.name.clone()),
                 provider: Set(item.provider.clone()),
                 credential_type: Set(item.credential_type.clone()),
@@ -539,23 +786,36 @@ impl BatchImportService {
         // 分批插入避免超大批次
         let mut inserted = 0;
         for chunk in models.chunks(self.config.batch_size) {
-            accounts::Entity::insert_many(chunk.to_vec())
+            let chunk_models = chunk.to_vec();
+            let chunk_len = chunk_models.len();
+            accounts::Entity::insert_many(chunk_models)
                 .exec(&txn)
                 .await?;
-            inserted += chunk.len();
+            inserted += chunk_len;
         }
 
         txn.commit().await?;
 
-        Ok(ImportResult {
+        for stat in provider_stats.values_mut() {
+            stat.imported = stat.total;
+        }
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let result = ImportResult {
             total,
             imported: inserted,
             skipped: 0,
             failed: 0,
-            account_ids: Vec::new(),
+            account_ids,
             errors: Vec::new(),
-            duration_ms: start.elapsed().as_millis() as u64,
-        })
+            duration_ms,
+            throughput_items_per_sec: batch_throughput(total, duration_ms),
+            providers: provider_stats.into_values().collect(),
+        };
+
+        BatchMetrics::record("fast_import", "fast", total, 0, result.duration_ms);
+
+        Ok(result)
     }
 }
 
@@ -626,5 +886,49 @@ mod tests {
         assert_eq!(config.validation_concurrency, 50);
         assert!(config.skip_duplicates);
         assert!(config.continue_on_error);
+    }
+
+    #[tokio::test]
+    async fn test_validate_items_parallel() {
+        let service = BatchImportService::new(Default::default());
+        let items = vec![
+            ImportAccountItem {
+                name: "ok-openai".to_string(),
+                provider: "openai".to_string(),
+                credential_type: "api_key".to_string(),
+                credential: "sk-test".to_string(),
+                priority: 50,
+                concurrent_limit: Some(5),
+                rate_limit_rpm: None,
+                group_id: None,
+            },
+            ImportAccountItem {
+                name: "".to_string(),
+                provider: "openai".to_string(),
+                credential_type: "api_key".to_string(),
+                credential: "sk-test".to_string(),
+                priority: 50,
+                concurrent_limit: Some(5),
+                rate_limit_rpm: None,
+                group_id: None,
+            },
+            ImportAccountItem {
+                name: "bad-key".to_string(),
+                provider: "openai".to_string(),
+                credential_type: "api_key".to_string(),
+                credential: "bad".to_string(),
+                priority: 50,
+                concurrent_limit: Some(5),
+                rate_limit_rpm: None,
+                group_id: None,
+            },
+        ];
+
+        let mut results = service.validate_items_parallel(&items).await;
+        results.sort_by_key(|result| result.index);
+        assert_eq!(results.len(), 3);
+        assert!(results[0].valid);
+        assert!(!results[1].valid);
+        assert!(!results[2].valid);
     }
 }

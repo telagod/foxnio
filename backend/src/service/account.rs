@@ -35,6 +35,7 @@ pub struct AccountInfo {
     pub status: String,
     pub priority: i32,
     pub last_error: Option<String>,
+    pub group_id: Option<i64>,
     pub created_at: chrono::DateTime<Utc>,
 }
 
@@ -165,6 +166,7 @@ impl AccountService {
             status: account.status,
             priority: account.priority,
             last_error: account.last_error,
+            group_id: account.group_id,
             created_at: account.created_at,
         })
     }
@@ -401,6 +403,7 @@ impl AccountService {
                 status: a.status,
                 priority: a.priority,
                 last_error: a.last_error,
+                group_id: a.group_id,
                 created_at: a.created_at,
             })
             .collect())
@@ -414,6 +417,7 @@ impl AccountService {
         status: Option<&str>,
         provider: Option<&str>,
         search: Option<&str>,
+        group_id: Option<i64>,
     ) -> Result<(Vec<AccountInfo>, u64)> {
         let per_page = per_page.clamp(1, 200);
         let offset = (page.saturating_sub(1)) * per_page;
@@ -428,6 +432,9 @@ impl AccountService {
         }
         if let Some(s) = search {
             query = query.filter(accounts::Column::Name.contains(s));
+        }
+        if let Some(gid) = group_id {
+            query = query.filter(accounts::Column::GroupId.eq(gid));
         }
 
         let total = query.clone().count(&self.db).await?;
@@ -449,6 +456,7 @@ impl AccountService {
                 status: a.status,
                 priority: a.priority,
                 last_error: a.last_error,
+                group_id: a.group_id,
                 created_at: a.created_at,
             })
             .collect();
@@ -650,6 +658,7 @@ mod tests {
             status: "active".to_string(),
             priority: 50,
             last_error: None,
+            group_id: None,
             created_at: Utc::now(),
         };
 

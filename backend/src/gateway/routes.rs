@@ -194,6 +194,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/admin/accounts/batch",
             post(handler::admin_accounts::batch_create_accounts),
         )
+        .route(
+            "/api/v1/admin/accounts/providers",
+            get(handler::admin_accounts::list_account_providers),
+        )
         .route("/api/v1/admin/accounts/:id", get(get_account_detail))
         .route("/api/v1/admin/accounts/:id", put(update_account))
         .route(
@@ -258,12 +262,22 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/admin/accounts/batch-refresh-tier",
             post(handler::admin_accounts::batch_refresh_tier),
         )
-        // 高性能批量导入 - 支持几千到几万账号
-        // 暂时禁用，等待修复 Send trait 问题
-        // .route(
-        //     "/api/v1/admin/accounts/fast-import",
-        //     post(handler::admin_accounts::fast_import_accounts),
-        // )
+        .route(
+            "/api/v1/admin/accounts/batch-set-status",
+            post(handler::admin_accounts::batch_set_status),
+        )
+        .route(
+            "/api/v1/admin/accounts/batch-set-group",
+            post(handler::admin_accounts::batch_set_group),
+        )
+        .route(
+            "/api/v1/admin/accounts/batch-clear-rate-limit",
+            post(handler::admin_accounts::batch_clear_rate_limit),
+        )
+        .route(
+            "/api/v1/admin/accounts/fast-import",
+            post(handler::admin_accounts::fast_import_accounts),
+        )
         // API Key 管理 - 需要 ApiKeyRead 权限
         .route("/api/v1/admin/apikeys", get(handler::admin::list_apikeys))
         // 统计和监控 - 需要 BillingRead 权限
@@ -588,10 +602,7 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/admin/backup/import",
             post(handler::backup::import_data),
         )
-        .route(
-            "/api/v1/admin/backups",
-            get(handler::backup::list_backups),
-        )
+        .route("/api/v1/admin/backups", get(handler::backup::list_backups))
         .route(
             "/api/v1/admin/backups/create",
             post(handler::backup::create_backup),
@@ -645,7 +656,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // WebSocket 路由 - OpenAI Realtime/Responses API
-    let _ws_handler = Arc::new(websocket::create_handler(WSConfig::default(), shared_state.db.clone()));
+    let _ws_handler = Arc::new(websocket::create_handler(
+        WSConfig::default(),
+        shared_state.db.clone(),
+    ));
     let ws_routes = Router::new()
         // OpenAI Realtime API v1 - WebSocket
         .route("/v1/realtime", get(websocket::handler::ws_realtime_v1))
@@ -1121,8 +1135,9 @@ async fn get_account_detail(
         .await
         .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = uuid::Uuid::parse_str(&id)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+    let account_id = uuid::Uuid::parse_str(&id).map_err(|e| {
+        handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}"))
+    })?;
 
     let account = crate::entity::accounts::Entity::find_by_id(account_id)
         .one(&state.db)
@@ -1158,8 +1173,9 @@ async fn update_account(
         .await
         .map_err(|e| handler::ApiError(StatusCode::FORBIDDEN, e))?;
 
-    let account_id = uuid::Uuid::parse_str(&id)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+    let account_id = uuid::Uuid::parse_str(&id).map_err(|e| {
+        handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}"))
+    })?;
 
     let account = crate::entity::accounts::Entity::find_by_id(account_id)
         .one(&state.db)
@@ -1183,7 +1199,12 @@ async fn update_account(
     }
     if let Some(api_key) = body.get("api_key").and_then(|v| v.as_str()) {
         let encrypted = crate::utils::encryption_global::GlobalEncryption::encrypt(api_key)
-            .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, format!("Encryption error: {e}")))?;
+            .map_err(|e| {
+                handler::ApiError(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Encryption error: {e}"),
+                )
+            })?;
         active.credential = sea_orm::Set(encrypted);
     }
 
@@ -1222,11 +1243,16 @@ async fn test_account(
 
     let account_id_str = body
         .get("account_id")
-        .and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| v.as_i64().map(|n| n.to_string())))
+        .and_then(|v| {
+            v.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| v.as_i64().map(|n| n.to_string()))
+        })
         .ok_or_else(|| handler::ApiError(StatusCode::BAD_REQUEST, "Missing account_id".into()))?;
 
-    let account_id = uuid::Uuid::parse_str(&account_id_str)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}")))?;
+    let account_id = uuid::Uuid::parse_str(&account_id_str).map_err(|e| {
+        handler::ApiError(StatusCode::BAD_REQUEST, format!("Invalid account ID: {e}"))
+    })?;
 
     // 查询账号
     let account = crate::entity::accounts::Entity::find_by_id(account_id)
@@ -1237,7 +1263,12 @@ async fn test_account(
 
     // 解密凭证
     let api_key = crate::utils::encryption_global::GlobalEncryption::decrypt(&account.credential)
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, format!("Decryption error: {e}")))?;
+        .map_err(|e| {
+        handler::ApiError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Decryption error: {e}"),
+        )
+    })?;
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -1293,13 +1324,11 @@ async fn test_account(
                 })))
             }
         }
-        Err(e) => {
-            Ok(axum::Json(json!({
-                "success": false,
-                "message": format!("Connection failed: {e}"),
-                "latency_ms": latency_ms,
-            })))
-        }
+        Err(e) => Ok(axum::Json(json!({
+            "success": false,
+            "message": format!("Connection failed: {e}"),
+            "latency_ms": latency_ms,
+        }))),
     }
 }
 

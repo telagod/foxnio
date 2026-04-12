@@ -1,7 +1,7 @@
 //! 完整请求转发实现
 
 #![allow(dead_code)]
-use anyhow::{bail, Result};
+use anyhow::Result;
 use axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, StatusCode},
@@ -12,6 +12,7 @@ use reqwest::Client;
 
 use crate::entity::accounts;
 use crate::gateway::models::{resolve_model_alias, ModelProvider};
+use crate::gateway::providers::default_provider_registry;
 use crate::gateway::SharedState;
 use crate::service::{
     LegacyAccountService as AccountService, LegacyBillingService as BillingService, ModelRouter,
@@ -296,29 +297,10 @@ impl GatewayHandler {
 
     /// 获取上游配置
     async fn get_upstream_config(&self, account: &accounts::Model) -> Result<(String, String)> {
-        let (base_url, credential) = match account.provider.as_str() {
-            "anthropic" => (
-                "https://api.anthropic.com".to_string(),
-                account.credential.clone(),
-            ),
-            "openai" => (
-                "https://api.openai.com".to_string(),
-                account.credential.clone(),
-            ),
-            "gemini" => (
-                "https://generativelanguage.googleapis.com".to_string(),
-                account.credential.clone(),
-            ),
-            "antigravity" => (
-                "https://antigravity.so".to_string(),
-                account.credential.clone(),
-            ),
-            "deepseek" => (
-                "https://api.deepseek.com".to_string(),
-                account.credential.clone(),
-            ),
-            _ => bail!("Unknown provider: {}", account.provider),
-        };
+        let adapter = default_provider_registry()
+            .get(&account.provider)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", account.provider))?;
+        let (base_url, credential) = (adapter.base_url().to_string(), account.credential.clone());
 
         Ok((base_url, credential))
     }
@@ -365,9 +347,6 @@ impl GatewayHandler {
         body = serde_json::to_vec(&params)?.into();
 
         // 获取上游配置
-        let provider_config = &route_result.provider_config;
-        let base_url = provider_config.base_url.clone();
-
         // 选择账号
         let account = self
             .scheduler_service
@@ -378,14 +357,19 @@ impl GatewayHandler {
         let credential = account.credential.clone();
 
         // 构建请求 URL
-        let url = match route_result.provider {
-            ModelProvider::Anthropic => format!("{base_url}/v1/messages"),
-            ModelProvider::Google => format!(
-                "{}{}:generateContent?key={}",
-                base_url, route_result.config.api_name, credential
-            ),
-            _ => format!("{base_url}/v1/chat/completions"),
+        let provider_key = match route_result.provider {
+            ModelProvider::OpenAI => "openai",
+            ModelProvider::Anthropic => "anthropic",
+            ModelProvider::Google => "gemini",
+            ModelProvider::DeepSeek => "deepseek",
+            ModelProvider::Mistral => "mistral",
+            ModelProvider::Cohere => "cohere",
         };
+        let adapter = default_provider_registry()
+            .get(provider_key)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider adapter: {}", provider_key))?;
+        let url =
+            adapter.build_chat_completions_url(Some(&route_result.config.api_name), &credential);
 
         // 构建请求
         let mut req = self
@@ -394,13 +378,7 @@ impl GatewayHandler {
             .header("Content-Type", "application/json");
 
         // 设置认证头
-        req = match route_result.provider {
-            ModelProvider::Anthropic => req
-                .header("x-api-key", &credential)
-                .header("anthropic-version", "2023-06-01"),
-            ModelProvider::Google => req, // Gemini 使用 URL 参数
-            _ => req.header("Authorization", format!("Bearer {credential}")),
-        };
+        req = adapter.apply_auth(req, &credential);
 
         // 流式请求特殊处理
         if ctx.stream {

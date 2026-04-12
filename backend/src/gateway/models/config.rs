@@ -4,6 +4,7 @@
 
 #![allow(dead_code)]
 use super::{Model, ModelProvider};
+use crate::gateway::providers::default_provider_registry;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -577,85 +578,33 @@ pub static MODEL_CONFIGS: Lazy<Vec<(Model, ModelConfig)>> = Lazy::new(|| {
 impl ProviderConfig {
     /// 获取所有提供商配置
     pub fn all() -> HashMap<ModelProvider, ProviderConfig> {
-        let mut configs = HashMap::new();
+        default_provider_registry()
+            .descriptors()
+            .into_iter()
+            .filter_map(|descriptor| {
+                model_provider_from_key(&descriptor.key).map(|provider| {
+                    let mut extra_headers = HashMap::new();
+                    if let Some(api_version) = &descriptor.api_version {
+                        if descriptor.requires_version_header {
+                            extra_headers
+                                .insert("anthropic-version".to_string(), api_version.clone());
+                        }
+                    }
 
-        configs.insert(
-            ModelProvider::OpenAI,
-            ProviderConfig {
-                provider: ModelProvider::OpenAI,
-                base_url: "https://api.openai.com".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-                extra_headers: HashMap::new(),
-            },
-        );
-
-        configs.insert(
-            ModelProvider::Anthropic,
-            ProviderConfig {
-                provider: ModelProvider::Anthropic,
-                base_url: "https://api.anthropic.com".to_string(),
-                auth_header: "x-api-key".to_string(),
-                requires_version_header: true,
-                api_version: Some("2023-06-01".to_string()),
-                extra_headers: {
-                    let mut headers = HashMap::new();
-                    headers.insert("anthropic-version".to_string(), "2023-06-01".to_string());
-                    headers
-                },
-            },
-        );
-
-        configs.insert(
-            ModelProvider::Google,
-            ProviderConfig {
-                provider: ModelProvider::Google,
-                base_url: "https://generativelanguage.googleapis.com".to_string(),
-                auth_header: "x-goog-api-key".to_string(),
-                requires_version_header: false,
-                api_version: None,
-                extra_headers: HashMap::new(),
-            },
-        );
-
-        configs.insert(
-            ModelProvider::DeepSeek,
-            ProviderConfig {
-                provider: ModelProvider::DeepSeek,
-                base_url: "https://api.deepseek.com".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-                extra_headers: HashMap::new(),
-            },
-        );
-
-        configs.insert(
-            ModelProvider::Mistral,
-            ProviderConfig {
-                provider: ModelProvider::Mistral,
-                base_url: "https://api.mistral.ai".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-                extra_headers: HashMap::new(),
-            },
-        );
-
-        configs.insert(
-            ModelProvider::Cohere,
-            ProviderConfig {
-                provider: ModelProvider::Cohere,
-                base_url: "https://api.cohere.ai".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-                extra_headers: HashMap::new(),
-            },
-        );
-
-        configs
+                    (
+                        provider,
+                        ProviderConfig {
+                            provider,
+                            base_url: descriptor.base_url,
+                            auth_header: descriptor.auth_header,
+                            requires_version_header: descriptor.requires_version_header,
+                            api_version: descriptor.api_version,
+                            extra_headers,
+                        },
+                    )
+                })
+            })
+            .collect()
     }
 
     /// 获取指定提供商的配置
@@ -664,6 +613,18 @@ impl ProviderConfig {
             .get(&provider)
             .cloned()
             .expect("Provider config should exist")
+    }
+}
+
+fn model_provider_from_key(key: &str) -> Option<ModelProvider> {
+    match key {
+        "openai" => Some(ModelProvider::OpenAI),
+        "anthropic" => Some(ModelProvider::Anthropic),
+        "google" | "gemini" => Some(ModelProvider::Google),
+        "deepseek" => Some(ModelProvider::DeepSeek),
+        "mistral" => Some(ModelProvider::Mistral),
+        "cohere" => Some(ModelProvider::Cohere),
+        _ => None,
     }
 }
 

@@ -17,6 +17,7 @@ use tracing::{debug, info, warn};
 use crate::entity::model_configs::{
     self, CreateModelRequest, ModelCapabilities, ModelInfoResponse, UpdateModelRequest,
 };
+use crate::gateway::providers::default_provider_registry;
 
 /// 模型配置（运行时）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,69 +89,37 @@ pub struct ProviderConfig {
 impl ProviderConfig {
     /// 获取所有提供商配置
     pub fn get(provider: &str) -> Option<Self> {
-        match provider.to_lowercase().as_str() {
-            "openai" => Some(Self {
-                provider: "openai".to_string(),
-                base_url: "https://api.openai.com".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-            }),
-            "anthropic" => Some(Self {
-                provider: "anthropic".to_string(),
-                base_url: "https://api.anthropic.com".to_string(),
-                auth_header: "x-api-key".to_string(),
-                requires_version_header: true,
-                api_version: Some("2023-06-01".to_string()),
-            }),
-            "google" | "gemini" => Some(Self {
-                provider: "google".to_string(),
-                base_url: "https://generativelanguage.googleapis.com".to_string(),
-                auth_header: "x-goog-api-key".to_string(),
-                requires_version_header: false,
-                api_version: None,
-            }),
-            "deepseek" => Some(Self {
-                provider: "deepseek".to_string(),
-                base_url: "https://api.deepseek.com".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-            }),
-            "mistral" => Some(Self {
-                provider: "mistral".to_string(),
-                base_url: "https://api.mistral.ai".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-            }),
-            "cohere" => Some(Self {
-                provider: "cohere".to_string(),
-                base_url: "https://api.cohere.ai".to_string(),
-                auth_header: "Authorization".to_string(),
-                requires_version_header: false,
-                api_version: None,
-            }),
-            _ => None,
-        }
+        let normalized = provider.to_lowercase();
+        default_provider_registry()
+            .get(&normalized)
+            .map(|adapter| adapter.descriptor())
+            .map(|descriptor| Self {
+                provider: normalized,
+                base_url: descriptor.base_url,
+                auth_header: descriptor.auth_header,
+                requires_version_header: descriptor.requires_version_header,
+                api_version: descriptor.api_version,
+            })
     }
 
     /// 获取所有提供商
     pub fn all() -> HashMap<String, Self> {
-        let mut providers = HashMap::new();
-        for p in &[
-            "openai",
-            "anthropic",
-            "google",
-            "deepseek",
-            "mistral",
-            "cohere",
-        ] {
-            if let Some(config) = Self::get(p) {
-                providers.insert(p.to_string(), config);
-            }
-        }
-        providers
+        default_provider_registry()
+            .descriptors()
+            .into_iter()
+            .map(|descriptor| {
+                (
+                    descriptor.key.clone(),
+                    Self {
+                        provider: descriptor.key,
+                        base_url: descriptor.base_url,
+                        auth_header: descriptor.auth_header,
+                        requires_version_header: descriptor.requires_version_header,
+                        api_version: descriptor.api_version,
+                    },
+                )
+            })
+            .collect()
     }
 }
 
