@@ -187,7 +187,10 @@ impl TokenRefreshService {
 
                 let resp = client
                     .get("https://api.openai.com/v1/models")
-                    .header("Authorization", format!("Bearer {}", token_info.access_token))
+                    .header(
+                        "Authorization",
+                        format!("Bearer {}", token_info.access_token),
+                    )
                     .send()
                     .await
                     .context("OpenAI verification request failed")?;
@@ -232,10 +235,9 @@ impl TokenRefreshService {
 
             // OAuth providers - use refresh_token grant
             "google" | "gemini" => {
-                let refresh_token = token_info
-                    .refresh_token
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("No refresh_token available for {}", provider))?;
+                let refresh_token = token_info.refresh_token.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("No refresh_token available for {}", provider)
+                })?;
 
                 let refresher = self.refresher.read().await;
                 let result = refresher

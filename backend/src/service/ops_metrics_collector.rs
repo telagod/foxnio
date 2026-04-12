@@ -137,7 +137,8 @@ impl MetricsCollector {
         };
 
         // 2. today's requests, tokens, cost
-        let today_start = now.date_naive()
+        let today_start = now
+            .date_naive()
             .and_hms_opt(0, 0, 0)
             .expect("valid midnight");
         let today_start_utc = DateTime::<Utc>::from_naive_utc_and_offset(today_start, Utc);

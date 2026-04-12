@@ -55,7 +55,13 @@ impl BalanceLedgerService {
     ) -> Result<balance_ledger::Model> {
         let txn = self.db.begin().await?;
         let entry = Self::record_with_txn(
-            &txn, user_id, source_type, source_id, delta_cents, description, metadata,
+            &txn,
+            user_id,
+            source_type,
+            source_id,
+            delta_cents,
+            description,
+            metadata,
         )
         .await?;
         txn.commit().await?;
@@ -82,7 +88,11 @@ impl BalanceLedgerService {
         let balance_after = balance_before + delta_cents;
 
         if balance_after < 0 {
-            bail!("Insufficient balance: current={}, delta={}", balance_before, delta_cents);
+            bail!(
+                "Insufficient balance: current={}, delta={}",
+                balance_before,
+                delta_cents
+            );
         }
 
         // Insert ledger entry

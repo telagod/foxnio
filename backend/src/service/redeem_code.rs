@@ -9,8 +9,8 @@ use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -351,7 +351,12 @@ impl RedeemCodeService {
             }
             RedeemType::Subscription => {
                 let (msg, sid) = self
-                    .redeem_subscription_with_txn(&txn, &req.user_id, notes.as_deref(), value as i64)
+                    .redeem_subscription_with_txn(
+                        &txn,
+                        &req.user_id,
+                        notes.as_deref(),
+                        value as i64,
+                    )
                     .await?;
                 (msg, None, Some(value as i64), None, Some(sid))
             }
@@ -359,7 +364,13 @@ impl RedeemCodeService {
                 let (msg, sid) = self
                     .redeem_quota_with_txn(&txn, &req.user_id, value as i64)
                     .await?;
-                (msg, None, None, Some(Decimal::from_f64_retain(value).unwrap_or_default()), Some(sid))
+                (
+                    msg,
+                    None,
+                    None,
+                    Some(Decimal::from_f64_retain(value).unwrap_or_default()),
+                    Some(sid),
+                )
             }
         };
 
@@ -579,9 +590,7 @@ impl RedeemCodeService {
 
         let (sub_id, msg) = if let Some(sub) = existing {
             // Extend current_period_end
-            let current_end = sub
-                .current_period_end
-                .unwrap_or(now_tz);
+            let current_end = sub.current_period_end.unwrap_or(now_tz);
             let new_end = if current_end > now_tz {
                 current_end + duration
             } else {
@@ -595,7 +604,10 @@ impl RedeemCodeService {
             sub_am.update(txn).await?;
 
             let end_str = new_end.format("%Y-%m-%d").to_string();
-            (sub_id, format!("Extended subscription by {days} days, new end date: {end_str}"))
+            (
+                sub_id,
+                format!("Extended subscription by {days} days, new end date: {end_str}"),
+            )
         } else {
             // Create new subscription
             let plan_name = notes.unwrap_or("redeemed").to_string();
@@ -624,7 +636,10 @@ impl RedeemCodeService {
             };
             let inserted = new_sub.insert(txn).await?;
             let end_str = period_end.format("%Y-%m-%d").to_string();
-            (inserted.id, format!("Created {plan_name} subscription for {days} days, ends: {end_str}"))
+            (
+                inserted.id,
+                format!("Created {plan_name} subscription for {days} days, ends: {end_str}"),
+            )
         };
 
         Ok((msg, sub_id))
@@ -666,7 +681,10 @@ impl RedeemCodeService {
             sub_am.updated_at = Set(now_tz);
             sub_am.update(txn).await?;
 
-            (sub_id, format!("Added {quota} quota units, new limit: {new_limit}"))
+            (
+                sub_id,
+                format!("Added {quota} quota units, new limit: {new_limit}"),
+            )
         } else {
             // Create a basic subscription with the quota
             let new_sub = subscriptions::ActiveModel {
@@ -691,7 +709,10 @@ impl RedeemCodeService {
                 updated_at: Set(now_tz),
             };
             let inserted = new_sub.insert(txn).await?;
-            (inserted.id, format!("Created subscription with {quota} quota units"))
+            (
+                inserted.id,
+                format!("Created subscription with {quota} quota units"),
+            )
         };
 
         Ok((msg, sub_id))

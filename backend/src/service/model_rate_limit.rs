@@ -319,12 +319,18 @@ impl ModelRateLimiter {
             .await
             .unwrap_or((0, 0));
 
-        let rpm_limited = config.requests_per_minute.map_or(false, |rpm| req_count >= rpm);
+        let rpm_limited = config
+            .requests_per_minute
+            .map_or(false, |rpm| req_count >= rpm);
         let tpm_limited = config.tokens_per_minute.map_or(false, |tpm| tok_sum >= tpm);
         let is_limited = rpm_limited || tpm_limited;
 
-        let remaining_requests = config.requests_per_minute.map(|rpm| rpm.saturating_sub(req_count));
-        let remaining_tokens = config.tokens_per_minute.map(|tpm| tpm.saturating_sub(tok_sum));
+        let remaining_requests = config
+            .requests_per_minute
+            .map(|rpm| rpm.saturating_sub(req_count));
+        let remaining_tokens = config
+            .tokens_per_minute
+            .map(|tpm| tpm.saturating_sub(tok_sum));
 
         let (reset_at, retry_after) = if is_limited {
             let reset = Utc::now() + chrono::Duration::seconds(config.duration_secs as i64);

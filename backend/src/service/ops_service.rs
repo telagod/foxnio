@@ -7,8 +7,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -299,22 +299,56 @@ impl OpsService {
 
             logs.push(OpsErrorLog {
                 id: r.id.as_u128() as i64,
-                request_id: data.get("request_id").and_then(|v| v.as_str()).map(String::from),
+                request_id: data
+                    .get("request_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
                 user_id: r.user_id.map(|u| u.as_u128() as i64),
                 api_key_id: data.get("api_key_id").and_then(|v| v.as_i64()),
                 account_id: data.get("account_id").and_then(|v| v.as_i64()),
-                platform: data.get("platform").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                platform: data
+                    .get("platform")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
                 model: data.get("model").and_then(|v| v.as_str()).map(String::from),
-                request_type: data.get("request_type").and_then(|v| v.as_i64()).unwrap_or(0) as i16,
-                error_code: data.get("error_code").and_then(|v| v.as_str()).map(String::from),
-                error_message: data.get("error_message").and_then(|v| v.as_str()).map(String::from),
-                error_details: data.get("error_details").and_then(|v| v.as_str()).map(String::from),
+                request_type: data
+                    .get("request_type")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i16,
+                error_code: data
+                    .get("error_code")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                error_message: data
+                    .get("error_message")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                error_details: data
+                    .get("error_details")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
                 status_code: r.response_status.map(|s| s as i16),
-                request_body_json: data.get("request_body_json").and_then(|v| v.as_str()).map(String::from),
-                request_body_bytes: data.get("request_body_bytes").and_then(|v| v.as_i64()).map(|v| v as i32),
-                response_body_json: data.get("response_body_json").and_then(|v| v.as_str()).map(String::from),
-                response_time_ms: data.get("response_time_ms").and_then(|v| v.as_i64()).map(|v| v as i32),
-                upstream_latency_ms: data.get("upstream_latency_ms").and_then(|v| v.as_i64()).map(|v| v as i32),
+                request_body_json: data
+                    .get("request_body_json")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                request_body_bytes: data
+                    .get("request_body_bytes")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
+                response_body_json: data
+                    .get("response_body_json")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                response_time_ms: data
+                    .get("response_time_ms")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
+                upstream_latency_ms: data
+                    .get("upstream_latency_ms")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
                 created_at: r.created_at,
             });
         }
@@ -340,7 +374,8 @@ impl OpsService {
         let total_accounts = all_accounts.len() as i64;
         let mut active_accounts = 0i64;
         let mut error_accounts = 0i64;
-        let mut by_provider: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        let mut by_provider: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
 
         for account in &all_accounts {
             if account.is_active() {
@@ -402,11 +437,7 @@ impl OpsService {
                 .request_data
                 .as_ref()
                 .and_then(|d| d.get(json_key))
-                .and_then(|v| {
-                    v.as_str()
-                        .map(String::from)
-                        .or_else(|| Some(v.to_string()))
-                })
+                .and_then(|v| v.as_str().map(String::from).or_else(|| Some(v.to_string())))
                 .unwrap_or_else(|| "unknown".to_string());
             *stats.entry(key).or_insert(0) += 1;
         }

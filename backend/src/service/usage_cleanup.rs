@@ -133,15 +133,12 @@ impl UsageCleanup {
         // Use page_token as a created_at cursor
         if let Some(token) = page_token {
             if let Ok(ts) = token.parse::<i64>() {
-                let cursor_time = DateTime::from_timestamp_millis(ts)
-                    .unwrap_or_else(|| Utc::now());
+                let cursor_time = DateTime::from_timestamp_millis(ts).unwrap_or_else(|| Utc::now());
                 query = query.filter(audit_logs::Column::CreatedAt.lt(cursor_time));
             }
         }
 
-        let records = query
-            .all(&self.db)
-            .await?;
+        let records = query.all(&self.db).await?;
 
         let limited: Vec<_> = records.into_iter().take(page_size as usize + 1).collect();
         let has_more = limited.len() > page_size as usize;
@@ -156,13 +153,16 @@ impl UsageCleanup {
 
         let tasks: Vec<UsageCleanupTask> = page
             .into_iter()
-            .filter_map(|r| {
-                r.request_data
-                    .and_then(|d| serde_json::from_value(d).ok())
-            })
+            .filter_map(|r| r.request_data.and_then(|d| serde_json::from_value(d).ok()))
             .collect();
 
-        Ok((tasks, PaginationResult { has_more, next_token }))
+        Ok((
+            tasks,
+            PaginationResult {
+                has_more,
+                next_token,
+            },
+        ))
     }
 
     /// 抢占下一个待执行任务
@@ -170,8 +170,7 @@ impl UsageCleanup {
         &self,
         stale_running_after_seconds: i64,
     ) -> Result<Option<UsageCleanupTask>> {
-        let stale_cutoff = Utc::now()
-            - chrono::Duration::seconds(stale_running_after_seconds);
+        let stale_cutoff = Utc::now() - chrono::Duration::seconds(stale_running_after_seconds);
 
         // Find pending or stale-running tasks
         let records = audit_logs::Entity::find()

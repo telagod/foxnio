@@ -659,10 +659,7 @@ impl OpsAlertEvaluatorService {
 
                 let resp = client.post(url).json(&payload).send().await?;
                 if !resp.status().is_success() {
-                    anyhow::bail!(
-                        "Webhook returned HTTP {}",
-                        resp.status()
-                    );
+                    anyhow::bail!("Webhook returned HTTP {}", resp.status());
                 }
             }
             "webhook" => {
@@ -692,10 +689,7 @@ impl OpsAlertEvaluatorService {
                 let payload = serde_json::json!({ "text": text });
                 let resp = client.post(webhook_url).json(&payload).send().await?;
                 if !resp.status().is_success() {
-                    anyhow::bail!(
-                        "Slack webhook returned HTTP {}",
-                        resp.status()
-                    );
+                    anyhow::bail!("Slack webhook returned HTTP {}", resp.status());
                 }
             }
             "slack" => {

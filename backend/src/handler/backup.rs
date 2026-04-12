@@ -173,14 +173,8 @@ pub async fn delete_backup(
     // Audit trail for backup deletion
     if let Ok(user_id) = Uuid::parse_str(&claims.sub) {
         let audit_svc = AuditService::new(state.db.clone());
-        let entry = AuditEntry::admin_action(
-            user_id,
-            "backup_delete",
-            "backup",
-            &filename,
-            None,
-            None,
-        );
+        let entry =
+            AuditEntry::admin_action(user_id, "backup_delete", "backup", &filename, None, None);
         let _ = audit_svc.log(entry).await;
     }
 

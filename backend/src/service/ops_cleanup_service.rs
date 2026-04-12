@@ -179,11 +179,7 @@ impl OpsCleanupService {
     }
 
     /// 批量删除指定表中早于 cutoff 的记录（按 created_at）
-    async fn batch_delete_by_cutoff(
-        &self,
-        table: &str,
-        cutoff: DateTime<Utc>,
-    ) -> Result<i64> {
+    async fn batch_delete_by_cutoff(&self, table: &str, cutoff: DateTime<Utc>) -> Result<i64> {
         let batch_size = self.config.batch_size;
         let start = Utc::now();
         let max_runtime = Duration::seconds(self.config.max_runtime_secs as i64);
@@ -192,11 +188,7 @@ impl OpsCleanupService {
         loop {
             // 安全超时检查
             if Utc::now() - start > max_runtime {
-                tracing::warn!(
-                    "清理 {} 超时，已删除 {} 条",
-                    table,
-                    total_deleted
-                );
+                tracing::warn!("清理 {} 超时，已删除 {} 条", table, total_deleted);
                 break;
             }
 
@@ -344,7 +336,8 @@ impl OpsCleanupService {
                 "request_logs" | "usages" => self.cleanup_usages(cutoff).await?,
                 "audit_logs" => {
                     let audit_cutoff = Utc::now() - Duration::days(retention_days as i64);
-                    self.batch_delete_by_cutoff("audit_logs", audit_cutoff).await?
+                    self.batch_delete_by_cutoff("audit_logs", audit_cutoff)
+                        .await?
                 }
                 "tokens" | "refresh_tokens" => self.cleanup_expired_tokens().await?,
                 "password_reset_tokens" => self.cleanup_password_reset_tokens().await?,
@@ -394,9 +387,7 @@ impl OpsCleanupService {
         ];
 
         for (key, table) in tables {
-            let sql = format!(
-                "SELECT COUNT(*) AS cnt FROM {table}"
-            );
+            let sql = format!("SELECT COUNT(*) AS cnt FROM {table}");
             let row = self
                 .db
                 .query_one(Statement::from_sql_and_values(

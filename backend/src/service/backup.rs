@@ -56,7 +56,10 @@ pub struct BackupFacade;
 
 impl BackupFacade {
     /// Run pg_dump via BackupService and return the filename + metadata.
-    pub async fn export(svc: &BackupService, _tables: Option<Vec<String>>) -> Result<ExportResponse> {
+    pub async fn export(
+        svc: &BackupService,
+        _tables: Option<Vec<String>>,
+    ) -> Result<ExportResponse> {
         let record: BackupRecord = svc.create_backup().await?;
         Ok(ExportResponse {
             filename: record.filename.clone(),

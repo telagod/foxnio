@@ -284,8 +284,7 @@ impl TimingWheelService {
     pub fn start_ticker(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         let tick_ms = self.config.tick_duration_ms;
         tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_millis(tick_ms));
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(tick_ms));
 
             loop {
                 interval.tick().await;
@@ -316,10 +315,7 @@ impl Default for TimingWheelService {
 }
 
 /// Execute the concrete action associated with a fired timer task.
-async fn execute_task_action(
-    task: &TimerTask,
-    action: Option<&TaskAction>,
-) -> anyhow::Result<()> {
+async fn execute_task_action(task: &TimerTask, action: Option<&TaskAction>) -> anyhow::Result<()> {
     match action {
         Some(TaskAction::HttpHealthCheck { url }) => {
             tracing::info!(task_id = task.id, url = %url, "http health check");

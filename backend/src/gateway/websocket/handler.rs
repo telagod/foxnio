@@ -95,7 +95,14 @@ impl WebSocketHandler {
         if let Ok(msg) = session_created.to_json() {
             if socket.send(AxumMessage::Text(msg)).await.is_err() {
                 error!("Failed to send session.created event");
-                record_ws_failure(&db, None, None, "send_error", "Failed to send session.created event").await;
+                record_ws_failure(
+                    &db,
+                    None,
+                    None,
+                    "send_error",
+                    "Failed to send session.created event",
+                )
+                .await;
                 return;
             }
         }

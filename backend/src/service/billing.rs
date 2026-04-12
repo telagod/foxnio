@@ -108,7 +108,11 @@ impl BillingService {
                     "usage",
                     Some(usage.id.to_string()),
                     -cost,
-                    Some(format!("Usage: {} ({} tokens)", usage.model, usage.input_tokens + usage.output_tokens)),
+                    Some(format!(
+                        "Usage: {} ({} tokens)",
+                        usage.model,
+                        usage.input_tokens + usage.output_tokens
+                    )),
                     None,
                 )
                 .await;

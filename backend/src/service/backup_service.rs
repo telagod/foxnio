@@ -44,7 +44,9 @@ fn validate_filename(name: &str) -> Result<()> {
 /// Try to extract a `DateTime<Utc>` from the timestamp embedded in the filename.
 fn parse_timestamp_from_filename(name: &str) -> Option<DateTime<Utc>> {
     // foxnio_backup_20260405_153012.sql.gz  →  20260405_153012
-    let stem = name.strip_prefix(FILENAME_PREFIX)?.strip_suffix(FILENAME_SUFFIX)?;
+    let stem = name
+        .strip_prefix(FILENAME_PREFIX)?
+        .strip_suffix(FILENAME_SUFFIX)?;
     let naive = NaiveDateTime::parse_from_str(stem, "%Y%m%d_%H%M%S").ok()?;
     Some(DateTime::from_naive_utc_and_offset(naive, Utc))
 }

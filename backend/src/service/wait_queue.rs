@@ -291,10 +291,7 @@ impl WaitQueueService {
         if let Some(ref redis) = self.redis {
             let key = Self::redis_key(account_id);
             if let Err(e) = redis.hdel(&key, request_id).await {
-                error!(
-                    "Failed to remove request {} from Redis: {}",
-                    request_id, e
-                );
+                error!("Failed to remove request {} from Redis: {}", request_id, e);
             }
         }
     }

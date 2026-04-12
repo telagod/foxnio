@@ -527,9 +527,7 @@ impl GroupService {
             None => (0.0, 0.0, 0.0),
         };
 
-        let is_over_limit = group
-            .daily_limit_usd
-            .map_or(false, |lim| daily_used >= lim)
+        let is_over_limit = group.daily_limit_usd.map_or(false, |lim| daily_used >= lim)
             || group
                 .weekly_limit_usd
                 .map_or(false, |lim| weekly_used >= lim)

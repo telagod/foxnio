@@ -90,12 +90,9 @@ impl ScheduledTestService {
     }
 
     /// Execute a single test plan: HTTP request, compare, record.
-    pub async fn execute_test(
-        &self,
-        plan: &scheduled_test_plans::Model,
-    ) -> Result<TestResult> {
-        let config: TestConfig = serde_json::from_value(plan.test_config.clone())
-            .context("parse test_config")?;
+    pub async fn execute_test(&self, plan: &scheduled_test_plans::Model) -> Result<TestResult> {
+        let config: TestConfig =
+            serde_json::from_value(plan.test_config.clone()).context("parse test_config")?;
 
         let timeout = std::time::Duration::from_millis(config.timeout_ms);
 
@@ -202,7 +199,10 @@ impl ScheduledTestService {
             duration_ms: ActiveValue::Set(duration_ms),
             created_at: ActiveValue::Set(now),
         };
-        record.insert(&self.db).await.context("insert test result")?;
+        record
+            .insert(&self.db)
+            .await
+            .context("insert test result")?;
 
         // Update plan last_run_at / last_result
         let plan = scheduled_test_plans::Entity::find_by_id(plan_id)
