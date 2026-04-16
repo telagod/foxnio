@@ -288,6 +288,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/admin/dashboard",
             get(handler::admin::get_dashboard),
         )
+        .route(
+            "/api/v1/admin/dashboard/llm-metrics",
+            get(handle_llm_metrics),
+        )
         // 指标监控端点
         .route("/api/v1/admin/metrics", get(handler::metrics::json_metrics))
         .route(
@@ -1381,6 +1385,16 @@ async fn test_account(
             "latency_ms": latency_ms,
         }))),
     }
+}
+
+/// LLM API 实时指标
+async fn handle_llm_metrics(
+    Extension(state): Extension<SharedState>,
+    Extension(_claims): Extension<crate::service::user::Claims>,
+) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
+    let service = crate::service::dashboard_query_service::DashboardQueryService::new(state.db.clone());
+    let metrics = service.get_llm_metrics();
+    Ok(axum::Json(serde_json::to_value(metrics).unwrap_or_default()))
 }
 
 /// 从 HTTP headers 提取 session hints（避免 Extension 参数过多）

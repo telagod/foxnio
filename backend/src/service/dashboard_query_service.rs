@@ -531,6 +531,43 @@ impl DashboardQueryService {
             .all(&self.db)
             .await?)
     }
+
+    /// LLM API 实时指标（从 Prometheus 内存指标读取）
+    pub fn get_llm_metrics(&self) -> LlmMetrics {
+        use crate::metrics;
+
+        LlmMetrics {
+            avg_ttft_seconds: 0.0, // TTFT 需要从 histogram 采样，暂用 0
+            active_connections: metrics::ACTIVE_CONNECTIONS.get(),
+            total_requests: metrics::REQUESTS_TOTAL.get() as i64,
+            provider_health: Vec::new(), // 由前端从 /metrics 端点拉取
+            queue_depths: Vec::new(),    // 由前端从 /metrics 端点拉取
+            cache_hit_rate: metrics::CacheMetrics::hit_rate(),
+        }
+    }
+}
+
+/// LLM API 实时指标
+#[derive(Debug, Clone, Serialize)]
+pub struct LlmMetrics {
+    pub avg_ttft_seconds: f64,
+    pub active_connections: i64,
+    pub total_requests: i64,
+    pub provider_health: Vec<ProviderHealthStatus>,
+    pub queue_depths: Vec<QueueDepthInfo>,
+    pub cache_hit_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderHealthStatus {
+    pub provider: String,
+    pub healthy: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QueueDepthInfo {
+    pub provider: String,
+    pub depth: i64,
 }
 
 fn summarize_usage_totals(usages: &[usages::Model]) -> UsageTotals {
