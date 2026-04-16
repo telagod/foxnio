@@ -33,6 +33,7 @@ pub struct CreateGroupRequest {
     pub claude_code_only: Option<bool>,
     pub is_exclusive: Option<bool>,
     pub sort_order: Option<i32>,
+    pub scheduling_policy: Option<String>,
 }
 
 /// 更新分组请求
@@ -52,6 +53,7 @@ pub struct UpdateGroupRequest {
     pub fallback_group_id_on_invalid_request: Option<i64>,
     pub is_exclusive: Option<bool>,
     pub sort_order: Option<i32>,
+    pub scheduling_policy: Option<String>,
 }
 
 /// 分组信息响应
@@ -125,6 +127,10 @@ impl GroupService {
             supported_model_scopes: Set(None),
             sort_order: Set(req.sort_order.unwrap_or(0)),
             is_exclusive: Set(req.is_exclusive.unwrap_or(false)),
+            scheduling_policy: Set(
+                req.scheduling_policy
+                    .unwrap_or_else(|| "load_balance".to_string()),
+            ),
             created_at: Set(now),
             updated_at: Set(now),
             deleted_at: Set(None),
@@ -296,6 +302,9 @@ impl GroupService {
         }
         if let Some(sort_order) = req.sort_order {
             group.sort_order = Set(sort_order);
+        }
+        if let Some(scheduling_policy) = req.scheduling_policy {
+            group.scheduling_policy = Set(scheduling_policy);
         }
 
         group.updated_at = Set(Utc::now());

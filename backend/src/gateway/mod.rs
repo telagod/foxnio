@@ -16,7 +16,6 @@ pub mod responses_converter;
 pub mod responses_handler;
 pub mod routes;
 pub mod scheduler;
-pub mod sora;
 pub mod stream;
 pub mod waiting_queue;
 pub mod websocket;

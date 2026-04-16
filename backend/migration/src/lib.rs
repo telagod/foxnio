@@ -31,6 +31,8 @@ mod m20240401_000028_add_performance_indexes;
 mod m20240402_000029_add_scheduler_indexes;
 mod m20240403_000030_create_redeem_code_ledger;
 mod m20240405_000031_create_balance_ledger;
+mod m20240416_000032_add_query_performance_indexes;
+mod m20240417_000033_add_group_scheduling_policy;
 
 pub struct Migrator;
 
@@ -69,6 +71,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20240402_000029_add_scheduler_indexes::Migration),
             Box::new(m20240403_000030_create_redeem_code_ledger::Migration),
             Box::new(m20240405_000031_create_balance_ledger::Migration),
+            Box::new(m20240416_000032_add_query_performance_indexes::Migration),
+            Box::new(m20240417_000033_add_group_scheduling_policy::Migration),
         ]
     }
 }

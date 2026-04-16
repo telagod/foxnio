@@ -13,6 +13,11 @@
   } from '$lib/api';
 
   const PLATFORMS = ['anthropic', 'openai', 'gemini', 'antigravity'] as const;
+  const SCHEDULING_POLICIES = [
+    { value: 'load_balance', label: '负载均衡' },
+    { value: 'sticky', label: '强粘性' },
+    { value: 'scoring', label: '评分算法' },
+  ] as const;
 
   let groups = $state<GroupInfo[]>([]);
   let usageSummaries = $state<GroupUsageSummary[]>([]);
@@ -36,6 +41,7 @@
   let formDailyLimit = $state<string>('');
   let formMonthlyLimit = $state<string>('');
   let formRateMultiplier = $state<string>('');
+  let formSchedulingPolicy = $state('load_balance');
 
   let editName = $state('');
   let editDescription = $state('');
@@ -123,6 +129,7 @@
     formDailyLimit = '';
     formMonthlyLimit = '';
     formRateMultiplier = '';
+    formSchedulingPolicy = 'load_balance';
     showCreateModal = true;
   }
 
@@ -186,6 +193,7 @@
         daily_limit_usd: formDailyLimit ? Number(formDailyLimit) : undefined,
         monthly_limit_usd: formMonthlyLimit ? Number(formMonthlyLimit) : undefined,
         rate_multiplier: formRateMultiplier ? Number(formRateMultiplier) : undefined,
+        scheduling_policy: formSchedulingPolicy || undefined,
       });
       closeCreateModal();
       showToast('分组创建成功', 'success');
@@ -541,6 +549,19 @@
               placeholder="1.0"
             />
           </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300" for="group-scheduling">调度策略</label>
+          <select
+            id="group-scheduling"
+            value={formSchedulingPolicy}
+            onchange={(e) => (formSchedulingPolicy = e.currentTarget.value)}
+            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+          >
+            {#each SCHEDULING_POLICIES as p}
+              <option value={p.value}>{p.label}</option>
+            {/each}
+          </select>
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button
