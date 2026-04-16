@@ -212,6 +212,27 @@ impl ConcurrencyController {
         })
     }
 
+    /// 尝试获取并发槽位，超时返回 429
+    pub async fn try_acquire_with_timeout(
+        &self,
+        user_id: &str,
+        account_id: &str,
+        api_key_id: &str,
+        timeout: std::time::Duration,
+    ) -> Result<ConcurrencySlot, ConcurrencyError> {
+        match tokio::time::timeout(timeout, self.acquire(user_id, account_id, api_key_id)).await {
+            Ok(result) => result,
+            Err(_) => {
+                // 超时 — 判断是哪一级卡住
+                // 尝试非阻塞获取来诊断
+                match self.try_acquire(user_id, account_id, api_key_id).await {
+                    Err(e) => Err(e),
+                    _ => Err(ConcurrencyError::Global), // 不应到达
+                }
+            }
+        }
+    }
+
     /// 获取当前并发统计
     pub async fn get_stats(&self) -> ConcurrencyStats {
         let user_semaphores = self.user_semaphores.read().await;

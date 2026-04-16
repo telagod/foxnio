@@ -794,7 +794,8 @@ async fn handle_chat_completions(
     );
 
     let forwarder =
-        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
+        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler)
+            .with_concurrency(Arc::clone(&state.concurrency));
 
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
@@ -858,7 +859,8 @@ async fn handle_messages(
     );
 
     let forwarder =
-        AnthropicMessagesForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
+        AnthropicMessagesForwarder::new(state.db.clone(), Arc::new(account_service), scheduler)
+            .with_concurrency(Arc::clone(&state.concurrency));
 
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
@@ -952,7 +954,8 @@ async fn handle_completions(
     );
 
     let forwarder =
-        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler);
+        ChatCompletionsForwarder::new(state.db.clone(), Arc::new(account_service), scheduler)
+            .with_concurrency(Arc::clone(&state.concurrency));
 
     let api_key_id = uuid::Uuid::nil();
 

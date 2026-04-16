@@ -3,6 +3,7 @@
 use crate::alert::manager::AlertManager;
 use crate::config::Config;
 use crate::db::RedisPool;
+use crate::service::concurrency::{ConcurrencyConfig, ConcurrencyController};
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
@@ -13,6 +14,7 @@ pub struct AppState {
     pub redis: Arc<RedisPool>,
     pub config: Arc<Config>,
     pub alert_manager: Arc<AlertManager>,
+    pub concurrency: Arc<ConcurrencyController>,
 }
 
 impl AppState {
@@ -22,6 +24,7 @@ impl AppState {
             redis: Arc::new(redis),
             config: Arc::new(config),
             alert_manager: Arc::new(AlertManager::with_defaults()),
+            concurrency: Arc::new(ConcurrencyController::new(ConcurrencyConfig::default())),
         }
     }
 }

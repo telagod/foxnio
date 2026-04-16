@@ -197,6 +197,7 @@ pub struct ChatCompletionsForwarder {
     http_client: Client,
     account_service: Arc<AccountService>,
     scheduler: Arc<RwLock<SchedulerService>>,
+    concurrency: Option<Arc<crate::service::concurrency::ConcurrencyController>>,
     max_retries: u32,
 }
 
@@ -215,8 +216,18 @@ impl ChatCompletionsForwarder {
                 .unwrap_or_default(),
             account_service,
             scheduler: Arc::new(RwLock::new(scheduler)),
+            concurrency: None,
             max_retries: 3,
         }
+    }
+
+    /// 设置并发控制器
+    pub fn with_concurrency(
+        mut self,
+        concurrency: Arc<crate::service::concurrency::ConcurrencyController>,
+    ) -> Self {
+        self.concurrency = Some(concurrency);
+        self
     }
 
     /// 转发 Chat Completions 请求
@@ -269,6 +280,22 @@ impl ChatCompletionsForwarder {
             .select_account(&original_model, session_id.as_deref())
             .await?;
         let provider_config = ProviderConfig::for_provider(&account.provider);
+
+        // 1.5 并发控制（如果启用）
+        let _concurrency_slot = if let Some(ref cc) = self.concurrency {
+            Some(
+                cc.try_acquire_with_timeout(
+                    &user_id.to_string(),
+                    &account.id.to_string(),
+                    &api_key_id.to_string(),
+                    std::time::Duration::from_secs(30),
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Concurrency limit: {e}"))?,
+            )
+        } else {
+            None
+        };
 
         // 2. 获取凭证
         let credential = self.get_account_credential(account.id).await?;
