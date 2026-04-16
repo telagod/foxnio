@@ -11,7 +11,6 @@ use axum::{
 use bytes::Bytes;
 use reqwest::Client;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::entity::{accounts, usages};

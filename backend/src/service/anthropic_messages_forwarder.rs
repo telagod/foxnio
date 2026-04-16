@@ -739,63 +739,6 @@ impl AnthropicMessagesForwarder {
         Ok((usage, first_token_ms, content))
     }
 
-    /// 记录使用量
-    async fn record_usage(
-        &self,
-        result: &ForwardResult,
-        user_id: Uuid,
-        api_key_id: Uuid,
-        account_id: Uuid,
-    ) -> Result<()> {
-        use crate::entity::usages;
-        use sea_orm::ActiveModelTrait;
-        use sea_orm::Set;
-
-        let usage_id = Uuid::new_v4();
-        let now = chrono::Utc::now();
-
-        let cost = self.calculate_cost(
-            &result.model,
-            result.usage.input_tokens + result.usage.output_tokens,
-        );
-
-        let usage = usages::ActiveModel {
-            id: Set(usage_id),
-            user_id: Set(user_id),
-            api_key_id: Set(api_key_id),
-            account_id: Set(Some(account_id)),
-            model: Set(result.model.clone()),
-            input_tokens: Set(result.usage.input_tokens as i64),
-            output_tokens: Set(result.usage.output_tokens as i64),
-            cost: Set(cost),
-            request_id: Set(Some(result.request_id.clone())),
-            success: Set(true),
-            error_message: Set(None),
-            metadata: Set(Some(serde_json::json!({
-                "billing_model": result.billing_model,
-                "stream": result.stream,
-                "first_token_ms": result.first_token_ms,
-                "duration_ms": result.duration_ms,
-                "api_type": "anthropic_messages",
-                "cache_creation_input_tokens": result.usage.cache_creation_input_tokens,
-                "cache_read_input_tokens": result.usage.cache_read_input_tokens,
-            }))),
-            created_at: Set(now),
-        };
-
-        usage.insert(&self.db).await?;
-
-        tracing::info!(
-            "Recorded Anthropic usage: id={}, model={}, tokens={}, cost={}分",
-            usage_id,
-            result.model,
-            result.usage.input_tokens + result.usage.output_tokens,
-            cost
-        );
-
-        Ok(())
-    }
-
     /// 计算成本
     fn calculate_cost(&self, model: &str, total_tokens: u32) -> i64 {
         let price_per_1k = match model {
@@ -805,43 +748,5 @@ impl AnthropicMessagesForwarder {
             _ => 15,
         };
         (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64
-    }
-
-    /// 记录失败使用量
-    async fn record_failure_usage(
-        &self,
-        model: &str,
-        user_id: Uuid,
-        api_key_id: Uuid,
-        account_id: Uuid,
-        error_message: &str,
-        duration_ms: u64,
-    ) {
-        use crate::entity::usages;
-        use sea_orm::ActiveModelTrait;
-        use sea_orm::Set;
-
-        let usage = usages::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            user_id: Set(user_id),
-            api_key_id: Set(api_key_id),
-            account_id: Set(Some(account_id)),
-            model: Set(model.to_string()),
-            input_tokens: Set(0),
-            output_tokens: Set(0),
-            cost: Set(0),
-            request_id: Set(Some(Uuid::new_v4().to_string())),
-            success: Set(false),
-            error_message: Set(Some(error_message.chars().take(500).collect())),
-            metadata: Set(Some(serde_json::json!({
-                "api_type": "anthropic_messages",
-                "duration_ms": duration_ms,
-            }))),
-            created_at: Set(chrono::Utc::now()),
-        };
-
-        if let Err(e) = usage.insert(&self.db).await {
-            tracing::warn!("Failed to record failure usage: {}", e);
-        }
     }
 }

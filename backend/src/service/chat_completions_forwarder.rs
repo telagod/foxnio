@@ -659,113 +659,18 @@ impl ChatCompletionsForwarder {
         }))
     }
 
-    /// 记录使用量
-    async fn record_usage(
-        &self,
-        result: &ForwardResult,
-        user_id: Uuid,
-        api_key_id: Uuid,
-        account_id: Uuid,
-    ) -> Result<()> {
-        use crate::entity::usages;
-        use sea_orm::ActiveModelTrait;
-        use sea_orm::Set;
-
-        let usage_id = Uuid::new_v4();
-        let now = chrono::Utc::now();
-
-        // 计算成本（简单估算，实际应根据模型定价）
-        let cost = self.calculate_cost(&result.model, result.usage.total_tokens.into());
-
-        let usage = usages::ActiveModel {
-            id: Set(usage_id),
-            user_id: Set(user_id),
-            api_key_id: Set(api_key_id),
-            account_id: Set(Some(account_id)),
-            model: Set(result.model.clone()),
-            input_tokens: Set(result.usage.prompt_tokens as i64),
-            output_tokens: Set(result.usage.completion_tokens as i64),
-            cost: Set(cost),
-            request_id: Set(Some(result.request_id.clone())),
-            success: Set(true),
-            error_message: Set(None),
-            metadata: Set(Some(serde_json::json!({
-                "billing_model": result.billing_model,
-                "stream": result.stream,
-                "first_token_ms": result.first_token_ms,
-                "duration_ms": result.duration_ms,
-                "cache_read_tokens": result.usage.get_cache_read_tokens(),
-                "api_type": "chat_completions",
-            }))),
-            created_at: Set(now),
-        };
-
-        usage.insert(&self.db).await?;
-
-        tracing::info!(
-            "Recorded usage: id={}, model={}, tokens={}, cost={}分, duration_ms={}",
-            usage_id,
-            result.model,
-            result.usage.total_tokens,
-            cost,
-            result.duration_ms
-        );
-
-        Ok(())
-    }
-
     /// 计算成本（单位：分）
     fn calculate_cost(&self, model: &str, total_tokens: u64) -> i64 {
-        // 简单的定价模型（单位：分/千token）
         let price_per_1k = match model {
-            m if m.starts_with("gpt-4") => 30,    // GPT-4: 30分/千token
-            m if m.starts_with("gpt-3.5") => 2,   // GPT-3.5: 2分/千token
-            m if m.starts_with("claude-3") => 15, // Claude-3: 15分/千token
-            m if m.starts_with("claude-2") => 8,  // Claude-2: 8分/千token
-            m if m.starts_with("gemini") => 5,    // Gemini: 5分/千token
-            m if m.starts_with("deepseek") => 1,  // DeepSeek: 1分/千token
-            _ => 5,                               // 默认: 5分/千token
+            m if m.starts_with("gpt-4") => 30,
+            m if m.starts_with("gpt-3.5") => 2,
+            m if m.starts_with("claude-3") => 15,
+            m if m.starts_with("claude-2") => 8,
+            m if m.starts_with("gemini") => 5,
+            m if m.starts_with("deepseek") => 1,
+            _ => 5,
         };
-
         (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64
-    }
-
-    /// 记录失败使用量
-    async fn record_failure_usage(
-        &self,
-        model: &str,
-        user_id: Uuid,
-        api_key_id: Uuid,
-        account_id: Uuid,
-        error_message: &str,
-        duration_ms: u64,
-    ) {
-        use crate::entity::usages;
-        use sea_orm::ActiveModelTrait;
-        use sea_orm::Set;
-
-        let usage = usages::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            user_id: Set(user_id),
-            api_key_id: Set(api_key_id),
-            account_id: Set(Some(account_id)),
-            model: Set(model.to_string()),
-            input_tokens: Set(0),
-            output_tokens: Set(0),
-            cost: Set(0),
-            request_id: Set(Some(Uuid::new_v4().to_string())),
-            success: Set(false),
-            error_message: Set(Some(error_message.chars().take(500).collect())),
-            metadata: Set(Some(serde_json::json!({
-                "api_type": "chat_completions",
-                "duration_ms": duration_ms,
-            }))),
-            created_at: Set(chrono::Utc::now()),
-        };
-
-        if let Err(e) = usage.insert(&self.db).await {
-            tracing::warn!("Failed to record failure usage: {}", e);
-        }
     }
 }
 
