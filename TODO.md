@@ -1,6 +1,6 @@
 # FoxNIO TODO
 
-**更新时间**: 2026-04-05  
+**更新时间**: 2026-04-13  
 **目标**: 把项目从“主链已接真”推进到“可部署、可回归、可运营、可解释的完整可用产品”
 
 ## 现状
@@ -153,7 +153,7 @@
 
 ## 下一步
 
-1. 先把发布链做成“无真实密钥也能起服并通过最小 smoke”的状态。
-2. 再用真实密钥完成 OpenAI / Gemini 真 smoke。
-3. 然后补 backup、redeem、quota / subscription 这三块最影响产品完整度的断点。
-4. 最后继续清扫历史文档，把 `docs/` 收束成少量权威文档。
+1. 把 scheduler / cooldown / sticky session 指标推进到 admin stats，补成运营可直接判断的看板。
+2. 固化 benchmark methodology，并生成 1k / 10k / 100k 号池样本口径。
+3. 用真实密钥完成 OpenAI / Gemini 真 smoke，补齐真实 provider 结果。
+4. 继续把批量导入、批量轮换、批量状态治理做成运营级能力，而不是单次管理动作。

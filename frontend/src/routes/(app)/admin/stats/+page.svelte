@@ -11,6 +11,18 @@
     accounts: { total: 0, active: 0, healthy: 0, by_platform: [] },
     api_keys: { total: 0, active: 0, expiring_soon: 0 },
     usage: { total_requests: 0, total_tokens: 0, total_cost: 0, today_requests: 0, today_tokens: 0, today_cost: 0 },
+    ops: {
+      active_users_24h: 0,
+      error_rate_1h: 0,
+      avg_response_time_ms: 0,
+      cache_hit_rate: 0,
+      batch_operations_total: 0,
+      batch_errors_total: 0,
+      latest_fast_import_throughput: 0,
+      latest_fast_import_preview_throughput: 0,
+      latest_fast_import_size: 0,
+      latest_fast_import_preview_size: 0
+    },
     updated_at: ''
   };
 
@@ -39,6 +51,8 @@
     return `${n}`;
   }
   function yuan(v: number): string { return `¥${v.toFixed(2)}`; }
+  function percent(v: number): string { return `${(v * 100).toFixed(1)}%`; }
+  function ms(v: number): string { return `${v.toFixed(1)} ms`; }
   function formatDate(v: string): string { return v ? new Date(v).toLocaleString('zh-CN') : '-'; }
 </script>
 
@@ -267,6 +281,75 @@
             <div class="text-xs text-gray-500 dark:text-gray-400">Today Cost</div>
             <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{yuan(stats.usage.today_cost)}</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Ops -->
+      <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2">
+        <div class="flex items-center gap-2">
+          <svg class="h-5 w-5 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-7"/></svg>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">Ops & Batch Performance</h3>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/40">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Active Users (24h)</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{fmt(stats.ops.active_users_24h)}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/40">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Error Rate (1h)</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{percent(stats.ops.error_rate_1h)}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/40">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Avg Response (1h)</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{ms(stats.ops.avg_response_time_ms)}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/40">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Cache Hit Rate</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{percent(stats.ops.cache_hit_rate)}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/40">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Batch Errors</div>
+            <div class="mt-2 text-2xl font-bold text-rose-600 dark:text-rose-400">{fmt(stats.ops.batch_errors_total)}</div>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+            <thead>
+              <tr class="text-left text-gray-500 dark:text-gray-400">
+                <th scope="col" class="pb-2 pr-4 font-medium">Metric</th>
+                <th scope="col" class="pb-2 pr-4 font-medium">Value</th>
+                <th scope="col" class="pb-2 font-medium">Meaning</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">Batch operations total</td>
+                <td class="py-2 pr-4 text-gray-600 dark:text-gray-300">{fmt(stats.ops.batch_operations_total)}</td>
+                <td class="py-2 text-gray-600 dark:text-gray-300">运营侧累计批量动作次数</td>
+              </tr>
+              <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">Latest fast import throughput</td>
+                <td class="py-2 pr-4 text-gray-600 dark:text-gray-300">{stats.ops.latest_fast_import_throughput.toFixed(1)} items/s</td>
+                <td class="py-2 text-gray-600 dark:text-gray-300">可信数据源快导入最近一次吞吐</td>
+              </tr>
+              <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">Latest preview throughput</td>
+                <td class="py-2 pr-4 text-gray-600 dark:text-gray-300">{stats.ops.latest_fast_import_preview_throughput.toFixed(1)} items/s</td>
+                <td class="py-2 text-gray-600 dark:text-gray-300">预检链路最近一次吞吐</td>
+              </tr>
+              <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">Latest fast import size</td>
+                <td class="py-2 pr-4 text-gray-600 dark:text-gray-300">{fmt(stats.ops.latest_fast_import_size)}</td>
+                <td class="py-2 text-gray-600 dark:text-gray-300">最近一次快导入批次规模</td>
+              </tr>
+              <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">Latest preview size</td>
+                <td class="py-2 pr-4 text-gray-600 dark:text-gray-300">{fmt(stats.ops.latest_fast_import_preview_size)}</td>
+                <td class="py-2 text-gray-600 dark:text-gray-300">最近一次预检批次规模</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

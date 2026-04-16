@@ -125,6 +125,68 @@ curl -s http://localhost:8080/metrics | grep foxnio_batch_
 2. **代理入口**：`load_test.rs`
 3. **协议/连接层**：`http2_benchmark_test.rs`
 
+## FoxNIO benchmark methodology（对外口径草案）
+
+FoxNIO 后续对外讲性能时，统一按下面口径，避免“只贴一个好看的数字”：
+
+### 1. 场景拆分
+
+- **Control plane / batch**：导入、预检、批量更新、批量凭证轮换
+- **Gateway hot path**：`/v1/chat/completions`、`/v1/responses`、`/v1/messages`
+- **Connection layer**：HTTP/2、streaming、WebSocket / Realtime
+
+### 2. 样本规模
+
+- `1k accounts`：功能回归口径
+- `10k accounts`：常规中型号池口径
+- `100k accounts`：大规模号池目标口径
+
+### 3. provider mix
+
+- `single-provider`：只灌 `openai`
+- `dual-provider`：`openai + anthropic`
+- `mixed-provider`：`openai + anthropic + gemini`
+
+### 4. 必报指标
+
+- `duration_ms`
+- `throughput_items_per_sec`
+- `wall_clock_duration_ms`
+- `error_rate`
+- `provider_distribution`
+- `skipped / failed reason topN`
+
+### 5. 服务端同步留档
+
+- `/metrics` 抓取 `foxnio_batch_*`
+- admin stats 页截图或导出最近一次 ops snapshot
+- benchmark 命令、样本规模、provider mix、repeat 次数一起记录
+
+### 6. 对外表述规则
+
+- 批量性能强调 **大批次导入吞吐** 与 **回显真实性**
+- 网关性能强调 **附加开销、故障恢复、调度稳定性**
+- 不直接拿 batch 吞吐去对比纯 proxy RPS；两类口径必须分开
+
+## 建议留档格式
+
+每轮 benchmark 至少留一份 markdown 记录，建议包含：
+
+```text
+date:
+commit:
+scenario:
+accounts:
+provider_mix:
+repeat:
+avg_duration_ms:
+avg_throughput:
+best_run:
+worst_run:
+server_metrics_snapshot:
+notes:
+```
+
 ## 下一步
 
 下一轮应继续补：
@@ -132,4 +194,5 @@ curl -s http://localhost:8080/metrics | grep foxnio_batch_
 1. scheduler cache / sticky session / cooldown 的 Prometheus 指标
 2. 大号池样本数据生成器（1k / 10k / 100k 账号）
 3. 基准结果固化到 `docs/EVOLUTION_TRACK_2026-04.md`
-4. 拉一条对外可讲的“FoxNIO benchmark methodology”，把压测环境、样本口径、混合 provider 比例统一下来
+4. 为 `load_test.rs` / `http2_benchmark_test.rs` 补固定环境说明（CPU、内存、上游延迟模拟、连接数）
+5. 建 `docs/benchmarks/` 目录，按日期沉淀结果

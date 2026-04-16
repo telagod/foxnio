@@ -112,6 +112,71 @@
 
 这一步不是单纯补脚本，而是把“批量操作性能”从开发者自测，往“运营可复跑、可留痕、可对比”的产品化方向推进了一格。
 
+## 本轮新增产品化动作（2026-04-13 / ops snapshot）
+
+- `backend/src/service/dashboard_query_service.rs`
+  - admin dashboard 聚合结果新增 `ops` 区块。
+  - 直接拉通数据库快照与 Prometheus 内存指标，把 `active_users_24h`、`error_rate_1h`、`avg_response_time_ms`、`cache_hit_rate`、批量总次数、批量错误数、最近 `fast_import/preview` 吞吐与批次规模收进同一份返回。
+- `frontend/src/routes/(app)/admin/stats/+page.svelte`
+  - admin Statistics 页面新增 **Ops & Batch Performance** 面板。
+  - 运营侧可以直接看“最近批量吞吐”“最近批次规模”“1h 错误率”，不必再手动查 `/metrics` 或对 Prometheus label。
+
+这一步的意义是把“批量性能观测”从纯 Prometheus 指标，推进到控制台可读、可运营、可快速判断退化。
+
+## 最新外部对标快照（2026-04-13）
+
+这轮不再泛泛搜“网关项目”，只保留对 FoxNIO 演化最有价值的公开样本：
+
+- **Sub2API**（GitHub，`2026-04-12` 仍在更新）
+  - 公开定位已经非常清晰：订阅配额分发、精确计费、智能调度、后台运营、支付与外部系统集成。
+  - 最近公开变更继续集中在 scheduler cache、内容级会话 hash、账号隐私与可观测细节，说明这条赛道的竞争已经进入“热路径细节 + 运营可解释性”阶段。
+  - 对 FoxNIO 的直接结论：必须继续补 **sticky/session 种子稳定性、调度缓存瘦身、批量账号运营**。
+- **Plexus**（GitHub，`2026-04-11` 发布 `v0.19.10`）
+  - 强项是 Responses / Chat / Anthropic / Gemini 多协议转换、OAuth provider、request tracing、usage stats。
+  - 对 FoxNIO 的意义：继续强化 `OpenAI-compatible + 多协议兼容 + request trace`，但不要把主叙事稀释成“又一个多 provider 代理”。
+- **Ferro Labs AI Gateway**（GitHub，`2026-04-09` 发布 `v1.0.4`）
+  - 公开把 benchmark 打成卖点：`13,925 RPS @ 1,000 VU`，并给出固定环境与方法。
+  - 对 FoxNIO 的意义：FoxNIO 也该公开自己的压测方法学，把 **批量吞吐** 和 **调度热路径** 的口径固定下来。
+- **labring/aiproxy**（GitHub，`2026-03-27` 发布 `v0.4.9`）
+  - 强项是多协议入口、监控告警、多租户、运维面板。
+  - 对 FoxNIO 的意义：运维侧要从“能看统计”推进到“能按失败原因、provider、批次行为直接定位问题”。
+- **ongoingai/gateway**
+  - 强项是低开销 tracing、成本可见、audit-ready logs。
+  - 对 FoxNIO 的意义：请求级链路解释要继续补到“账号 → provider → 模型 → cost → error”一眼看明白。
+
+## 本轮新增决策：FoxNIO 的主打法
+
+### 1. 不和 LiteLLM 拼 provider 面宽
+- FoxNIO 不追求“谁都能接”的最大兼容面。
+- FoxNIO 要优先赢在 **大规模账号池运营效率** 与 **运营控制面解释力**。
+
+### 2. 不和 Sub2API 拼支付闭环优先级
+- Sub2API 已经把支付与完整平台经营做得很深。
+- FoxNIO 当前更适合先把 **高性能代理 + 大批量运营 + 观测产品化** 做成确定性优势。
+
+### 3. 明确三条产品主轴
+- **Gateway axis**：高性能热路径、provider fallback、sticky session、cooldown recovery
+- **Ops axis**：批量导入/轮换/封禁/恢复/切组、失败原因聚合、健康分与恢复建议
+- **Observability axis**：请求 trace、批量吞吐、调度命中率、provider 维度错误和冷却状态
+
+## 下一轮落点（按优先级）
+
+### P0：把运营看板补到“可直接决策”
+- dashboard 新增 scheduler / cooldown / sticky session 面板
+- 增加 provider 维度：`available / cooling_down / rate_limited / unhealthy`
+- 增加批量操作失败原因 TopN、最近大批次执行记录、最近吞吐趋势
+
+### P1：把 benchmark 变成固定资产
+- 固化 `FoxNIO benchmark methodology`
+- 至少保留三组规模：`1k / 10k / 100k accounts`
+- 至少保留两类负载：`single provider` / `mixed providers`
+- 每轮演化把 best / avg / worst 结果写回文档
+
+### P1：把号池运营能力继续产品化
+- 批量封禁 / 恢复 / 清限流 / 切组都补原因汇总
+- 导入结果页补重复原因、失败分类、provider 偏斜提示
+- admin stats 里加入“最近 1h/24h 批量操作对网关错误率的影响”
+
 ## 下一轮建议
 
 1. **批量操作继续做成“运营级”**
