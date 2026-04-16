@@ -15,6 +15,7 @@ pub mod groups;
 pub mod health;
 pub mod metrics;
 pub mod models;
+pub mod payment;
 pub mod promo_code;
 pub mod proxy;
 pub mod quota;

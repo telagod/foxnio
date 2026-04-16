@@ -48,6 +48,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .route("/metrics", get(handler::metrics::prometheus_metrics))
         // API 端点（OpenAI 兼容）
         .route("/v1/models", get(handler::list_models))
+        // 支付回调（公开，验签）
+        .route("/api/v1/payment/webhook/:provider", post(handler::payment::webhook))
+        // 支付配置（公开）
+        .route("/api/v1/payment/config", get(handler::payment::get_config))
         // 认证
         .route("/api/v1/auth/register", post(handler::auth::register))
         .route("/api/v1/auth/login", post(handler::auth::login))
@@ -159,6 +163,10 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/redeem/history",
             get(handler::redeem::get_redemption_history),
         )
+        // 支付（用户端，需登录）
+        .route("/api/v1/payment/create-order", post(handler::payment::create_order))
+        .route("/api/v1/payment/orders", get(handler::payment::list_orders))
+        .route("/api/v1/payment/orders/:id", get(handler::payment::get_order))
         // Responses API - behind JWT auth
         .route(
             "/v1/responses",
