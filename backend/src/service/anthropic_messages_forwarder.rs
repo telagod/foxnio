@@ -99,6 +99,10 @@ pub struct ResponseContent {
 pub struct AnthropicUsage {
     pub input_tokens: u32,
     pub output_tokens: u32,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u32,
+    #[serde(default)]
+    pub cache_read_input_tokens: u32,
 }
 
 /// 转发结果
@@ -491,6 +495,8 @@ impl AnthropicMessagesForwarder {
             let usage = AnthropicUsage {
                 input_tokens: resp["usage"]["prompt_tokens"].as_u64().unwrap_or(0) as u32,
                 output_tokens: resp["usage"]["completion_tokens"].as_u64().unwrap_or(0) as u32,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: resp["usage"]["prompt_tokens_details"]["cached_tokens"].as_u64().unwrap_or(0) as u32,
             };
             let content = resp["choices"][0]["message"]["content"]
                 .as_str()
@@ -592,12 +598,26 @@ impl AnthropicMessagesForwarder {
 
                 // 解析 SSE 事件
                 if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                    if event["type"] == "message_delta" {
-                        if let Some(u) = event["usage"].as_object() {
+                    // message_start 包含初始 usage（含 cache tokens）
+                    if event["type"] == "message_start" {
+                        if let Some(u) = event["message"]["usage"].as_object() {
                             usage.input_tokens =
                                 u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                            usage.cache_creation_input_tokens =
+                                u.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                            usage.cache_read_input_tokens =
+                                u.get("cache_read_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                        }
+                    }
+                    if event["type"] == "message_delta" {
+                        if let Some(u) = event["usage"].as_object() {
+                            // message_delta 的 usage 包含最终 output_tokens
                             usage.output_tokens =
                                 u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                            // 也可能更新 input_tokens
+                            if let Some(it) = u.get("input_tokens").and_then(|v| v.as_u64()) {
+                                usage.input_tokens = it as u32;
+                            }
                         }
                     }
                     if event["type"] == "content_block_delta" {
@@ -705,6 +725,8 @@ impl AnthropicMessagesForwarder {
                 "first_token_ms": result.first_token_ms,
                 "duration_ms": result.duration_ms,
                 "api_type": "anthropic_messages",
+                "cache_creation_input_tokens": result.usage.cache_creation_input_tokens,
+                "cache_read_input_tokens": result.usage.cache_read_input_tokens,
             }))),
             created_at: Set(now),
         };

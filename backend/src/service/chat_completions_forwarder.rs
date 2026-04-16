@@ -118,6 +118,25 @@ pub struct Usage {
     pub total_tokens: u32,
     #[serde(default)]
     pub cache_read_input_tokens: Option<u32>,
+    /// OpenAI prompt_tokens_details (contains cached_tokens)
+    #[serde(default)]
+    pub prompt_tokens_details: Option<PromptTokensDetails>,
+}
+
+/// OpenAI prompt tokens 明细
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PromptTokensDetails {
+    #[serde(default)]
+    pub cached_tokens: Option<u32>,
+}
+
+impl Usage {
+    /// 获取缓存读取 tokens（兼容 Anthropic 和 OpenAI 格式）
+    pub fn get_cache_read_tokens(&self) -> u32 {
+        self.cache_read_input_tokens
+            .or_else(|| self.prompt_tokens_details.as_ref()?.cached_tokens)
+            .unwrap_or(0)
+    }
 }
 
 /// 转发结果
@@ -533,6 +552,7 @@ impl ChatCompletionsForwarder {
             completion_tokens: 0,
             total_tokens: 0,
             cache_read_input_tokens: None,
+            prompt_tokens_details: None,
         };
         let mut buffer = String::new();
 
@@ -575,6 +595,7 @@ impl ChatCompletionsForwarder {
             completion_tokens: 0,
             total_tokens: 0,
             cache_read_input_tokens: None,
+            prompt_tokens_details: None,
         })
     }
 
@@ -587,6 +608,7 @@ impl ChatCompletionsForwarder {
             completion_tokens: 0,
             total_tokens: 0,
             cache_read_input_tokens: None,
+            prompt_tokens_details: None,
         }))
     }
 
@@ -625,7 +647,8 @@ impl ChatCompletionsForwarder {
                 "stream": result.stream,
                 "first_token_ms": result.first_token_ms,
                 "duration_ms": result.duration_ms,
-                "cache_read_tokens": result.usage.cache_read_input_tokens,
+                "cache_read_tokens": result.usage.get_cache_read_tokens(),
+                "api_type": "chat_completions",
             }))),
             created_at: Set(now),
         };
