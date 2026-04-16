@@ -48,10 +48,15 @@ pub async fn handle_responses(
     let client_stream = req.stream;
     let original_model = req.model.clone();
 
-    let user_id = uuid::Uuid::parse_str(&claims.sub)
-        .map_err(|e| ApiError::Internal(format!("Invalid user_id in claims: {e}")))?;
-    // TODO: extract real api_key_id from request context
-    let api_key_id = uuid::Uuid::nil();
+    // 配额预检
+    let quota_gate = crate::service::quota_gate::QuotaGate::new(
+        state.db.clone(),
+        state.config.gateway.rate_multiplier,
+    );
+    let _permit = quota_gate
+        .pre_check(user_id, api_key_id, &original_model, None)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     // 从 user 字段补充 hints.metadata_session_id
     if hints.metadata_session_id.is_none() {
