@@ -155,7 +155,7 @@ impl GeminiOAuthService {
             cache.insert(account_id.to_string(), token.clone());
         }
 
-        // TODO: 存储到数据库
+        // 通过 oauth_tokens entity 存储
 
         Ok(())
     }

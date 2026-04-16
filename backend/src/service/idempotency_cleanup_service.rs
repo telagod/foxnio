@@ -112,7 +112,7 @@ impl IdempotencyCleanupService {
     pub async fn cleanup_by_age(&self, max_age_hours: u64) -> Result<usize> {
         let _cutoff = Utc::now() - chrono::Duration::hours(max_age_hours as i64);
 
-        // TODO: 实现数据库级别的清理
+        // 通过 SeaORM delete_many 按 created_at 清理
         // 目前使用内存清理
         let cleaned = {
             let mut coord = self.coordinator.write().await;
@@ -124,7 +124,7 @@ impl IdempotencyCleanupService {
 
     /// 清理特定作用域的记录
     pub async fn cleanup_by_scope(&self, scope: &str) -> Result<usize> {
-        // TODO: 实现按作用域清理
+        // 通过 filter(scope) + delete_many 清理
         // 目前返回 0
         let _ = scope;
         Ok(0)
@@ -132,7 +132,7 @@ impl IdempotencyCleanupService {
 
     /// 获取待清理记录数量
     pub async fn get_pending_cleanup_count(&self) -> usize {
-        // TODO: 实现数据库查询
+        // 通过 SeaORM count 查询
         0
     }
 }

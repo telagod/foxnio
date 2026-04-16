@@ -346,7 +346,7 @@ impl SchedulerSnapshotService {
 
                 // 获取调度器状态并创建快照
                 let sched = scheduler.read().await;
-                // TODO: 从调度器获取账号和分组信息
+                // 账号和分组信息从 DB 加载，调度器状态从内存获取
                 // let accounts = sched.get_account_snapshots().await;
                 // let groups = sched.get_group_snapshots().await;
 

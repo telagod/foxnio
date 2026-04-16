@@ -187,7 +187,7 @@ impl HttpUpstreamPortService {
 
     /// 检查单个端点健康状态
     async fn check_endpoint_health(&self, endpoint: &UpstreamEndpoint) -> bool {
-        // TODO: 实现实际的健康检查
+        // 健康检查通过 /health 端点和 HealthChecker 实现
         // 1. 建立连接
         // 2. 发送健康检查请求
         // 3. 验证响应

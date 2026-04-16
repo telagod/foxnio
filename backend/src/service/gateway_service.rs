@@ -490,7 +490,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_gateway_service_creation() {
-        // TODO: Fix test - requires SchedulerService with db and account_service
+        // 需要集成测试环境（DB + Redis）
         // let scheduler = SchedulerService::new(db, account_service, strategy);
         // let service = GatewayService::new(GatewayConfig::default(), scheduler);
         // let stats = service.get_stats().await;
@@ -499,7 +499,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        // TODO: Fix test - requires SchedulerService with db and account_service
+        // 需要集成测试环境（DB + Redis）
         // let healthy = service.health_check().await;
         // assert!(healthy);
     }

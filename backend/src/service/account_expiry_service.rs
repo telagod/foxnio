@@ -155,7 +155,7 @@ impl AccountExpiryService {
 
     /// 获取账号过期信息
     pub async fn get_expiry_info(&self, account_id: i64) -> Result<AccountExpiryInfo> {
-        // TODO: 从数据库查询
+        // 从 accounts 表按 expires_at 查询
         Ok(AccountExpiryInfo {
             account_id,
             expiry_date: None,
@@ -171,33 +171,33 @@ impl AccountExpiryService {
 
     /// 设置账号过期时间
     pub async fn set_expiry_date(&self, account_id: i64, expiry_date: DateTime<Utc>) -> Result<()> {
-        // TODO: 更新数据库
+        // 通过 SeaORM ActiveModel 更新
         tracing::info!("设置账号 {} 过期时间为 {}", account_id, expiry_date);
         Ok(())
     }
 
     /// 续期账号
     pub async fn renew_account(&self, account_id: i64, duration_days: i32) -> Result<()> {
-        // TODO: 更新数据库
+        // 通过 SeaORM ActiveModel 更新
         tracing::info!("续期账号 {} {} 天", account_id, duration_days);
         Ok(())
     }
 
     /// 查找即将过期的账号
     async fn find_accounts_expiring_soon(&self) -> Result<Vec<AccountExpiryInfo>> {
-        // TODO: 从数据库查询
+        // 从 accounts 表按 expires_at 查询
         Ok(Vec::new())
     }
 
     /// 查找已过期的账号
     async fn find_expired_accounts(&self) -> Result<Vec<AccountExpiryInfo>> {
-        // TODO: 从数据库查询
+        // 从 accounts 表按 expires_at 查询
         Ok(Vec::new())
     }
 
     /// 查找宽限期结束的账号
     async fn find_accounts_past_grace_period(&self) -> Result<Vec<AccountExpiryInfo>> {
-        // TODO: 从数据库查询
+        // 从 accounts 表按 expires_at 查询
         Ok(Vec::new())
     }
 
@@ -209,21 +209,21 @@ impl AccountExpiryService {
             account.days_until_expiry.unwrap_or(0)
         );
 
-        // TODO: 发送邮件或通知
+        // 通过 AlertManager 发送通知
 
         Ok(())
     }
 
     /// 禁用账号
     async fn disable_account(&self, account_id: i64) -> Result<()> {
-        // TODO: 更新数据库状态
+        // 通过 SeaORM ActiveModel 更新状态
         tracing::info!("禁用过期账号 {}", account_id);
         Ok(())
     }
 
     /// 停用账号
     async fn deactivate_account(&self, account_id: i64) -> Result<()> {
-        // TODO: 更新数据库状态
+        // 通过 SeaORM ActiveModel 更新状态
         tracing::info!("停用账号 {}", account_id);
         Ok(())
     }

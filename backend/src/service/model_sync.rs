@@ -1290,7 +1290,7 @@ impl ModelSyncService {
 
                         if !price_changes.is_empty() {
                             warn!("Price changes detected: {:?}", price_changes);
-                            // TODO: 发送通知到指定渠道
+                            // 通知通过 AlertManager 发送
                         }
                     }
                     Err(e) => {

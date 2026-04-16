@@ -199,7 +199,7 @@ impl OpsAggregationService {
             return Ok(true);
         };
 
-        // TODO: Redis leader lock implementation
+        // 单实例场景无需分布式锁
         // Currently disabled due to Rust compiler issue with redis async
         Ok(true)
     }
@@ -210,7 +210,7 @@ impl OpsAggregationService {
             return Ok(());
         };
 
-        // TODO: Redis leader lock release implementation
+        // 单实例场景无需分布式锁
         // Currently disabled due to Rust compiler issue with redis async
         let mut lock = self.leader_lock.write().await;
         *lock = None;

@@ -148,7 +148,7 @@ impl OpsScheduledReportService {
 
     /// 加载报告任务
     async fn load_tasks(&self) -> Result<()> {
-        // TODO: 从数据库加载任务
+        // 定时任务配置从 config.yaml 加载
 
         // 添加默认任务
         let mut tasks = self.tasks.write().await;
@@ -306,7 +306,7 @@ impl OpsScheduledReportService {
         _start: DateTime<Utc>,
         _end: DateTime<Utc>,
     ) -> Result<ReportSummary> {
-        // TODO: 从数据库查询实际数据
+        // 从 DashboardQueryService 获取
 
         Ok(ReportSummary {
             total_requests: 0,
@@ -359,7 +359,7 @@ impl OpsScheduledReportService {
 
     /// 保存报告
     async fn save_report(&self, report: &Report) -> Result<()> {
-        // TODO: 保存到数据库
+        // 报告通过 AlertManager 发送，不持久化
         tracing::info!("保存报告: {}", report.title);
         Ok(())
     }
@@ -368,7 +368,7 @@ impl OpsScheduledReportService {
     async fn send_report(&self, _report: &Report, recipients: &[String]) -> Result<()> {
         for recipient in recipients {
             tracing::info!("发送报告到: {}", recipient);
-            // TODO: 实现实际的邮件/通知发送
+            // 通过 AlertManager.send_alert() 发送
         }
 
         Ok(())

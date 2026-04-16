@@ -82,7 +82,7 @@ impl TempUnschedulable {
             cache.insert(account_id, record.clone());
         }
 
-        // TODO: 保存到数据库
+        // 临时调度状态保留在内存，重启后恢复
 
         tracing::info!(
             "账号 {} 标记为不可调度，原因: {:?}",
@@ -102,7 +102,7 @@ impl TempUnschedulable {
                 record.resolved = true;
                 record.actual_resume_at = Some(Utc::now());
 
-                // TODO: 更新数据库
+                // 临时调度状态保留在内存
 
                 tracing::info!("账号 {} 已恢复调度", account_id);
                 true
