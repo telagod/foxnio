@@ -147,7 +147,7 @@ pub async fn audit_middleware(
 }
 
 /// 从请求中提取 IP 地址
-fn extract_ip(req: &Request<Body>) -> Option<String> {
+pub fn extract_ip(req: &Request<Body>) -> Option<String> {
     // 尝试从 X-Forwarded-For 获取
     req.headers()
         .get("x-forwarded-for")
@@ -170,7 +170,7 @@ fn extract_ip(req: &Request<Body>) -> Option<String> {
 }
 
 /// 从请求中提取 User-Agent
-fn extract_user_agent(req: &Request<Body>) -> Option<String> {
+pub fn extract_user_agent(req: &Request<Body>) -> Option<String> {
     req.headers()
         .get("user-agent")
         .and_then(|v| v.to_str().ok())

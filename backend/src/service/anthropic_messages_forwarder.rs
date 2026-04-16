@@ -26,6 +26,16 @@ pub struct AnthropicMessagesRequest {
     pub temperature: Option<f32>,
     #[serde(default)]
     pub stream: bool,
+    #[serde(default)]
+    pub metadata: Option<RequestMetadata>,
+    #[serde(flatten)]
+    pub extra: serde_json::Value,
+}
+
+/// 请求元数据（包含 user_id，内含 session_id）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestMetadata {
+    pub user_id: Option<String>,
     #[serde(flatten)]
     pub extra: serde_json::Value,
 }
@@ -138,13 +148,34 @@ impl AnthropicMessagesForwarder {
         request: AnthropicMessagesRequest,
         user_id: Uuid,
         api_key_id: Uuid,
+        mut hints: crate::service::session_key::RequestSessionHints,
     ) -> Result<ForwardResult> {
         let start_time = std::time::Instant::now();
         let original_model = request.model.clone();
         let is_stream = request.stream;
 
-        // 1. 选择账号（优先使用 Anthropic Provider）
-        let account = self.select_account(&original_model).await?;
+        // 从 metadata.user_id 补充 hints.metadata_session_id
+        if hints.metadata_session_id.is_none() {
+            hints.metadata_session_id = request
+                .metadata
+                .as_ref()
+                .and_then(|m| m.user_id.as_deref())
+                .and_then(|uid| {
+                    crate::gateway::claude::parse_metadata_user_id(uid)
+                        .map(|(_, _, sid)| sid)
+                        .or_else(|| {
+                            crate::gateway::middleware::telemetry::ParsedUserID::parse(uid)
+                                .map(|p| p.session_id)
+                        })
+                });
+        }
+
+        let session_id = hints.resolve();
+
+        // 1. 选择账号
+        let account = self
+            .select_account(&original_model, session_id.as_deref())
+            .await?;
 
         // 2. 获取凭证
         let credential = self.get_account_credential(account.id).await?;
@@ -153,7 +184,7 @@ impl AnthropicMessagesForwarder {
         let mapped_model = self.map_model(&original_model, &account.provider);
 
         // 4. 发送请求
-        let result = self
+        let result = match self
             .send_request(
                 &account.provider,
                 &credential,
@@ -163,21 +194,43 @@ impl AnthropicMessagesForwarder {
                 &original_model,
                 start_time,
             )
-            .await?;
+            .await
+        {
+            Ok(result) => {
+                // 5. 记录成功使用量
+                self.record_usage(&result, user_id, api_key_id, account.id)
+                    .await?;
+                Ok(result)
+            }
+            Err(e) => {
+                // 记录失败使用量
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                self.record_failure_usage(
+                    &original_model,
+                    user_id,
+                    api_key_id,
+                    account.id,
+                    &e.to_string(),
+                    duration_ms,
+                )
+                .await;
+                Err(e)
+            }
+        };
 
-        // 5. 记录使用量
-        self.record_usage(&result, user_id, api_key_id, account.id)
-            .await?;
-
-        Ok(result)
+        result
     }
 
     /// 选择账号
-    async fn select_account(&self, model: &str) -> Result<crate::entity::accounts::Model> {
+    async fn select_account(
+        &self,
+        model: &str,
+        session_id: Option<&str>,
+    ) -> Result<crate::entity::accounts::Model> {
         let scheduler = self.scheduler.read().await;
 
         let account = scheduler
-            .select_account(model, Some("anthropic"), 5)
+            .select_account(model, session_id, 5)
             .await?
             .ok_or_else(|| anyhow!("No available account for model: {}", model))?;
 
@@ -614,5 +667,43 @@ impl AnthropicMessagesForwarder {
             _ => 15,
         };
         (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64
+    }
+
+    /// 记录失败使用量
+    async fn record_failure_usage(
+        &self,
+        model: &str,
+        user_id: Uuid,
+        api_key_id: Uuid,
+        account_id: Uuid,
+        error_message: &str,
+        duration_ms: u64,
+    ) {
+        use crate::entity::usages;
+        use sea_orm::ActiveModelTrait;
+        use sea_orm::Set;
+
+        let usage = usages::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            user_id: Set(user_id),
+            api_key_id: Set(api_key_id),
+            account_id: Set(Some(account_id)),
+            model: Set(model.to_string()),
+            input_tokens: Set(0),
+            output_tokens: Set(0),
+            cost: Set(0),
+            request_id: Set(Some(Uuid::new_v4().to_string())),
+            success: Set(false),
+            error_message: Set(Some(error_message.chars().take(500).collect())),
+            metadata: Set(Some(serde_json::json!({
+                "api_type": "anthropic_messages",
+                "duration_ms": duration_ms,
+            }))),
+            created_at: Set(chrono::Utc::now()),
+        };
+
+        if let Err(e) = usage.insert(&self.db).await {
+            tracing::warn!("Failed to record failure usage: {}", e);
+        }
     }
 }

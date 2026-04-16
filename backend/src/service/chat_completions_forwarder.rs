@@ -225,13 +225,49 @@ impl ChatCompletionsForwarder {
         request: ChatCompletionsRequest,
         user_id: Uuid,
         api_key_id: Uuid,
+        mut hints: crate::service::session_key::RequestSessionHints,
     ) -> Result<ForwardResult> {
         let start_time = std::time::Instant::now();
         let original_model = request.model.clone();
         let is_stream = request.stream;
 
+        // 从 extra.user 或 extra.metadata.user_id 补充 hints.metadata_session_id
+        if hints.metadata_session_id.is_none() {
+            hints.metadata_session_id = request
+                .extra
+                .get("user")
+                .and_then(|v| v.as_str())
+                .and_then(|uid| {
+                    crate::gateway::claude::parse_metadata_user_id(uid)
+                        .map(|(_, _, sid)| sid)
+                        .or_else(|| {
+                            crate::gateway::middleware::telemetry::ParsedUserID::parse(uid)
+                                .map(|p| p.session_id)
+                        })
+                })
+                .or_else(|| {
+                    request
+                        .extra
+                        .get("metadata")
+                        .and_then(|m| m.get("user_id"))
+                        .and_then(|v| v.as_str())
+                        .and_then(|uid| {
+                            crate::gateway::claude::parse_metadata_user_id(uid)
+                                .map(|(_, _, sid)| sid)
+                                .or_else(|| {
+                                    crate::gateway::middleware::telemetry::ParsedUserID::parse(uid)
+                                        .map(|p| p.session_id)
+                                })
+                        })
+                });
+        }
+
+        let session_id = hints.resolve();
+
         // 1. 选择账号
-        let account = self.select_account(&original_model).await?;
+        let account = self
+            .select_account(&original_model, session_id.as_deref())
+            .await?;
         let provider_config = ProviderConfig::for_provider(&account.provider);
 
         // 2. 获取凭证
@@ -244,7 +280,7 @@ impl ChatCompletionsForwarder {
         let upstream_request = self.build_upstream_request(&request, &mapped_model);
 
         // 5. 发送请求
-        let result = self
+        let result = match self
             .send_request(
                 &provider_config,
                 &credential,
@@ -254,21 +290,43 @@ impl ChatCompletionsForwarder {
                 &mapped_model,
                 start_time,
             )
-            .await?;
+            .await
+        {
+            Ok(result) => {
+                // 6. 记录成功使用量
+                self.record_usage(&result, user_id, api_key_id, account.id)
+                    .await?;
+                Ok(result)
+            }
+            Err(e) => {
+                // 记录失败使用量
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                self.record_failure_usage(
+                    &original_model,
+                    user_id,
+                    api_key_id,
+                    account.id,
+                    &e.to_string(),
+                    duration_ms,
+                )
+                .await;
+                Err(e)
+            }
+        };
 
-        // 6. 记录使用量
-        self.record_usage(&result, user_id, api_key_id, account.id)
-            .await?;
-
-        Ok(result)
+        result
     }
 
     /// 选择账号
-    async fn select_account(&self, model: &str) -> Result<crate::entity::accounts::Model> {
+    async fn select_account(
+        &self,
+        model: &str,
+        session_id: Option<&str>,
+    ) -> Result<crate::entity::accounts::Model> {
         let scheduler = self.scheduler.read().await;
 
         let account = scheduler
-            .select_account(model, None, 5)
+            .select_account(model, session_id, 5)
             .await?
             .ok_or_else(|| anyhow!("No available account for model: {}", model))?;
 
@@ -573,6 +631,44 @@ impl ChatCompletionsForwarder {
         };
 
         (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64
+    }
+
+    /// 记录失败使用量
+    async fn record_failure_usage(
+        &self,
+        model: &str,
+        user_id: Uuid,
+        api_key_id: Uuid,
+        account_id: Uuid,
+        error_message: &str,
+        duration_ms: u64,
+    ) {
+        use crate::entity::usages;
+        use sea_orm::ActiveModelTrait;
+        use sea_orm::Set;
+
+        let usage = usages::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            user_id: Set(user_id),
+            api_key_id: Set(api_key_id),
+            account_id: Set(Some(account_id)),
+            model: Set(model.to_string()),
+            input_tokens: Set(0),
+            output_tokens: Set(0),
+            cost: Set(0),
+            request_id: Set(Some(Uuid::new_v4().to_string())),
+            success: Set(false),
+            error_message: Set(Some(error_message.chars().take(500).collect())),
+            metadata: Set(Some(serde_json::json!({
+                "api_type": "chat_completions",
+                "duration_ms": duration_ms,
+            }))),
+            created_at: Set(chrono::Utc::now()),
+        };
+
+        if let Err(e) = usage.insert(&self.db).await {
+            tracing::warn!("Failed to record failure usage: {}", e);
+        }
     }
 }
 

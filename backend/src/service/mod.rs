@@ -85,6 +85,7 @@ pub mod scheduler_events;
 pub mod scheduler_outbox;
 pub mod scheduler_snapshot_service;
 pub mod scheduler_test;
+pub mod session_key;
 pub mod setting;
 pub mod setting_service;
 pub mod settings_view;

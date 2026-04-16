@@ -159,17 +159,11 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
             "/api/v1/redeem/history",
             get(handler::redeem::get_redemption_history),
         )
-        // Sora 图片/视频生成
-        .route("/v1/images/generations", post(handle_sora_image_generation))
-        .route("/v1/videos/generations", post(handle_sora_video_generation))
+        // Responses API - behind JWT auth
         .route(
-            "/v1/videos/generations/:id",
-            get(get_sora_generation_status),
+            "/v1/responses",
+            post(super::responses_handler::handle_responses),
         )
-        .route("/v1/prompts/enhance", post(handle_prompt_enhance))
-        // Sora 模型列表
-        .route("/v1/sora/models", get(list_sora_models))
-        .route("/v1/sora/families", get(list_sora_families))
         .layer(axum::middleware::from_fn(middleware::jwt_auth));
 
     // 管理后台路由 - 使用权限系统
@@ -747,11 +741,6 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         // Swagger UI - OpenAPI 文档
         // TODO: Fix Swagger UI integration
         // .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        // Responses API - 直接添加路由
-        .route(
-            "/v1/responses",
-            post(super::responses_handler::handle_responses),
-        )
         // Layers - 压缩中间件
         .layer(axum::middleware::from_fn(
             middleware::compression_middleware,
@@ -766,6 +755,9 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::request_log))
         .layer(axum::middleware::from_fn(middleware::request_id))
+        .layer(axum::middleware::from_fn(
+            middleware::session_hints::session_hints_middleware,
+        ))
         // 添加共享状态和健康检查器扩展
         .layer(Extension(shared_state))
         .layer(Extension(health_checker))
@@ -778,6 +770,7 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
 async fn handle_chat_completions(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
+    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     use crate::service::chat_completions_forwarder::{
@@ -807,7 +800,7 @@ async fn handle_chat_completions(
     let api_key_id = uuid::Uuid::nil();
 
     // 转发请求
-    match forwarder.forward(request, user_id, api_key_id).await {
+    match forwarder.forward(request, user_id, api_key_id, hints).await {
         Ok(result) => {
             // 返回成功响应
             Ok(axum::Json(serde_json::json!({
@@ -843,6 +836,7 @@ async fn handle_chat_completions(
 async fn handle_messages(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
+    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     use crate::service::anthropic_messages_forwarder::{
@@ -870,7 +864,7 @@ async fn handle_messages(
     let api_key_id = uuid::Uuid::nil();
 
     // 转发请求
-    match forwarder.forward(request, user_id, api_key_id).await {
+    match forwarder.forward(request, user_id, api_key_id, hints).await {
         Ok(result) => {
             // 返回 Anthropic 格式的响应
             Ok(axum::Json(serde_json::json!({
@@ -901,6 +895,7 @@ async fn handle_messages(
 async fn handle_completions(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
+    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     // 旧版 completions API - 转换为 chat/completions 格式
@@ -962,7 +957,7 @@ async fn handle_completions(
     let api_key_id = uuid::Uuid::nil();
 
     // 转发请求
-    match forwarder.forward(chat_request, user_id, api_key_id).await {
+    match forwarder.forward(chat_request, user_id, api_key_id, hints).await {
         Ok(result) => {
             // 转换响应回 completions 格式
             Ok(axum::Json(serde_json::json!({
@@ -1294,6 +1289,19 @@ async fn test_account(
                 .send()
                 .await
         }
+        crate::entity::accounts::ProviderType::Droid => {
+            let base_url = std::env::var("DROID_BASE_URL")
+                .ok()
+                .map(|value| value.trim().trim_end_matches('/').to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "http://127.0.0.1:3000".to_string());
+
+            client
+                .get(format!("{}/v1/models", base_url))
+                .header("Authorization", format!("Bearer {api_key}"))
+                .send()
+                .await
+        }
         _ => {
             let latency_ms = start.elapsed().as_millis() as u64;
             return Ok(axum::Json(json!({
@@ -1330,164 +1338,4 @@ async fn test_account(
             "latency_ms": latency_ms,
         }))),
     }
-}
-
-// ============ Sora 图片/视频生成端点 ============
-
-/// 处理 Sora 图片生成请求
-async fn handle_sora_image_generation(
-    Extension(_state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-    body: axum::body::Bytes,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use super::sora::{SoraGenerateRequest, SoraService};
-
-    let request: SoraGenerateRequest = serde_json::from_slice(&body)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    let _user_id = uuid::Uuid::parse_str(&claims.sub)
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    // 创建 Sora 服务
-    let sora_service = SoraService::with_default_pricing();
-
-    // 验证请求
-    let model_config = sora_service
-        .validate_request(&request)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    // 计算费用
-    let cost = sora_service.calculate_cost(&model_config);
-
-    // 构建上游请求
-    let upstream_body = sora_service.build_upstream_request(&request, &model_config);
-
-    // TODO: 实现实际的图片生成请求转发
-    // 目前返回模拟响应
-    Ok(axum::Json(json!({
-        "id": uuid::Uuid::new_v4().to_string(),
-        "status": "pending",
-        "model": request.model,
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "cost": cost,
-        "message": "Image generation request accepted. This is a placeholder response.",
-        "upstream_request": upstream_body
-    })))
-}
-
-/// 处理 Sora 视频生成请求
-async fn handle_sora_video_generation(
-    Extension(_state): Extension<SharedState>,
-    Extension(claims): Extension<crate::service::user::Claims>,
-    body: axum::body::Bytes,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use super::sora::{SoraGenerateRequest, SoraService};
-
-    let request: SoraGenerateRequest = serde_json::from_slice(&body)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    let _user_id = uuid::Uuid::parse_str(&claims.sub)
-        .map_err(|e| handler::ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    // 创建 Sora 服务
-    let sora_service = SoraService::with_default_pricing();
-
-    // 验证请求
-    let model_config = sora_service
-        .validate_request(&request)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    // 计算费用
-    let cost = sora_service.calculate_cost(&model_config);
-
-    // 构建上游请求
-    let upstream_body = sora_service.build_upstream_request(&request, &model_config);
-
-    // TODO: 实现实际的视频生成请求转发
-    // 目前返回模拟响应
-    Ok(axum::Json(json!({
-        "id": uuid::Uuid::new_v4().to_string(),
-        "status": "queued",
-        "model": request.model,
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "cost": cost,
-        "estimated_duration": model_config.duration_seconds().unwrap_or(10),
-        "message": "Video generation request accepted. This is a placeholder response.",
-        "upstream_request": upstream_body
-    })))
-}
-
-/// 获取 Sora 生成状态
-async fn get_sora_generation_status(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    // TODO: 实现实际的状态查询
-    Ok(axum::Json(json!({
-        "id": id,
-        "status": "processing",
-        "progress": 50,
-        "message": "Generation in progress. This is a placeholder response."
-    })))
-}
-
-/// 处理提示词增强请求
-async fn handle_prompt_enhance(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-    body: axum::body::Bytes,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use super::sora::{SoraGenerateRequest, SoraService};
-
-    let request: SoraGenerateRequest = serde_json::from_slice(&body)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    // 创建 Sora 服务
-    let sora_service = SoraService::with_default_pricing();
-
-    // 验证请求
-    let model_config = sora_service
-        .validate_request(&request)
-        .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    // 计算费用
-    let cost = sora_service.calculate_cost(&model_config);
-
-    // TODO: 实现实际的提示词增强请求转发
-    Ok(axum::Json(json!({
-        "id": uuid::Uuid::new_v4().to_string(),
-        "status": "completed",
-        "model": request.model,
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "cost": cost,
-        "original_prompt": request.prompt,
-        "enhanced_prompt": format!("Enhanced: {}", request.prompt),
-        "message": "Prompt enhancement completed. This is a placeholder response."
-    })))
-}
-
-/// 列出 Sora 模型
-async fn list_sora_models(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use super::sora::create_sora_model_list;
-
-    Ok(axum::Json(create_sora_model_list(false)))
-}
-
-/// 列出 Sora 模型家族
-async fn list_sora_families(
-    Extension(_state): Extension<SharedState>,
-    Extension(_claims): Extension<crate::service::user::Claims>,
-) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
-    use super::sora::build_sora_model_families;
-
-    let families = build_sora_model_families();
-
-    Ok(axum::Json(json!({
-        "object": "list",
-        "data": families
-    })))
 }

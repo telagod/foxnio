@@ -237,6 +237,12 @@ impl SchedulerMetrics {
         }
     }
 
+    /// 获取账号指标（只读，不创建）
+    pub async fn get_account_metrics(&self, account_id: Uuid) -> Option<Arc<AccountMetrics>> {
+        let metrics = self.account_metrics.read().await;
+        metrics.get(&account_id).cloned()
+    }
+
     /// 获取或创建账号指标
     pub async fn get_or_create_account_metrics(&self, account_id: Uuid) -> Arc<AccountMetrics> {
         let metrics = self.account_metrics.read().await;

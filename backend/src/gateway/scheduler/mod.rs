@@ -13,6 +13,7 @@
 #![allow(dead_code)]
 
 pub mod cost_optimizer;
+pub mod group_policy;
 pub mod load_balancer;
 pub mod metrics;
 
@@ -23,9 +24,11 @@ pub use crate::gateway::waiting_queue::{
 };
 
 use chrono::{DateTime, Utc};
+use lru::LruCache;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -190,8 +193,8 @@ pub struct Scheduler {
     round_robin_index: AtomicUsize,
     /// Provider 维度快速选择索引（避免跨 Provider 争用同一原子计数器）
     provider_round_robin_indices: RwLock<HashMap<String, Arc<AtomicUsize>>>,
-    /// 粘性会话
-    sticky_sessions: RwLock<HashMap<String, StickySession>>,
+    /// 粘性会话（LRU 自动淘汰最久未访问的会话，上限 10000）
+    sticky_sessions: RwLock<LruCache<String, StickySession>>,
     /// 账号冷却状态
     account_cooldown: RwLock<HashMap<Uuid, DateTime<Utc>>>,
     /// 自适应权重
@@ -224,7 +227,7 @@ impl Scheduler {
             config,
             round_robin_index: AtomicUsize::new(0),
             provider_round_robin_indices: RwLock::new(HashMap::new()),
-            sticky_sessions: RwLock::new(HashMap::new()),
+            sticky_sessions: RwLock::new(LruCache::new(NonZeroUsize::new(10_000).unwrap())),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
@@ -248,7 +251,7 @@ impl Scheduler {
             config,
             round_robin_index: AtomicUsize::new(0),
             provider_round_robin_indices: RwLock::new(HashMap::new()),
-            sticky_sessions: RwLock::new(HashMap::new()),
+            sticky_sessions: RwLock::new(LruCache::new(NonZeroUsize::new(10_000).unwrap())),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
@@ -274,7 +277,7 @@ impl Scheduler {
             config,
             round_robin_index: AtomicUsize::new(0),
             provider_round_robin_indices: RwLock::new(HashMap::new()),
-            sticky_sessions: RwLock::new(HashMap::new()),
+            sticky_sessions: RwLock::new(LruCache::new(NonZeroUsize::new(10_000).unwrap())),
             account_cooldown: RwLock::new(HashMap::new()),
             adaptive_weights: RwLock::new(HashMap::new()),
             waiting_queue,
@@ -469,25 +472,29 @@ impl Scheduler {
         session_id: &str,
         _ctx: &ScheduleContext,
     ) -> Option<ScheduleResult> {
-        let sessions = self.sticky_sessions.read().await;
+        let mut sessions = self.sticky_sessions.write().await;
 
-        if let Some(sticky) = sessions.get(session_id) {
+        if let Some(sticky) = sessions.get_mut(session_id) {
             // 检查是否过期
             let now = Utc::now();
             if (now - sticky.last_accessed).num_seconds() > self.config.sticky_session_ttl_secs {
+                sessions.pop(session_id);
                 return None;
             }
 
+            let account_id = sticky.account_id;
+            sticky.last_accessed = now;
+
             // 检查账号是否仍然可用
             let accounts = self.accounts.read().await;
-            if let Some(account) = accounts.iter().find(|a| a.id == sticky.account_id) {
+            if let Some(account) = accounts.iter().find(|a| a.id == account_id) {
                 if account.status.is_available() && !self.is_in_cooldown(account.id).await {
                     let account_metrics =
                         self.metrics.get_or_create_account_metrics(account.id).await;
 
                     return Some(ScheduleResult {
                         account: account.clone(),
-                        strategy_used: ScheduleStrategy::RoundRobin, // 粘性会话不计策略
+                        strategy_used: ScheduleStrategy::RoundRobin,
                         score: 1.0,
                         latency_estimate_ms: account_metrics.get_avg_latency_ms(),
                         cost_estimate_cents: account_metrics.get_total_cost_cents(),
@@ -504,15 +511,17 @@ impl Scheduler {
         let mut sessions = self.sticky_sessions.write().await;
         let now = Utc::now();
 
-        let sticky = sessions.entry(session_id).or_insert(StickySession {
-            account_id,
-            created_at: now,
-            last_accessed: now,
-            request_count: 0,
-        });
-
-        sticky.last_accessed = now;
-        sticky.request_count += 1;
+        if let Some(sticky) = sessions.get_mut(&session_id) {
+            sticky.last_accessed = now;
+            sticky.request_count += 1;
+        } else {
+            sessions.push(session_id, StickySession {
+                account_id,
+                created_at: now,
+                last_accessed: now,
+                request_count: 1,
+            });
+        }
     }
 
     /// 获取可用账号列表
@@ -848,7 +857,7 @@ impl Scheduler {
         let active_count = accounts.iter().filter(|a| a.status.is_available()).count();
         let total_count = accounts.len();
 
-        let sessions = self.sticky_sessions.read().await;
+        let sessions = self.sticky_sessions.write().await;
         let sticky_count = sessions.len();
 
         let cooldown = self.account_cooldown.read().await;
@@ -871,10 +880,18 @@ impl Scheduler {
     pub async fn cleanup_expired_sessions(&self) {
         let mut sessions = self.sticky_sessions.write().await;
         let now = Utc::now();
+        let ttl = self.config.sticky_session_ttl_secs;
 
-        sessions.retain(|_, session| {
-            (now - session.last_accessed).num_seconds() <= self.config.sticky_session_ttl_secs
-        });
+        // 收集过期的 key
+        let expired_keys: Vec<String> = sessions
+            .iter()
+            .filter(|(_, session)| (now - session.last_accessed).num_seconds() > ttl)
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        for key in expired_keys {
+            sessions.pop(&key);
+        }
     }
 
     /// 清理过期冷却
