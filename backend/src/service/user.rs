@@ -739,20 +739,25 @@ impl UserService {
 
     /// 更新余额
     pub async fn update_balance(&self, id: Uuid, delta: i64) -> Result<i64> {
+        // 所有余额变更走 balance_ledger 审计链路
+        let ledger_service = crate::service::balance_ledger::BalanceLedgerService::new(self.db.clone());
+        let source_type = if delta >= 0 { "admin_credit" } else { "admin_debit" };
+        ledger_service
+            .record(
+                id,
+                source_type,
+                None,
+                delta,
+                Some(format!("Admin balance adjustment: {delta} cents")),
+                None,
+            )
+            .await?;
+
+        // 返回更新后的余额
         let user = users::Entity::find_by_id(id)
             .one(&self.db)
             .await?
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
-
-        let new_balance = user.balance + delta;
-        if new_balance < 0 {
-            bail!("Insufficient balance");
-        }
-
-        let mut user: users::ActiveModel = user.into();
-        user.balance = Set(new_balance);
-        user.updated_at = Set(Utc::now());
-        let user = user.update(&self.db).await?;
 
         Ok(user.balance)
     }
