@@ -2,8 +2,8 @@
 
 #![allow(dead_code)]
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -132,6 +132,88 @@ impl BillingService {
             success: usage.success,
             created_at: usage.created_at,
         })
+    }
+
+    /// 余额预检：检查用户余额是否足够处理请求
+    /// 返回 Ok(()) 表示余额充足，Err 表示余额不足
+    pub async fn check_balance(&self, user_id: Uuid) -> Result<()> {
+        use crate::entity::users;
+
+        let user = users::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found: {user_id}"))?;
+
+        if user.balance <= 0 {
+            return Err(anyhow::anyhow!("Insufficient balance"));
+        }
+
+        Ok(())
+    }
+
+    /// 分组配额预检：检查分组的日/月配额是否超限
+    /// 返回 Ok(()) 表示配额充足，Err 表示配额超限
+    pub async fn check_group_quota(&self, group_id: i64) -> Result<()> {
+        use crate::entity::{groups, usages};
+
+        let group = groups::Entity::find_by_id(group_id)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Group not found: {group_id}"))?;
+
+        let now = chrono::Utc::now();
+
+        // 检查日配额
+        if let Some(daily_limit) = group.daily_limit_usd {
+            if daily_limit > 0.0 {
+                let today_start = now.date_naive().and_hms_opt(0, 0, 0)
+                    .map(|t| chrono::TimeZone::from_utc_datetime(&chrono::Utc, &t));
+                if let Some(today_start) = today_start {
+                    let daily_cost: i64 = usages::Entity::find()
+                        .filter(usages::Column::CreatedAt.gte(today_start))
+                        .select_only()
+                        .column_as(usages::Column::Cost.sum(), "total")
+                        .into_tuple::<Option<i64>>()
+                        .one(&self.db)
+                        .await?
+                        .flatten()
+                        .unwrap_or(0);
+
+                    // daily_limit_usd → 分: * 100
+                    let limit_cents = (daily_limit * 100.0) as i64;
+                    if daily_cost >= limit_cents {
+                        return Err(anyhow::anyhow!("Daily quota exceeded for group {group_id}"));
+                    }
+                }
+            }
+        }
+
+        // 检查月配额
+        if let Some(monthly_limit) = group.monthly_limit_usd {
+            if monthly_limit > 0.0 {
+                let month_start = chrono::Utc
+                    .with_ymd_and_hms(now.year(), now.month(), 1, 0, 0, 0)
+                    .single();
+                if let Some(month_start) = month_start {
+                    let monthly_cost: i64 = usages::Entity::find()
+                        .filter(usages::Column::CreatedAt.gte(month_start))
+                        .select_only()
+                        .column_as(usages::Column::Cost.sum(), "total")
+                        .into_tuple::<Option<i64>>()
+                        .one(&self.db)
+                        .await?
+                        .flatten()
+                        .unwrap_or(0);
+
+                    let limit_cents = (monthly_limit * 100.0) as i64;
+                    if monthly_cost >= limit_cents {
+                        return Err(anyhow::anyhow!("Monthly quota exceeded for group {group_id}"));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// 计算费用（单位：分）— 委托给 PricingService

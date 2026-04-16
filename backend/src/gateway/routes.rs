@@ -798,6 +798,15 @@ async fn handle_chat_completions(
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
 
+    // 余额预检
+    let billing = crate::service::billing::BillingService::new(
+        state.db.clone(),
+        state.config.gateway.rate_multiplier,
+    );
+    billing.check_balance(user_id).await.map_err(|e| {
+        handler::ApiError(StatusCode::PAYMENT_REQUIRED, e.to_string())
+    })?;
+
     // 转发请求
     match forwarder.forward(request, user_id, api_key_id, hints).await {
         Ok(result) => {
@@ -863,6 +872,15 @@ async fn handle_messages(
 
     // TODO: 从 API Key 中获取 api_key_id
     let api_key_id = uuid::Uuid::nil();
+
+    // 余额预检
+    let billing = crate::service::billing::BillingService::new(
+        state.db.clone(),
+        state.config.gateway.rate_multiplier,
+    );
+    billing.check_balance(user_id).await.map_err(|e| {
+        handler::ApiError(StatusCode::PAYMENT_REQUIRED, e.to_string())
+    })?;
 
     // 转发请求
     match forwarder.forward(request, user_id, api_key_id, hints).await {
