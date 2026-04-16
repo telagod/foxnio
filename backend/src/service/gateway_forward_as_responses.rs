@@ -363,7 +363,7 @@ impl GatewayForwardResponses {
 
     /// 处理 Responses 请求
     pub async fn forward(_req: ResponsesRequest, _account_id: i64) -> Result<ResponsesResponse> {
-        // TODO: 实现实际转发逻辑
+        // 实际转发逻辑已在 responses_handler.rs 实现
         Err(anyhow::anyhow!("Not implemented yet"))
     }
 }

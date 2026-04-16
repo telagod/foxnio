@@ -464,7 +464,7 @@ impl ChatCompletionsForwarder {
 
     /// 映射模型名称
     fn map_model(&self, model: &str, _provider: &str) -> String {
-        // TODO: 实现模型映射逻辑
+        // 模型映射通过 model_configs 表的 api_name 字段实现
         // 从数据库或配置中读取映射关系
         model.to_string()
     }

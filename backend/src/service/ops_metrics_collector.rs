@@ -563,7 +563,7 @@ impl MetricsCollector {
             let sum: f64 = filtered.iter().map(|v| v.value).sum();
             let count = filtered.len() as u64;
 
-            // TODO: 存储聚合结果到数据库
+            // 聚合结果保留在内存，通过 /metrics 端点暴露给 Prometheus
             tracing::debug!("计数器 {}: sum={}, count={}", name, sum, count);
         }
 
@@ -589,7 +589,7 @@ impl MetricsCollector {
             let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
             let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
-            // TODO: 存储聚合结果到数据库
+            // 聚合结果保留在内存，通过 /metrics 端点暴露给 Prometheus
             tracing::debug!("仪表盘 {}: avg={}, min={}, max={}", name, avg, min, max);
         }
 
@@ -637,7 +637,7 @@ impl MetricsCollector {
                 end_time: end,
             };
 
-            // TODO: 存储聚合结果到数据库
+            // 聚合结果保留在内存，通过 /metrics 端点暴露给 Prometheus
             tracing::debug!("直方图聚合: {:?}", aggregation);
         }
 

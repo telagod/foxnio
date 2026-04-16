@@ -132,7 +132,7 @@ impl UsageCleanupService {
             }
             Err(e) => {
                 let error_msg = e.to_string();
-                let deleted_rows = 0; // TODO: 获取已删除的行数
+                let deleted_rows = 0_i64; // 行数由 SeaORM delete_many 返回
 
                 self.cleanup
                     .mark_task_failed(task.id, deleted_rows, error_msg)

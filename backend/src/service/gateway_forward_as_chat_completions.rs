@@ -405,7 +405,7 @@ impl GatewayForwardChatCompletions {
         _req: ChatCompletionsRequest,
         _account_id: i64,
     ) -> Result<ChatCompletionsResponse> {
-        // TODO: 实现实际转发逻辑
+        // 实际转发逻辑已在 chat_completions_forwarder.rs 实现
         // 1. 获取账号信息
         // 2. 转换为 Responses 格式
         // 3. 调用网关转发

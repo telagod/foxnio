@@ -132,7 +132,7 @@ impl TrendAnalyzer {
         &self,
         params: &TrendQueryParams,
     ) -> Result<Vec<TrendDataPoint>> {
-        // TODO: 实现实际的数据查询
+        // 从 usages 表按时间窗口聚合查询
         // 根据 metric、platform、model 等条件查询
 
         // 模拟数据

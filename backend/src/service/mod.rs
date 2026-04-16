@@ -115,7 +115,6 @@ pub mod usage_service;
 pub mod user;
 pub mod user_attribute;
 pub mod user_ext;
-pub mod user_group;
 pub mod user_subscription;
 pub mod user_test;
 pub mod wait_queue;
@@ -194,8 +193,6 @@ pub mod usage_record_worker_pool;
 // Account Enhancement
 pub mod account_credentials_persistence;
 pub mod account_expiry_service;
-pub mod account_group;
-pub mod account_usage_service;
 pub mod temp_unsched;
 
 // P2 - 平台增强功能
@@ -229,7 +226,6 @@ pub mod sora_sdk_client;
 pub mod sora_upstream_forwarder;
 
 // P3 - 其他增强功能
-pub mod crs_sync_service;
 pub mod deferred_service;
 pub mod email_queue_service;
 

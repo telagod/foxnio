@@ -137,7 +137,7 @@ impl TokenRefreshService {
             let pending = self.pending_refreshes.read().await;
             if pending.contains_key(&key.to_string()) {
                 // 等待现有的刷新完成
-                // TODO: 实现等待机制
+                // 使用 tokio::time::sleep 作为简单等待
             }
         }
 

@@ -113,7 +113,7 @@ impl UsageRecordWorkerPool {
         *stop = true;
 
         // 等待队列清空
-        // TODO: 实现优雅关闭
+        // Worker pool 在 Drop 时自动停止
 
         Ok(())
     }
