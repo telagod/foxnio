@@ -507,6 +507,91 @@ pub static MODEL_PRICE_CHANGES: Lazy<IntCounter> = Lazy::new(|| {
     .unwrap()
 });
 
+// ============ LLM API Gateway 核心指标 ============
+
+/// TTFT (Time to First Token) — 按 model + provider 分桶
+pub static TTFT_SECONDS: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
+        HistogramOpts::new("foxnio_ttft_seconds", "Time to first token in seconds")
+            .buckets(vec![0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]),
+        &["model", "provider"]
+    )
+    .unwrap()
+});
+
+/// 流式 vs 非流式请求计数
+pub static REQUESTS_BY_STREAM: Lazy<IntCounterVec> = Lazy::new(|| {
+    register_int_counter_vec!(
+        opts!("foxnio_requests_by_stream_total", "Requests by streaming mode"),
+        &["model", "provider", "stream"]
+    )
+    .unwrap()
+});
+
+/// Provider 健康状态 gauge（1=healthy, 0=unhealthy）
+pub static PROVIDER_HEALTH: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
+        opts!("foxnio_provider_health", "Provider health status (1=healthy, 0=unhealthy)"),
+        &["provider"]
+    )
+    .unwrap()
+});
+
+/// 账号池状态 — 按 provider + status 分
+pub static ACCOUNT_POOL_STATUS: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
+        opts!("foxnio_account_pool_status", "Account pool status by provider"),
+        &["provider", "status"]
+    )
+    .unwrap()
+});
+
+/// Cost burn rate（分/小时）
+pub static COST_BURN_RATE_CENTS_PER_HOUR: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
+        opts!("foxnio_cost_burn_rate_cents_per_hour", "Cost burn rate in cents per hour"),
+        &["provider"]
+    )
+    .unwrap()
+});
+
+/// Prompt cache 命中率
+pub static CACHE_TOKEN_RATIO: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
+        opts!("foxnio_cache_token_ratio", "Prompt cache token ratio (cache_read / total_input)"),
+        &["model"]
+    )
+    .unwrap()
+});
+
+/// 调度队列深度
+pub static SCHEDULER_QUEUE_DEPTH: Lazy<IntGaugeVec> = Lazy::new(|| {
+    register_int_gauge_vec!(
+        opts!("foxnio_scheduler_queue_depth", "Scheduler waiting queue depth"),
+        &["provider"]
+    )
+    .unwrap()
+});
+
+/// 调度队列等待时间
+pub static SCHEDULER_QUEUE_WAIT_SECONDS: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
+        HistogramOpts::new("foxnio_scheduler_queue_wait_seconds", "Queue wait time in seconds")
+            .buckets(vec![0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0]),
+        &["provider"]
+    )
+    .unwrap()
+});
+
+/// Token 吞吐率（tokens/sec）
+pub static TOKEN_THROUGHPUT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
+        opts!("foxnio_token_throughput_per_sec", "Token throughput per second"),
+        &["model", "direction"]
+    )
+    .unwrap()
+});
+
 /// 指标记录器 - 用于记录请求指标
 #[derive(Debug, Clone)]
 pub struct MetricsRecorder {

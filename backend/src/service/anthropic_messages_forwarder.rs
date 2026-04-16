@@ -265,6 +265,23 @@ impl AnthropicMessagesForwarder {
                 .await
             {
                 Ok(result) => {
+                    // 记录 LLM API 指标
+                    let provider_key = &current_account.provider;
+                    crate::metrics::REQUESTS_BY_STREAM
+                        .with_label_values(&[&original_model, provider_key, if is_stream { "true" } else { "false" }])
+                        .inc();
+                    if let Some(ttft_ms) = result.first_token_ms {
+                        crate::metrics::TTFT_SECONDS
+                            .with_label_values(&[&original_model, provider_key])
+                            .observe(ttft_ms as f64 / 1000.0);
+                    }
+                    let total_input = result.usage.input_tokens + result.usage.cache_read_input_tokens;
+                    if total_input > 0 {
+                        crate::metrics::CACHE_TOKEN_RATIO
+                            .with_label_values(&[&original_model])
+                            .set(result.usage.cache_read_input_tokens as f64 / total_input as f64);
+                    }
+
                     // 通过 QuotaGate 原子结算
                     let permit = crate::service::quota_gate::QuotaPermit {
                         user_id,

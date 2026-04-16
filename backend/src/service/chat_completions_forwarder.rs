@@ -347,6 +347,24 @@ impl ChatCompletionsForwarder {
             .await
         {
             Ok(result) => {
+                // 记录 LLM API 指标
+                let provider_key = &account.provider;
+                crate::metrics::REQUESTS_BY_STREAM
+                    .with_label_values(&[&original_model, provider_key, if is_stream { "true" } else { "false" }])
+                    .inc();
+                if let Some(ttft_ms) = result.first_token_ms {
+                    crate::metrics::TTFT_SECONDS
+                        .with_label_values(&[&original_model, provider_key])
+                        .observe(ttft_ms as f64 / 1000.0);
+                }
+                let cache_read = result.usage.get_cache_read_tokens();
+                if cache_read > 0 {
+                    let total_input = result.usage.prompt_tokens + cache_read;
+                    crate::metrics::CACHE_TOKEN_RATIO
+                        .with_label_values(&[&original_model])
+                        .set(cache_read as f64 / total_input as f64);
+                }
+
                 // 通过 QuotaGate 原子结算
                 let permit = crate::service::quota_gate::QuotaPermit {
                     user_id,
