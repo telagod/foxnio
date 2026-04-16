@@ -8,8 +8,8 @@ P0 发布链与 P1 failure chain / 控制面已完成。P2 运维异步能力部
 
 当前北极星：
 
-- **对齐 Sub2API**：补齐多账号管理、计费、调度、控制台与原生工具接入。
-- **吸收 LiteLLM**：补 router policy、观测、预算与 fallback 经验。
+- **多账号管理**：补齐计费、调度、控制台与原生工具接入。
+- **Router Policy**：补观测、预算与 fallback 经验。
 - **走 FoxNIO 自己的差异化**：把批量操作性能与大规模号池运营做成核心卖点，而不是附属功能。
 
 当前对外品牌口径：
@@ -100,7 +100,6 @@ npm --prefix frontend run dev
 - 前端页面测试尚未补齐。
 - 大批量账号导入、批量凭证轮换、批量状态治理仍需继续压性能和回显质量。
 - 批量基准与 Prometheus 观测已开始收口，执行口径见 `docs/BENCHMARKS.md`。
-- 对标项目已补一轮扫描，当前主参考为 Sub2API / Plexus / Ferro Labs AI Gateway / labring aiproxy。
 
 ## 文档入口
 

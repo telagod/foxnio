@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Core Features - Sub2API Alignment (100% Complete)
+#### Core Features
 
 **Webhook System**
 - Complete webhook service with HMAC-SHA256 signature
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Feature Alignment
 
-**Sub2API vs FoxNIO (100% aligned)**
+**Feature Alignment Status**
 | Feature | Status |
 |---------|--------|
 | Waiting Queue | ✅ 100% |

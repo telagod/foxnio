@@ -1,6 +1,5 @@
 //! 实时监控服务
 //!
-//! 基于 sub2api 的 ops_realtime.go 实现
 //! 提供 WebSocket 推送、实时告警、Dashboard 数据更新
 
 #![allow(dead_code)]

@@ -1,6 +1,5 @@
 //! 账号健康评分服务
 //!
-//! 基于 sub2api 的 ops_health_score.go 实现
 //! 提供多维度账号健康评分，用于智能调度决策
 
 #![allow(dead_code)]

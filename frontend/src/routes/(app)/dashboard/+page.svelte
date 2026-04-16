@@ -240,7 +240,7 @@
     <section class="glass-card p-6">
       <h2 class="mb-4 text-xl font-semibold text-gray-900 dark:text-white">快速开始</h2>
       <div class="overflow-x-auto rounded-xl bg-black/5 p-4 font-mono text-sm dark:bg-white/5">
-        <pre class="text-light-muted dark:text-dark-muted"><code>{`curl https://api.foxnio.io/v1/chat/completions \\
+        <pre class="text-light-muted dark:text-dark-muted"><code>{`curl ${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/v1/chat/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"model": "gpt-4-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'`}</code></pre>

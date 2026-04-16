@@ -1,6 +1,5 @@
 //! Sora 模型配置 - Sora Model Configurations
 //!
-//! 参考 Sub2API 的 sora_models.go 实现
 //! 支持 GPT Image 和 Sora 2/Pro 视频生成模型
 
 use serde::{Deserialize, Serialize};

@@ -3,7 +3,7 @@
 //! 实现分层过滤调度：Priority → LoadRate → LRU
 //! 支持粘性会话增强（previous_response_id + session_hash）
 //!
-//! 参考 Sub2API 的实现
+//! 分层过滤调度实现
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

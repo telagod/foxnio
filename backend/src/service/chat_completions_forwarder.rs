@@ -1,6 +1,6 @@
 //! Chat Completions 转发服务
 //!
-//! 参考 sub2api 实现，提供完整的 OpenAI Chat Completions API 转发
+//! 提供完整的 OpenAI Chat Completions API 转发
 //! 支持：
 //! - 多 Provider 转发 (OpenAI, Anthropic, Gemini, DeepSeek, etc.)
 //! - 流式响应 (SSE)

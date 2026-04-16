@@ -1,6 +1,5 @@
 //! QPS 监控服务
 //!
-//! 基于 sub2api 的 ops_metrics_collector.go 实现
 //! 提供实时 QPS 监控、历史数据追踪、Prometheus 指标导出
 
 #![allow(dead_code)]

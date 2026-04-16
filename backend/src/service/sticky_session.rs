@@ -1,6 +1,5 @@
 //! 粘性会话管理服务 - Redis 持久化实现
 //!
-//! 基于 sub2api 的 anthropic_session.go 实现
 //! 支持会话绑定、TTL 管理、摘要链生成
 
 #![allow(dead_code)]

@@ -11,7 +11,6 @@
 //!
 //! ## 参考
 //!
-//! 基于Sub2API的实现，支持 Gemini SDK 直连
 
 pub mod client;
 pub mod types;
