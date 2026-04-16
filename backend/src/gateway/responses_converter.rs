@@ -581,6 +581,7 @@ mod tests {
             store: None,
             reasoning: None,
             tool_choice: None,
+            user: None,
         };
 
         let anthropic = responses_to_anthropic(&req).unwrap();
@@ -650,6 +651,7 @@ mod tests {
             store: None,
             reasoning: None,
             tool_choice: None,
+            user: None,
         };
 
         let anthropic = responses_to_anthropic(&req).unwrap();
@@ -676,6 +678,7 @@ mod tests {
                 summary: None,
             }),
             tool_choice: None,
+            user: None,
         };
 
         let anthropic = responses_to_anthropic(&req).unwrap();
@@ -699,6 +702,7 @@ mod tests {
             store: None,
             reasoning: None,
             tool_choice: None,
+            user: None,
         };
 
         let anthropic = responses_to_anthropic(&req).unwrap();
@@ -777,6 +781,7 @@ mod tests {
             store: None,
             reasoning: None,
             tool_choice: None,
+            user: None,
         };
 
         let anthropic = responses_to_anthropic(&req).unwrap();

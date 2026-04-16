@@ -408,170 +408,6 @@ pub static MODEL_CONFIGS: Lazy<Vec<(Model, ModelConfig)>> = Lazy::new(|| {
                 supports_vision: true,
             },
         ),
-        // ==================== DeepSeek 模型 ====================
-        (
-            Model::DeepSeekV3,
-            ModelConfig {
-                model: Model::DeepSeekV3,
-                api_name: "deepseek-chat".to_string(),
-                display_name: "DeepSeek V3".to_string(),
-                max_tokens: 4096,
-                context_window: 64000,
-                input_price_per_m: 0.14,
-                output_price_per_m: 0.28,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: true,
-                    long_context: true,
-                    multilingual: true,
-                    tools: true,
-                },
-                supports_streaming: true,
-                supports_function_calling: true,
-                supports_vision: false,
-            },
-        ),
-        (
-            Model::DeepSeekCoder,
-            ModelConfig {
-                model: Model::DeepSeekCoder,
-                api_name: "deepseek-coder".to_string(),
-                display_name: "DeepSeek Coder".to_string(),
-                max_tokens: 4096,
-                context_window: 16000,
-                input_price_per_m: 0.14,
-                output_price_per_m: 0.28,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: false,
-                    long_context: false,
-                    multilingual: true,
-                    tools: false,
-                },
-                supports_streaming: true,
-                supports_function_calling: false,
-                supports_vision: false,
-            },
-        ),
-        // ==================== Mistral 模型 ====================
-        (
-            Model::MistralLarge,
-            ModelConfig {
-                model: Model::MistralLarge,
-                api_name: "mistral-large-latest".to_string(),
-                display_name: "Mistral Large".to_string(),
-                max_tokens: 4096,
-                context_window: 32000,
-                input_price_per_m: 4.0,
-                output_price_per_m: 12.0,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: true,
-                    long_context: false,
-                    multilingual: true,
-                    tools: true,
-                },
-                supports_streaming: true,
-                supports_function_calling: true,
-                supports_vision: false,
-            },
-        ),
-        (
-            Model::MistralMedium,
-            ModelConfig {
-                model: Model::MistralMedium,
-                api_name: "mistral-medium-latest".to_string(),
-                display_name: "Mistral Medium".to_string(),
-                max_tokens: 4096,
-                context_window: 32000,
-                input_price_per_m: 2.7,
-                output_price_per_m: 8.1,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: false,
-                    long_context: false,
-                    multilingual: true,
-                    tools: true,
-                },
-                supports_streaming: true,
-                supports_function_calling: true,
-                supports_vision: false,
-            },
-        ),
-        (
-            Model::MistralSmall,
-            ModelConfig {
-                model: Model::MistralSmall,
-                api_name: "mistral-small-latest".to_string(),
-                display_name: "Mistral Small".to_string(),
-                max_tokens: 4096,
-                context_window: 32000,
-                input_price_per_m: 0.2,
-                output_price_per_m: 0.6,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: false,
-                    long_context: false,
-                    multilingual: true,
-                    tools: false,
-                },
-                supports_streaming: true,
-                supports_function_calling: false,
-                supports_vision: false,
-            },
-        ),
-        // ==================== Cohere 模型 ====================
-        (
-            Model::CommandRPlus,
-            ModelConfig {
-                model: Model::CommandRPlus,
-                api_name: "command-r-plus".to_string(),
-                display_name: "Command R+".to_string(),
-                max_tokens: 4096,
-                context_window: 128_000,
-                input_price_per_m: 3.0,
-                output_price_per_m: 15.0,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: false,
-                    long_context: true,
-                    multilingual: true,
-                    tools: true,
-                },
-                supports_streaming: true,
-                supports_function_calling: true,
-                supports_vision: false,
-            },
-        ),
-        (
-            Model::CommandR,
-            ModelConfig {
-                model: Model::CommandR,
-                api_name: "command-r".to_string(),
-                display_name: "Command R".to_string(),
-                max_tokens: 4096,
-                context_window: 128_000,
-                input_price_per_m: 0.5,
-                output_price_per_m: 1.5,
-                capabilities: ModelCapabilities {
-                    chat: true,
-                    code: true,
-                    math: false,
-                    long_context: true,
-                    multilingual: true,
-                    tools: true,
-                },
-                supports_streaming: true,
-                supports_function_calling: true,
-                supports_vision: false,
-            },
-        ),
     ]
 });
 
@@ -621,9 +457,6 @@ fn model_provider_from_key(key: &str) -> Option<ModelProvider> {
         "openai" => Some(ModelProvider::OpenAI),
         "anthropic" => Some(ModelProvider::Anthropic),
         "google" | "gemini" => Some(ModelProvider::Google),
-        "deepseek" => Some(ModelProvider::DeepSeek),
-        "mistral" => Some(ModelProvider::Mistral),
-        "cohere" => Some(ModelProvider::Cohere),
         _ => None,
     }
 }
@@ -674,7 +507,7 @@ mod tests {
     #[test]
     fn test_provider_config() {
         let configs = ProviderConfig::all();
-        assert_eq!(configs.len(), 6);
+        assert_eq!(configs.len(), 3);
 
         let openai = ProviderConfig::get(ModelProvider::OpenAI);
         assert_eq!(openai.base_url, "https://api.openai.com");
@@ -683,7 +516,7 @@ mod tests {
     #[test]
     fn test_list_all_models() {
         let models = list_all_models();
-        assert!(models.len() >= 15);
+        assert!(models.len() >= 12);
     }
 
     #[test]

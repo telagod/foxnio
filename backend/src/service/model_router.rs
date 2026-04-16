@@ -248,24 +248,6 @@ impl ModelRouter {
                         );
                     }
                 }
-                ModelProvider::DeepSeek => {
-                    // DeepSeek 基本兼容 OpenAI 格式
-                }
-                ModelProvider::Mistral => {
-                    // Mistral 基本兼容 OpenAI 格式
-                    if let Some(max_tokens) = obj.remove("max_completion_tokens") {
-                        obj.insert("max_tokens".to_string(), max_tokens);
-                    }
-                }
-                ModelProvider::Cohere => {
-                    // Cohere 参数格式
-                    if let Some(messages) = obj.remove("messages") {
-                        obj.insert("message".to_string(), messages);
-                    }
-                    if let Some(max_tokens) = obj.remove("max_tokens") {
-                        obj.insert("max_tokens".to_string(), max_tokens);
-                    }
-                }
             }
         }
 
@@ -359,7 +341,7 @@ mod tests {
         let router = ModelRouter::new();
         let models = router.list_available_models();
 
-        assert!(models.len() >= 15);
+        assert!(models.len() >= 12);
     }
 
     #[test]

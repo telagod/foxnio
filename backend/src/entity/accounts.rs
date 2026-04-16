@@ -119,6 +119,7 @@ impl Model {
             "anthropic" | "claude" => ProviderType::Anthropic,
             "openai" => ProviderType::OpenAI,
             "gemini" => ProviderType::Gemini,
+            "droid" => ProviderType::Droid,
             "antigravity" => ProviderType::Antigravity,
             _ => ProviderType::Unknown,
         }
@@ -174,6 +175,7 @@ pub enum ProviderType {
     Anthropic,
     OpenAI,
     Gemini,
+    Droid,
     Antigravity,
     Unknown,
 }
@@ -184,6 +186,7 @@ impl ProviderType {
             ProviderType::Anthropic => "https://api.anthropic.com",
             ProviderType::OpenAI => "https://api.openai.com",
             ProviderType::Gemini => "https://generativelanguage.googleapis.com",
+            ProviderType::Droid => "http://127.0.0.1:3000",
             ProviderType::Antigravity => "https://antigravity.so",
             ProviderType::Unknown => "",
         }
@@ -196,6 +199,7 @@ impl ProviderType {
             ProviderType::Anthropic
                 | ProviderType::OpenAI
                 | ProviderType::Gemini
+                | ProviderType::Droid
                 | ProviderType::Antigravity
         )
     }

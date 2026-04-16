@@ -8,7 +8,9 @@ use axum::{
     response::Response,
 };
 use bytes::Bytes;
+use futures::StreamExt;
 use reqwest::Client;
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::entity::accounts;
 use crate::gateway::models::{resolve_model_alias, ModelProvider};
@@ -271,8 +273,8 @@ impl GatewayHandler {
     /// 处理流式响应
     async fn handle_streaming_response(
         &self,
-        _state: &SharedState,
-        _ctx: RequestContext,
+        state: &SharedState,
+        ctx: RequestContext,
         response: reqwest::Response,
         _account_id: uuid::Uuid,
     ) -> Result<Response> {
@@ -288,8 +290,76 @@ impl GatewayHandler {
             }
         }
 
-        // 创建流式响应体
-        let stream = response.bytes_stream();
+        // Capture fields needed for the billing task (RequestContext is not Clone)
+        let user_id = ctx.user_id;
+        let api_key_id = ctx.api_key_id;
+        let ctx_model = ctx.model.clone();
+        let db = state.db.clone();
+        let rate_multiplier = state.config.gateway.rate_multiplier;
+
+        // Wrap the upstream stream: pass chunks through to the client while
+        // parsing SSE data for usage information, then record billing after
+        // the stream completes.
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, reqwest::Error>>(100);
+
+        tokio::spawn(async move {
+            let mut stream = response.bytes_stream();
+            let mut input_tokens: i64 = 0;
+            let mut output_tokens: i64 = 0;
+            let mut model_name = ctx_model.clone();
+
+            while let Some(chunk) = stream.next().await {
+                if let Ok(bytes) = &chunk {
+                    if let Ok(text) = std::str::from_utf8(bytes) {
+                        for line in text.lines() {
+                            if let Some(data) = line.strip_prefix("data: ") {
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(data)
+                                {
+                                    if let Some(usage) = json.get("usage") {
+                                        input_tokens = usage
+                                            .get("prompt_tokens")
+                                            .and_then(|t| t.as_i64())
+                                            .unwrap_or(input_tokens);
+                                        output_tokens = usage
+                                            .get("completion_tokens")
+                                            .and_then(|t| t.as_i64())
+                                            .unwrap_or(output_tokens);
+                                    }
+                                    if let Some(model) =
+                                        json.get("model").and_then(|m| m.as_str())
+                                    {
+                                        model_name = model.to_string();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if tx.send(chunk).await.is_err() {
+                    // Client disconnected; stop reading upstream
+                    break;
+                }
+            }
+
+            // Record usage after stream completes
+            if input_tokens > 0 || output_tokens > 0 {
+                let billing_service = BillingService::new(db, rate_multiplier);
+                let _ = billing_service
+                    .record_usage(crate::service::billing::RecordUsageParams {
+                        user_id,
+                        api_key_id,
+                        model: model_name,
+                        input_tokens,
+                        output_tokens,
+                        success: true,
+                        error_message: None,
+                    })
+                    .await;
+            }
+        });
+
+        let stream = ReceiverStream::new(rx);
         let body = Body::from_stream(stream);
 
         Ok(builder.body(body)?)
@@ -361,9 +431,6 @@ impl GatewayHandler {
             ModelProvider::OpenAI => "openai",
             ModelProvider::Anthropic => "anthropic",
             ModelProvider::Google => "gemini",
-            ModelProvider::DeepSeek => "deepseek",
-            ModelProvider::Mistral => "mistral",
-            ModelProvider::Cohere => "cohere",
         };
         let adapter = default_provider_registry()
             .get(provider_key)

@@ -61,6 +61,23 @@ pub trait ProviderAdapter: Send + Sync {
     }
 }
 
+fn normalized_env_base_url(var_name: &str, default: &'static str) -> &'static str {
+    static DROID_BASE_URL: OnceLock<String> = OnceLock::new();
+
+    match var_name {
+        "DROID_BASE_URL" => DROID_BASE_URL
+            .get_or_init(|| {
+                std::env::var(var_name)
+                    .ok()
+                    .map(|value| value.trim().trim_end_matches('/').to_string())
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| default.to_string())
+            })
+            .as_str(),
+        _ => default,
+    }
+}
+
 struct BearerAdapter {
     key: &'static str,
     base_url: &'static str,
@@ -158,6 +175,71 @@ impl ProviderAdapter for GeminiAdapter {
     }
 }
 
+struct DroidAdapter;
+
+impl ProviderAdapter for DroidAdapter {
+    fn key(&self) -> &'static str {
+        "droid"
+    }
+
+    fn base_url(&self) -> &'static str {
+        normalized_env_base_url("DROID_BASE_URL", "http://127.0.0.1:3000")
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Droid"
+    }
+
+    fn build_chat_completions_url(&self, _mapped_model: Option<&str>, _credential: &str) -> String {
+        format!("{}/v1/chat/completions", self.base_url())
+    }
+
+    fn build_responses_url(&self, _credential: &str) -> Option<String> {
+        Some(format!("{}/v1/responses", self.base_url()))
+    }
+
+    fn apply_auth(&self, req: RequestBuilder, credential: &str) -> RequestBuilder {
+        req.header("Authorization", format!("Bearer {credential}"))
+    }
+}
+
+struct GoogleAdapter;
+
+impl ProviderAdapter for GoogleAdapter {
+    fn key(&self) -> &'static str {
+        "google"
+    }
+
+    fn base_url(&self) -> &'static str {
+        "https://generativelanguage.googleapis.com"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Google"
+    }
+
+    fn auth_header(&self) -> &'static str {
+        "x-goog-api-key"
+    }
+
+    fn auth_prefix(&self) -> &'static str {
+        ""
+    }
+
+    fn build_chat_completions_url(&self, mapped_model: Option<&str>, credential: &str) -> String {
+        let model = mapped_model.unwrap_or("models/gemini-2.0-flash");
+        format!(
+            "{}{}:generateContent?key={credential}",
+            self.base_url(),
+            model
+        )
+    }
+
+    fn apply_auth(&self, req: RequestBuilder, _credential: &str) -> RequestBuilder {
+        req
+    }
+}
+
 pub struct ProviderRegistry {
     adapters: HashMap<String, Arc<dyn ProviderAdapter>>,
 }
@@ -199,22 +281,8 @@ impl ProviderRegistry {
         });
         registry.register(AnthropicAdapter);
         registry.register(GeminiAdapter);
-        registry.register(BearerAdapter {
-            key: "google",
-            base_url: "https://generativelanguage.googleapis.com",
-        });
-        registry.register(BearerAdapter {
-            key: "deepseek",
-            base_url: "https://api.deepseek.com",
-        });
-        registry.register(BearerAdapter {
-            key: "mistral",
-            base_url: "https://api.mistral.ai",
-        });
-        registry.register(BearerAdapter {
-            key: "cohere",
-            base_url: "https://api.cohere.ai",
-        });
+        registry.register(GoogleAdapter);
+        registry.register(DroidAdapter);
         registry.register(BearerAdapter {
             key: "antigravity",
             base_url: "https://antigravity.so",

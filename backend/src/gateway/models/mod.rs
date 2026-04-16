@@ -21,9 +21,6 @@ pub enum ModelProvider {
     OpenAI,
     Anthropic,
     Google,
-    DeepSeek,
-    Mistral,
-    Cohere,
 }
 
 impl ModelProvider {
@@ -33,9 +30,6 @@ impl ModelProvider {
             ModelProvider::OpenAI => "https://api.openai.com",
             ModelProvider::Anthropic => "https://api.anthropic.com",
             ModelProvider::Google => "https://generativelanguage.googleapis.com",
-            ModelProvider::DeepSeek => "https://api.deepseek.com",
-            ModelProvider::Mistral => "https://api.mistral.ai",
-            ModelProvider::Cohere => "https://api.cohere.ai",
         }
     }
 
@@ -45,9 +39,6 @@ impl ModelProvider {
             ModelProvider::OpenAI => "OpenAI",
             ModelProvider::Anthropic => "Anthropic",
             ModelProvider::Google => "Google",
-            ModelProvider::DeepSeek => "DeepSeek",
-            ModelProvider::Mistral => "Mistral AI",
-            ModelProvider::Cohere => "Cohere",
         }
     }
 
@@ -70,9 +61,6 @@ impl ModelProvider {
             ModelProvider::OpenAI,
             ModelProvider::Anthropic,
             ModelProvider::Google,
-            ModelProvider::DeepSeek,
-            ModelProvider::Mistral,
-            ModelProvider::Cohere,
         ]
     }
 }
@@ -91,9 +79,6 @@ impl FromStr for ModelProvider {
             "openai" => Ok(ModelProvider::OpenAI),
             "anthropic" => Ok(ModelProvider::Anthropic),
             "google" | "gemini" => Ok(ModelProvider::Google),
-            "deepseek" => Ok(ModelProvider::DeepSeek),
-            "mistral" => Ok(ModelProvider::Mistral),
-            "cohere" => Ok(ModelProvider::Cohere),
             _ => Err(format!("Unknown provider: {s}")),
         }
     }
@@ -133,25 +118,6 @@ pub enum Model {
     #[serde(rename = "gemini-1.5-pro")]
     Gemini15Pro,
 
-    // DeepSeek 模型
-    #[serde(rename = "deepseek-v3")]
-    DeepSeekV3,
-    #[serde(rename = "deepseek-coder")]
-    DeepSeekCoder,
-
-    // Mistral 模型
-    #[serde(rename = "mistral-large")]
-    MistralLarge,
-    #[serde(rename = "mistral-medium")]
-    MistralMedium,
-    #[serde(rename = "mistral-small")]
-    MistralSmall,
-
-    // Cohere 模型
-    #[serde(rename = "command-r-plus")]
-    CommandRPlus,
-    #[serde(rename = "command-r")]
-    CommandR,
 }
 
 impl Model {
@@ -174,16 +140,6 @@ impl Model {
             // Google
             Model::GeminiPro | Model::GeminiUltra | Model::Gemini15Pro => ModelProvider::Google,
 
-            // DeepSeek
-            Model::DeepSeekV3 | Model::DeepSeekCoder => ModelProvider::DeepSeek,
-
-            // Mistral
-            Model::MistralLarge | Model::MistralMedium | Model::MistralSmall => {
-                ModelProvider::Mistral
-            }
-
-            // Cohere
-            Model::CommandRPlus | Model::CommandR => ModelProvider::Cohere,
         }
     }
 
@@ -208,18 +164,6 @@ impl Model {
             Model::GeminiUltra => "gemini-ultra",
             Model::Gemini15Pro => "gemini-1.5-pro",
 
-            // DeepSeek
-            Model::DeepSeekV3 => "deepseek-chat",
-            Model::DeepSeekCoder => "deepseek-coder",
-
-            // Mistral
-            Model::MistralLarge => "mistral-large-latest",
-            Model::MistralMedium => "mistral-medium-latest",
-            Model::MistralSmall => "mistral-small-latest",
-
-            // Cohere
-            Model::CommandRPlus => "command-r-plus",
-            Model::CommandR => "command-r",
         }
     }
 
@@ -238,13 +182,6 @@ impl Model {
             Model::GeminiPro => "Gemini Pro",
             Model::GeminiUltra => "Gemini Ultra",
             Model::Gemini15Pro => "Gemini 1.5 Pro",
-            Model::DeepSeekV3 => "DeepSeek V3",
-            Model::DeepSeekCoder => "DeepSeek Coder",
-            Model::MistralLarge => "Mistral Large",
-            Model::MistralMedium => "Mistral Medium",
-            Model::MistralSmall => "Mistral Small",
-            Model::CommandRPlus => "Command R+",
-            Model::CommandR => "Command R",
         }
     }
 
@@ -270,18 +207,6 @@ impl Model {
             Model::Gemini15Pro => vec![Model::GeminiPro],
             Model::GeminiPro => vec![Model::Gemini15Pro],
 
-            // DeepSeek 降级链
-            Model::DeepSeekV3 => vec![Model::DeepSeekCoder],
-            Model::DeepSeekCoder => vec![Model::DeepSeekV3],
-
-            // Mistral 降级链
-            Model::MistralLarge => vec![Model::MistralMedium, Model::MistralSmall],
-            Model::MistralMedium => vec![Model::MistralSmall, Model::MistralLarge],
-            Model::MistralSmall => vec![Model::MistralMedium],
-
-            // Cohere 降级链
-            Model::CommandRPlus => vec![Model::CommandR],
-            Model::CommandR => vec![Model::CommandRPlus],
         }
     }
 
@@ -303,16 +228,6 @@ impl Model {
             Model::GeminiPro,
             Model::GeminiUltra,
             Model::Gemini15Pro,
-            // DeepSeek
-            Model::DeepSeekV3,
-            Model::DeepSeekCoder,
-            // Mistral
-            Model::MistralLarge,
-            Model::MistralMedium,
-            Model::MistralSmall,
-            // Cohere
-            Model::CommandRPlus,
-            Model::CommandR,
         ]
     }
 
@@ -369,18 +284,6 @@ impl FromStr for Model {
                 Model::Gemini15Pro
             }
 
-            // DeepSeek
-            "deepseek-v3" | "deepseekv3" | "deepseek-chat" => Model::DeepSeekV3,
-            "deepseek-coder" | "deepseekcoder" => Model::DeepSeekCoder,
-
-            // Mistral
-            "mistral-large" | "mistrallarge" | "mistral-large-latest" => Model::MistralLarge,
-            "mistral-medium" | "mistralmedium" | "mistral-medium-latest" => Model::MistralMedium,
-            "mistral-small" | "mistralsmall" | "mistral-small-latest" => Model::MistralSmall,
-
-            // Cohere
-            "command-r-plus" | "commandrplus" => Model::CommandRPlus,
-            "command-r" | "commandr" => Model::CommandR,
 
             _ => return Err(format!("Unknown model: {s}")),
         };
@@ -410,16 +313,6 @@ pub fn resolve_model_alias(name: &str) -> Option<Model> {
         ("claude-3-5-sonnet-20241022", Model::Claude35Sonnet),
         // Google 别名
         ("gemini", Model::GeminiPro),
-        // DeepSeek 别名
-        ("deepseek", Model::DeepSeekV3),
-        ("ds-v3", Model::DeepSeekV3),
-        ("dscoder", Model::DeepSeekCoder),
-        // Mistral 别名
-        ("mistral", Model::MistralMedium),
-        ("mistral-7b", Model::MistralSmall),
-        // Cohere 别名
-        ("command", Model::CommandR),
-        ("command-plus", Model::CommandRPlus),
     ];
 
     let normalized = name.to_lowercase().replace("_", "-").replace(".", "-");
@@ -475,12 +368,12 @@ mod tests {
             resolve_model_alias("claude-sonnet"),
             Some(Model::Claude35Sonnet)
         );
-        assert_eq!(resolve_model_alias("deepseek"), Some(Model::DeepSeekV3));
+        assert_eq!(resolve_model_alias("gemini"), Some(Model::GeminiPro));
     }
 
     #[test]
     fn test_model_count() {
-        // 至少 15 个模型
-        assert!(Model::count() >= 15);
+        // 至少 12 个模型
+        assert!(Model::count() >= 12);
     }
 }

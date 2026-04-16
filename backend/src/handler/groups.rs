@@ -90,12 +90,23 @@ pub async fn create_group(
     }
 
     // 验证平台
-    let valid_platforms = ["anthropic", "openai", "gemini", "antigravity"];
+    let valid_platforms = ["anthropic", "openai", "gemini", "droid", "antigravity"];
     if !valid_platforms.contains(&req.platform.as_str()) {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
             format!("Invalid platform. Must be one of: {:?}", valid_platforms),
         ));
+    }
+
+    // 验证调度策略
+    if let Some(ref policy) = req.scheduling_policy {
+        let valid_policies = ["sticky", "load_balance", "scoring"];
+        if !valid_policies.contains(&policy.as_str()) {
+            return Err(ApiError(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid scheduling_policy. Must be one of: {:?}", valid_policies),
+            ));
+        }
     }
 
     let group_service = GroupService::new(state.db.clone());
@@ -372,6 +383,7 @@ pub async fn update_group_model_routing(
         fallback_group_id_on_invalid_request: None,
         is_exclusive: None,
         sort_order: None,
+        scheduling_policy: None,
     };
 
     let group = group_service

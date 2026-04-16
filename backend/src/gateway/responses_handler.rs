@@ -10,9 +10,12 @@ use axum::{
 };
 use bytes::Bytes;
 use reqwest::Client;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use std::sync::Arc;
+use uuid::Uuid;
 
-use crate::entity::accounts;
+use crate::entity::{accounts, usages};
+use crate::gateway::providers::default_provider_registry;
 use crate::gateway::{
     responses::ResponsesRequest,
     responses_converter::{
@@ -21,11 +24,14 @@ use crate::gateway::{
     },
     SharedState,
 };
+use crate::service::session_key::RequestSessionHints;
 use crate::service::{LegacyAccountService as AccountService, SchedulerService};
 
 /// Responses API 处理器
 pub async fn handle_responses(
     Extension(state): Extension<Arc<SharedState>>,
+    Extension(claims): Extension<crate::service::user::Claims>,
+    Extension(mut hints): Extension<RequestSessionHints>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
     // 1. 解析 Responses 请求
@@ -34,6 +40,25 @@ pub async fn handle_responses(
 
     let client_stream = req.stream;
     let original_model = req.model.clone();
+
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|e| ApiError::Internal(format!("Invalid user_id in claims: {e}")))?;
+    // TODO: extract real api_key_id from request context
+    let api_key_id = uuid::Uuid::nil();
+
+    // 从 user 字段补充 hints.metadata_session_id
+    if hints.metadata_session_id.is_none() {
+        hints.metadata_session_id = req.user.as_deref().and_then(|uid| {
+            crate::gateway::claude::parse_metadata_user_id(uid)
+                .map(|(_, _, sid)| sid)
+                .or_else(|| {
+                    crate::gateway::middleware::telemetry::ParsedUserID::parse(uid)
+                        .map(|p| p.session_id)
+                })
+        });
+    }
+
+    let session_id = hints.resolve();
 
     // 2. 转换 Responses → Anthropic
     let anthropic_req = responses_to_anthropic(&req)
@@ -51,10 +76,12 @@ pub async fn handle_responses(
         crate::service::scheduler::SchedulingStrategy::HealthAware,
     );
     let account = scheduler
-        .select_account(&original_model, None, 5)
+        .select_account(&original_model, session_id.as_deref(), 5)
         .await
         .map_err(|e| ApiError::ServiceUnavailable(format!("Failed to select account: {e}")))?
         .ok_or_else(|| ApiError::ServiceUnavailable("No available account".to_string()))?;
+
+    let account_id = account.id;
 
     // 5. 获取上游配置
     let (base_url, credential) = get_upstream_config(&account)?;
@@ -68,7 +95,7 @@ pub async fn handle_responses(
     // 7. 发送到 Anthropic 上游
     let url = format!("{base_url}/v1/messages");
 
-    let response = http_client
+    let response = match http_client
         .post(&url)
         .header("Content-Type", "application/json")
         .header("x-api-key", &credential)
@@ -77,13 +104,44 @@ pub async fn handle_responses(
         .json(&anthropic_req)
         .send()
         .await
-        .map_err(|e| ApiError::UpstreamError(format!("Request failed: {e}")))?;
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            // Record failed usage on request error
+            record_usage(
+                &state.db, user_id, api_key_id, account_id,
+                &original_model, 0, 0, false,
+                Some(format!("Request failed: {e}")),
+            ).await;
+            return Err(ApiError::UpstreamError(format!("Request failed: {e}")));
+        }
+    };
+
+    // Check for upstream error status
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_body = response.text().await.unwrap_or_default();
+        record_usage(
+            &state.db, user_id, api_key_id, account_id,
+            &original_model, 0, 0, false,
+            Some(format!("HTTP {}: {}", status.as_u16(), &error_body)),
+        ).await;
+        return Err(ApiError::UpstreamError(format!(
+            "Upstream returned HTTP {}: {}", status.as_u16(), error_body
+        )));
+    }
 
     // 8. 处理响应
     if client_stream {
-        handle_streaming_response(response, &original_model).await
+        handle_streaming_response(
+            response, &original_model,
+            state.db.clone(), user_id, api_key_id, account_id,
+        ).await
     } else {
-        handle_buffered_response(response, &original_model).await
+        handle_buffered_response(
+            response, &original_model,
+            state.db.clone(), user_id, api_key_id, account_id,
+        ).await
     }
 }
 
@@ -91,17 +149,25 @@ pub async fn handle_responses(
 async fn handle_streaming_response(
     response: reqwest::Response,
     model: &str,
+    db: DatabaseConnection,
+    user_id: Uuid,
+    api_key_id: Uuid,
+    account_id: Uuid,
 ) -> Result<Response, ApiError> {
     use futures::StreamExt;
     use tokio_stream::wrappers::ReceiverStream;
 
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let _model = model.to_string();
+    let model_owned = model.to_string();
 
     // 启动后台任务处理 SSE 流
     tokio::spawn(async move {
         let mut state = ResponsesConverterState::new();
         let mut stream = response.bytes_stream();
+        let mut input_tokens: i64 = 0;
+        let mut output_tokens: i64 = 0;
+        let mut had_error = false;
+        let mut error_msg: Option<String> = None;
 
         while let Some(chunk) = stream.next().await {
             match chunk {
@@ -114,6 +180,19 @@ async fn handle_streaming_response(
                                     crate::gateway::responses::AnthropicStreamEvent,
                                 >(data)
                                 {
+                                    // Track usage from message_start and message_delta
+                                    if event.event_type == "message_start" {
+                                        if let Some(ref msg) = event.message {
+                                            input_tokens = msg.usage.input_tokens as i64;
+                                            output_tokens = msg.usage.output_tokens as i64;
+                                        }
+                                    }
+                                    if event.event_type == "message_delta" {
+                                        if let Some(ref usage) = event.usage {
+                                            output_tokens = usage.output_tokens as i64;
+                                        }
+                                    }
+
                                     let events =
                                         anthropic_event_to_responses_events(&event, &mut state);
                                     for evt in events {
@@ -127,11 +206,20 @@ async fn handle_streaming_response(
                     }
                 }
                 Err(e) => {
+                    had_error = true;
+                    error_msg = Some(format!("Stream error: {e}"));
                     let _ = tx.send(Err(format!("Stream error: {e}"))).await;
                     break;
                 }
             }
         }
+
+        // Record usage after stream completes
+        record_usage(
+            &db, user_id, api_key_id, account_id,
+            &model_owned, input_tokens, output_tokens,
+            !had_error, error_msg,
+        ).await;
     });
 
     // 返回 SSE 流
@@ -151,6 +239,10 @@ async fn handle_streaming_response(
 async fn handle_buffered_response(
     response: reqwest::Response,
     model: &str,
+    db: DatabaseConnection,
+    user_id: Uuid,
+    api_key_id: Uuid,
+    account_id: Uuid,
 ) -> Result<Response, ApiError> {
     use futures::StreamExt;
 
@@ -242,8 +334,25 @@ async fn handle_buffered_response(
     }
 
     // 转换为 Responses 格式
-    let response = final_response
-        .ok_or_else(|| ApiError::UpstreamError("No response received".to_string()))?;
+    let response = match final_response {
+        Some(resp) => resp,
+        None => {
+            record_usage(
+                &db, user_id, api_key_id, account_id,
+                model, 0, 0, false,
+                Some("No response received".to_string()),
+            ).await;
+            return Err(ApiError::UpstreamError("No response received".to_string()));
+        }
+    };
+
+    // Record successful usage
+    let input_tokens = response.usage.input_tokens as i64;
+    let output_tokens = response.usage.output_tokens as i64;
+    record_usage(
+        &db, user_id, api_key_id, account_id,
+        model, input_tokens, output_tokens, true, None,
+    ).await;
 
     let responses_resp = anthropic_to_responses(&response, model);
 
@@ -283,17 +392,63 @@ impl IntoResponse for ApiError {
 
 /// 获取上游配置
 fn get_upstream_config(account: &accounts::Model) -> Result<(String, String), ApiError> {
-    // 根据提供商返回不同的配置
-    match account.provider.as_str() {
-        "anthropic" => {
-            let base_url = std::env::var("ANTHROPIC_BASE_URL")
-                .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-            Ok((base_url, account.credential.clone()))
-        }
-        _ => Err(ApiError::BadRequest(format!(
-            "Unsupported provider: {}",
-            account.provider
-        ))),
+    let provider_key = account.provider.as_str();
+    let adapter = default_provider_registry()
+        .get(provider_key)
+        .ok_or_else(|| ApiError::BadRequest(format!("Unsupported provider: {}", provider_key)))?;
+
+    let base_url = match provider_key {
+        "anthropic" => std::env::var("ANTHROPIC_BASE_URL")
+            .unwrap_or_else(|_| adapter.base_url().to_string()),
+        _ => adapter.base_url().to_string(),
+    };
+
+    Ok((base_url, account.credential.clone()))
+}
+
+/// 计算 Responses API 费用
+fn calculate_responses_cost(model: &str, total_tokens: i64) -> i64 {
+    let price_per_1k = match model {
+        m if m.contains("opus") => 75,
+        m if m.contains("sonnet") => 15,
+        m if m.contains("haiku") => 5,
+        _ => 15,
+    };
+    (total_tokens as f64 * price_per_1k as f64 / 1000.0).round() as i64
+}
+
+/// 记录使用量到数据库
+async fn record_usage(
+    db: &DatabaseConnection,
+    user_id: Uuid,
+    api_key_id: Uuid,
+    account_id: Uuid,
+    model: &str,
+    input_tokens: i64,
+    output_tokens: i64,
+    success: bool,
+    error_message: Option<String>,
+) {
+    let total_tokens = input_tokens + output_tokens;
+    let cost = calculate_responses_cost(model, total_tokens);
+
+    let usage_record = usages::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        user_id: Set(user_id),
+        api_key_id: Set(api_key_id),
+        account_id: Set(Some(account_id)),
+        model: Set(model.to_string()),
+        input_tokens: Set(input_tokens),
+        output_tokens: Set(output_tokens),
+        cost: Set(cost),
+        request_id: Set(Some(Uuid::new_v4().to_string())),
+        success: Set(success),
+        error_message: Set(error_message),
+        metadata: Set(Some(serde_json::json!({"api_type": "responses"}))),
+        created_at: Set(chrono::Utc::now()),
+    };
+    if let Err(e) = usage_record.insert(db).await {
+        tracing::warn!("Failed to record responses usage: {e}");
     }
 }
 

@@ -37,6 +37,43 @@ impl From<&str> for GroupStatus {
     }
 }
 
+/// 分组调度策略
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupSchedulingPolicy {
+    /// 强粘性：同 session 始终命中同一账号
+    Sticky,
+    /// 负载均衡：跳过粘性，轮询分散
+    #[default]
+    LoadBalance,
+    /// 评分算法：多因子加权选择
+    Scoring,
+}
+
+impl GroupSchedulingPolicy {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "sticky" => Self::Sticky,
+            "scoring" => Self::Scoring,
+            _ => Self::LoadBalance,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Sticky => "sticky",
+            Self::LoadBalance => "load_balance",
+            Self::Scoring => "scoring",
+        }
+    }
+}
+
+impl std::fmt::Display for GroupSchedulingPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// 平台类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Platform {
@@ -46,6 +83,8 @@ pub enum Platform {
     OpenAI,
     #[serde(rename = "gemini")]
     Gemini,
+    #[serde(rename = "droid")]
+    Droid,
     #[serde(rename = "antigravity")]
     Antigravity,
 }
@@ -56,6 +95,7 @@ impl std::fmt::Display for Platform {
             Platform::Anthropic => write!(f, "anthropic"),
             Platform::OpenAI => write!(f, "openai"),
             Platform::Gemini => write!(f, "gemini"),
+            Platform::Droid => write!(f, "droid"),
             Platform::Antigravity => write!(f, "antigravity"),
         }
     }
@@ -67,6 +107,7 @@ impl From<&str> for Platform {
             "anthropic" => Platform::Anthropic,
             "openai" => Platform::OpenAI,
             "gemini" => Platform::Gemini,
+            "droid" => Platform::Droid,
             "antigravity" => Platform::Antigravity,
             _ => Platform::OpenAI,
         }
@@ -109,6 +150,9 @@ pub struct Model {
     pub sort_order: i32,
     pub is_exclusive: bool,
 
+    // 调度策略
+    pub scheduling_policy: String,
+
     // 时间戳
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -133,6 +177,11 @@ impl Model {
     /// 检查分组是否激活
     pub fn is_active(&self) -> bool {
         self.status == "active" && self.deleted_at.is_none()
+    }
+
+    /// 获取调度策略
+    pub fn policy(&self) -> GroupSchedulingPolicy {
+        GroupSchedulingPolicy::parse(&self.scheduling_policy)
     }
 
     /// 获取平台类型

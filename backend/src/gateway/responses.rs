@@ -188,6 +188,8 @@ pub struct ResponsesRequest {
     pub reasoning: Option<ResponsesReasoning>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
 }
 
 /// Responses reasoning 配置

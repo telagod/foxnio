@@ -24,6 +24,7 @@ pub enum AccountProvider {
     Anthropic,
     OpenAI,
     Gemini,
+    Droid,
     Antigravity,
 }
 
@@ -35,6 +36,7 @@ impl TryFrom<String> for AccountProvider {
             "anthropic" => Ok(AccountProvider::Anthropic),
             "openai" => Ok(AccountProvider::OpenAI),
             "gemini" => Ok(AccountProvider::Gemini),
+            "droid" => Ok(AccountProvider::Droid),
             "antigravity" => Ok(AccountProvider::Antigravity),
             _ => Err(format!("Invalid AccountProvider: {s}")),
         }
