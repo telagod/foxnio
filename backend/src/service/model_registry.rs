@@ -377,6 +377,8 @@ impl ModelRegistry {
             display_name: Set(display_name),
             input_price: Set(req.input_price),
             output_price: Set(req.output_price),
+            cache_read_price: Set(None),
+            cache_creation_price: Set(None),
             max_tokens: Set(req.max_tokens),
             context_window: Set(req.context_window),
             max_concurrent: Set(req.max_concurrent),

@@ -28,6 +28,10 @@ pub struct Model {
     pub input_price: f64,
     /// 输出价格（每 1M tokens，USD）
     pub output_price: f64,
+    /// 缓存读取价格（每 1M tokens，USD）
+    pub cache_read_price: Option<f64>,
+    /// 缓存创建价格（每 1M tokens，USD）
+    pub cache_creation_price: Option<f64>,
     /// 最大输出 tokens
     pub max_tokens: i32,
     /// 上下文窗口大小

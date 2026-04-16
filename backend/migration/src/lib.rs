@@ -33,6 +33,7 @@ mod m20240403_000030_create_redeem_code_ledger;
 mod m20240405_000031_create_balance_ledger;
 mod m20240416_000032_add_query_performance_indexes;
 mod m20240417_000033_add_group_scheduling_policy;
+mod m20240418_000034_add_cache_pricing;
 
 pub struct Migrator;
 
@@ -73,6 +74,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240405_000031_create_balance_ledger::Migration),
             Box::new(m20240416_000032_add_query_performance_indexes::Migration),
             Box::new(m20240417_000033_add_group_scheduling_policy::Migration),
+            Box::new(m20240418_000034_add_cache_pricing::Migration),
         ]
     }
 }

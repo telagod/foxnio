@@ -5,6 +5,7 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::entity::usages;
@@ -67,13 +68,16 @@ pub struct UserUsageReport {
 pub struct BillingService {
     db: DatabaseConnection,
     rate_multiplier: f64,
+    pricing_service: Arc<crate::service::pricing::PricingService>,
 }
 
 impl BillingService {
     pub fn new(db: DatabaseConnection, rate_multiplier: f64) -> Self {
+        let pricing_service = Arc::new(crate::service::pricing::PricingService::new(db.clone()));
         Self {
             db,
             rate_multiplier,
+            pricing_service,
         }
     }
 
@@ -130,12 +134,31 @@ impl BillingService {
         })
     }
 
-    /// 计算费用（单位：分）
+    /// 计算费用（单位：分）— 委托给 PricingService
     pub fn calculate_cost(&self, model: &str, input_tokens: i64, output_tokens: i64) -> i64 {
+        // PricingService 是 async 的，这里用 blocking fallback 保持兼容
+        // 热路径应直接调用 pricing_service.calculate_cost_simple()
         Self::calculate_cost_static(model, input_tokens, output_tokens, self.rate_multiplier)
     }
 
-    /// 计算费用（静态方法，用于测试）
+    /// 异步计算费用 — 走 DB 定价表
+    pub async fn calculate_cost_async(
+        &self,
+        model: &str,
+        input_tokens: i64,
+        output_tokens: i64,
+    ) -> i64 {
+        self.pricing_service
+            .calculate_cost_simple(model, input_tokens, output_tokens, self.rate_multiplier)
+            .await
+    }
+
+    /// 获取 PricingService 引用
+    pub fn pricing_service(&self) -> &Arc<crate::service::pricing::PricingService> {
+        &self.pricing_service
+    }
+
+    /// 计算费用（静态方法，用于测试和 fallback）
     pub fn calculate_cost_static(
         model: &str,
         input_tokens: i64,

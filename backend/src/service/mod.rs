@@ -66,6 +66,7 @@ pub mod ops_window_stats;
 pub mod password_reset;
 pub mod password_reset_test;
 pub mod permission;
+pub mod pricing;
 pub mod pricing_service;
 pub mod promo_code;
 pub mod proxy;
