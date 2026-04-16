@@ -204,48 +204,85 @@ impl AnthropicMessagesForwarder {
             None
         };
 
-        // 2. 获取凭证
-        let credential = self.get_account_credential(account.id).await?;
+        // 2-4. 发送请求（带 failover 重试）
+        let mut excluded_accounts = std::collections::HashSet::new();
+        let mut last_error: Option<anyhow::Error> = None;
+        let max_attempts = self.max_retries.min(3) as usize;
 
-        // 3. 映射模型
-        let mapped_model = self.map_model(&original_model, &account.provider);
+        for attempt in 0..max_attempts {
+            // 重试时重新选择账号（排除已失败的）
+            let (current_account, credential, mapped_model) = if attempt == 0 {
+                let cred = self.get_account_credential(account.id).await?;
+                let mapped = self.map_model(&original_model, &account.provider);
+                (account.clone(), cred, mapped)
+            } else {
+                // 重新选择账号，排除已失败的
+                let retry_account = {
+                    let scheduler = self.scheduler.read().await;
+                    let mut candidates = scheduler
+                        .get_available_accounts_for_model(&original_model)
+                        .await
+                        .unwrap_or_default();
+                    candidates.retain(|a| !excluded_accounts.contains(&a.id));
+                    candidates.into_iter().next()
+                };
 
-        // 4. 发送请求
-        let result = match self
-            .send_request(
-                &account.provider,
-                &credential,
-                &request,
-                &mapped_model,
-                is_stream,
-                &original_model,
-                start_time,
-            )
-            .await
-        {
-            Ok(result) => {
-                // 5. 记录成功使用量
-                self.record_usage(&result, user_id, api_key_id, account.id)
-                    .await?;
-                Ok(result)
-            }
-            Err(e) => {
-                // 记录失败使用量
-                let duration_ms = start_time.elapsed().as_millis() as u64;
-                self.record_failure_usage(
+                match retry_account {
+                    Some(acc) => {
+                        let cred = match self.get_account_credential(acc.id).await {
+                            Ok(c) => c,
+                            Err(_) => break,
+                        };
+                        let mapped = self.map_model(&original_model, &acc.provider);
+                        (acc, cred, mapped)
+                    }
+                    None => break, // 无可用账号，退出重试
+                }
+            };
+
+            match self
+                .send_request(
+                    &current_account.provider,
+                    &credential,
+                    &request,
+                    &mapped_model,
+                    is_stream,
                     &original_model,
-                    user_id,
-                    api_key_id,
-                    account.id,
-                    &e.to_string(),
-                    duration_ms,
+                    start_time,
                 )
-                .await;
-                Err(e)
+                .await
+            {
+                Ok(result) => {
+                    // 记录成功使用量
+                    self.record_usage(&result, user_id, api_key_id, current_account.id)
+                        .await?;
+                    return Ok(result);
+                }
+                Err(e) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    self.record_failure_usage(
+                        &original_model,
+                        user_id,
+                        api_key_id,
+                        current_account.id,
+                        &e.to_string(),
+                        duration_ms,
+                    )
+                    .await;
+                    excluded_accounts.insert(current_account.id);
+                    tracing::warn!(
+                        "Attempt {}/{} failed for account {}: {}",
+                        attempt + 1,
+                        max_attempts,
+                        current_account.id,
+                        e
+                    );
+                    last_error = Some(e);
+                }
             }
-        };
+        }
 
-        result
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All retry attempts exhausted")))
     }
 
     /// 选择账号

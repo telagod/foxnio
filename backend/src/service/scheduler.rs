@@ -186,6 +186,15 @@ impl SchedulerService {
         Ok(None)
     }
 
+    /// 获取模型的可用账号列表（用于 failover 重试）
+    pub async fn get_available_accounts_for_model(
+        &self,
+        model: &str,
+    ) -> Result<Vec<accounts::Model>> {
+        let accounts = self.account_service.get_for_model(model).await?;
+        Ok(self.filter_available_accounts(accounts).await)
+    }
+
     /// 设置粘性会话
     pub async fn set_sticky_session(&self, session_id: String, account_id: uuid::Uuid) {
         let mut sessions = self.sticky_sessions.write().await;
