@@ -394,27 +394,76 @@ impl MetricsCollector {
 
     /// 收集请求指标
     async fn collect_request_metrics(&self) -> Result<()> {
-        // TODO: 从数据库查询请求统计
+        use crate::entity::{accounts, usages};
+        use sea_orm::{DbBackend, FromQueryResult, Statement};
 
+        #[derive(Debug, FromQueryResult)]
+        struct ProviderStats {
+            provider: String,
+            cnt: i64,
+        }
+
+        let rows = ProviderStats::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT a.provider, COUNT(u.id)::bigint AS cnt
+               FROM usages u
+               INNER JOIN accounts a ON u.account_id = a.id
+               WHERE u.created_at >= NOW() - INTERVAL '1 hour'
+               GROUP BY a.provider"#,
+            [],
+        ))
+        .all(&self.db)
+        .await
+        .unwrap_or_default();
+
+        for row in rows {
+            let mut labels = HashMap::new();
+            labels.insert("platform".to_string(), row.provider);
+            self.record_gauge("requests_1h", row.cnt as f64, labels).await?;
+        }
+
+        // Active connections from Prometheus metric
+        let active = crate::metrics::ACTIVE_CONNECTIONS.get();
         let mut labels = HashMap::new();
-        labels.insert("platform".to_string(), "openai".to_string());
-
-        self.increment_counter("requests_total", labels.clone())
-            .await?;
-        self.record_gauge("requests_active", 0.0, labels).await?;
+        labels.insert("platform".to_string(), "all".to_string());
+        self.record_gauge("requests_active", active as f64, labels).await?;
 
         Ok(())
     }
 
     /// 收集账号指标
     async fn collect_account_metrics(&self) -> Result<()> {
-        // TODO: 从数据库查询账号状态
+        use crate::entity::accounts;
+        use sea_orm::{DbBackend, FromQueryResult, Statement};
 
-        let mut labels = HashMap::new();
-        labels.insert("platform".to_string(), "openai".to_string());
-        labels.insert("status".to_string(), "active".to_string());
+        #[derive(Debug, FromQueryResult)]
+        struct AccountStats {
+            provider: String,
+            status: String,
+            cnt: i64,
+        }
 
-        self.record_gauge("accounts_total", 10.0, labels).await?;
+        let rows = AccountStats::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT provider, status, COUNT(*)::bigint AS cnt
+               FROM accounts GROUP BY provider, status"#,
+            [],
+        ))
+        .all(&self.db)
+        .await
+        .unwrap_or_default();
+
+        for row in rows {
+            let mut labels = HashMap::new();
+            labels.insert("platform".to_string(), row.provider.clone());
+            labels.insert("status".to_string(), row.status.clone());
+            self.record_gauge("accounts_total", row.cnt as f64, labels).await?;
+
+            // 更新 Prometheus 指标
+            crate::metrics::ACCOUNT_POOL_STATUS
+                .with_label_values(&[&row.provider, &row.status])
+                .set(row.cnt);
+        }
 
         Ok(())
     }
@@ -438,15 +487,45 @@ impl MetricsCollector {
         Ok(())
     }
 
-    /// 获取内存使用
+    /// 获取内存使用（RSS，字节）
     async fn get_memory_usage(&self) -> f64 {
-        // TODO: 实现实际的内存使用查询
+        // 从 /proc/self/status 读取 VmRSS（Linux）
+        if let Ok(status) = tokio::fs::read_to_string("/proc/self/status").await {
+            for line in status.lines() {
+                if line.starts_with("VmRSS:") {
+                    let kb: f64 = line
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0.0);
+                    return kb * 1024.0; // KB → bytes
+                }
+            }
+        }
         0.0
     }
 
-    /// 获取 CPU 使用率
+    /// 获取 CPU 使用率（近似，0-100）
     async fn get_cpu_usage(&self) -> f64 {
-        // TODO: 实现实际的 CPU 使用率查询
+        // 从 /proc/self/stat 读取 utime+stime
+        if let Ok(stat) = tokio::fs::read_to_string("/proc/self/stat").await {
+            let parts: Vec<&str> = stat.split_whitespace().collect();
+            if parts.len() > 14 {
+                let utime: f64 = parts[13].parse().unwrap_or(0.0);
+                let stime: f64 = parts[14].parse().unwrap_or(0.0);
+                // 粗略估算：总 CPU ticks / uptime
+                let total_ticks = utime + stime;
+                if let Ok(uptime) = tokio::fs::read_to_string("/proc/uptime").await {
+                    let uptime_secs: f64 = uptime
+                        .split_whitespace()
+                        .next()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(1.0);
+                    let clock_ticks = 100.0; // sysconf(_SC_CLK_TCK) 通常为 100
+                    return (total_ticks / clock_ticks / uptime_secs) * 100.0;
+                }
+            }
+        }
         0.0
     }
 

@@ -552,12 +552,16 @@ impl RedeemCodeService {
     /// 兑换订阅
     async fn redeem_subscription(
         &self,
-        _user_id: &Uuid,
+        user_id: &Uuid,
         _group_id: Option<i64>,
         days: i32,
     ) -> Result<String> {
-        // TODO: 实现订阅逻辑
-        Ok(format!("Added {days} days subscription"))
+        let txn = self.db.begin().await?;
+        let (msg, _sub_id) = self
+            .redeem_subscription_with_txn(&txn, user_id, None, days as i64)
+            .await?;
+        txn.commit().await?;
+        Ok(msg)
     }
 
     /// 兑换订阅（带事务）— returns (message, subscription_id)
@@ -646,9 +650,11 @@ impl RedeemCodeService {
     }
 
     /// 兑换配额
-    async fn redeem_quota(&self, _user_id: &Uuid, quota: i64) -> Result<String> {
-        // TODO: 实现配额逻辑
-        Ok(format!("Added {quota} tokens quota"))
+    async fn redeem_quota(&self, user_id: &Uuid, quota: i64) -> Result<String> {
+        let txn = self.db.begin().await?;
+        let (msg, _sub_id) = self.redeem_quota_with_txn(&txn, user_id, quota).await?;
+        txn.commit().await?;
+        Ok(msg)
     }
 
     /// 兑换配额（带事务）— returns (message, subscription_id)
