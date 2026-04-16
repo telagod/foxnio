@@ -37,6 +37,12 @@
   let outcome = $state<ChartData>(emptyChart);
   let modelDistribution = $state<DistributionData>(emptyDistribution);
   let platformDistribution = $state<DistributionData>(emptyDistribution);
+  let llmMetrics = $state<{
+    avg_ttft_seconds: number;
+    active_connections: number;
+    total_requests: number;
+    cache_hit_rate: number;
+  }>({ avg_ttft_seconds: 0, active_connections: 0, total_requests: 0, cache_hit_rate: 0 });
   let loading = $state(true);
   let error = $state<string | null>(null);
 
@@ -67,12 +73,14 @@
 
   async function loadDashboard() {
     try {
-      const [nextStats, nextTrend, nextLatency, nextOutcome, nextModelDist, nextPlatformDist] = await Promise.all([
+      const [nextStats, nextTrend, nextLatency, nextOutcome, nextModelDist, nextPlatformDist, nextLlm] = await Promise.all([
         api.getAdminDashboardStats(), api.getAdminDashboardTrend(), api.getAdminDashboardLine(),
-        api.getAdminDashboardPie(), api.getAdminDashboardModelDistribution(), api.getAdminDashboardPlatformDistribution()
+        api.getAdminDashboardPie(), api.getAdminDashboardModelDistribution(), api.getAdminDashboardPlatformDistribution(),
+        api.getLlmMetrics().catch(() => llmMetrics)
       ]);
       stats = nextStats; trend = nextTrend; latency = nextLatency;
       outcome = nextOutcome; modelDistribution = nextModelDist; platformDistribution = nextPlatformDist;
+      llmMetrics = nextLlm;
       error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : '加载 dashboard 失败';
@@ -207,6 +215,26 @@
           </div>
         </div>
         <div class="mt-3 text-xs text-gray-500 dark:text-gray-400">更新时间 {formatDate(stats.updated_at)}</div>
+      </div>
+    </div>
+
+    <!-- LLM API Gateway 实时指标 -->
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">TTFT (avg)</div>
+        <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{llmMetrics.avg_ttft_seconds > 0 ? `${(llmMetrics.avg_ttft_seconds * 1000).toFixed(0)}ms` : '-'}</div>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Active Connections</div>
+        <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{llmMetrics.active_connections}</div>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Total Requests</div>
+        <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{formatNumber(llmMetrics.total_requests)}</div>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Cache Hit Rate</div>
+        <div class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{(llmMetrics.cache_hit_rate * 100).toFixed(1)}%</div>
       </div>
     </div>
 

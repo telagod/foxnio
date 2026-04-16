@@ -904,6 +904,17 @@ class ApiClient {
     return this.request('/api/v1/admin/dashboard/platform-distribution');
   }
 
+  async getLlmMetrics(): Promise<{
+    avg_ttft_seconds: number;
+    active_connections: number;
+    total_requests: number;
+    provider_health: Array<{ provider: string; healthy: boolean }>;
+    queue_depths: Array<{ provider: string; depth: number }>;
+    cache_hit_rate: number;
+  }> {
+    return this.request('/api/v1/admin/dashboard/llm-metrics');
+  }
+
   // 获取模型列表
   async getModels(): Promise<{ data: Model[] }> {
     return this.request('/v1/models');
