@@ -219,16 +219,32 @@ impl AccountService {
 
     /// 获取可用账号（用于调度）
     pub async fn get_available(&self, provider: &str) -> Result<Vec<accounts::Model>> {
-        // 检查缓存
-        let _cache_key = CacheKey::ActiveAccounts(provider.to_string());
-        {
-            let cache = self.cache.read().await;
-            // 缓存的是 AccountInfo，这里需要返回 Model，所以跳过缓存
-            let _ = cache;
-        }
-
         let accounts = accounts::Entity::find()
             .filter(accounts::Column::Provider.eq(provider))
+            .filter(accounts::Column::Status.eq("active"))
+            .order_by_desc(accounts::Column::Priority)
+            .all(&self.db)
+            .await?;
+
+        Ok(accounts)
+    }
+
+    /// 按多个 provider 获取可用账号（按优先级降序）
+    pub async fn get_available_for_providers(
+        &self,
+        providers: &[&str],
+    ) -> Result<Vec<accounts::Model>> {
+        if providers.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let providers = providers
+            .iter()
+            .map(|provider| provider.to_string())
+            .collect::<Vec<_>>();
+
+        let accounts = accounts::Entity::find()
+            .filter(accounts::Column::Provider.is_in(providers))
             .filter(accounts::Column::Status.eq("active"))
             .order_by_desc(accounts::Column::Priority)
             .all(&self.db)

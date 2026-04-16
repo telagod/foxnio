@@ -4,12 +4,20 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult, PaginatorTrait,
+    QueryFilter, QuerySelect, Statement,
+};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::collections::BTreeMap;
 
 use crate::entity::{accounts, api_keys, usages, users};
+use crate::metrics::{
+    self, BATCH_ERRORS, BATCH_OPERATIONS_TOTAL, BATCH_OPERATION_LAST_SIZE,
+    BATCH_OPERATION_THROUGHPUT,
+};
+use crate::service::ops_metrics_collector::{MetricsCollector, MetricsCollectorConfig};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardStats {
@@ -17,6 +25,7 @@ pub struct DashboardStats {
     pub accounts: AccountStats,
     pub api_keys: ApiKeyStats,
     pub usage: UsageStats,
+    pub ops: OpsStats,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -59,6 +68,20 @@ pub struct UsageStats {
     pub today_requests: i64,
     pub today_tokens: i64,
     pub today_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OpsStats {
+    pub active_users_24h: i64,
+    pub error_rate_1h: f64,
+    pub avg_response_time_ms: f64,
+    pub cache_hit_rate: f64,
+    pub batch_operations_total: u64,
+    pub batch_errors_total: u64,
+    pub latest_fast_import_throughput: f64,
+    pub latest_fast_import_preview_throughput: f64,
+    pub latest_fast_import_size: i64,
+    pub latest_fast_import_preview_size: i64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -150,6 +173,7 @@ impl DashboardQueryService {
             .single()
             .ok_or_else(|| anyhow!("invalid month"))?;
 
+        // --- Users: DB count queries ---
         let total_users = users::Entity::find().count(&self.db).await? as i64;
         let active_users = users::Entity::find()
             .filter(users::Column::Status.eq("active"))
@@ -168,45 +192,124 @@ impl DashboardQueryService {
             .count(&self.db)
             .await? as i64;
 
-        let all_accounts = accounts::Entity::find().all(&self.db).await?;
-        let total_accounts = all_accounts.len() as i64;
-        let active_accounts = all_accounts
-            .iter()
-            .filter(|account| account.is_active())
-            .count() as i64;
-        let healthy_accounts = all_accounts
-            .iter()
-            .filter(|account| account.is_active() && account.last_error.is_none())
-            .count() as i64;
+        // --- Accounts: DB aggregation instead of full table scan ---
+        let total_accounts = accounts::Entity::find().count(&self.db).await? as i64;
+        let active_accounts = accounts::Entity::find()
+            .filter(accounts::Column::Status.eq("active"))
+            .count(&self.db)
+            .await? as i64;
+        let healthy_accounts = accounts::Entity::find()
+            .filter(accounts::Column::Status.eq("active"))
+            .filter(accounts::Column::LastError.is_null())
+            .count(&self.db)
+            .await? as i64;
 
-        let mut platform_map = BTreeMap::<String, PlatformStats>::new();
-        for account in &all_accounts {
-            let entry = platform_map
-                .entry(account.provider.clone())
-                .or_insert_with(|| PlatformStats {
-                    platform: account.provider.clone(),
-                    count: 0,
-                    healthy_count: 0,
-                });
-            entry.count += 1;
-            if account.is_active() && account.last_error.is_none() {
-                entry.healthy_count += 1;
-            }
+        // Platform stats via raw SQL GROUP BY
+        #[derive(Debug, FromQueryResult)]
+        struct PlatformRow {
+            provider: String,
+            total: i64,
+            healthy: i64,
         }
+        let platform_rows = PlatformRow::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT provider,
+                      COUNT(*)::bigint AS total,
+                      COUNT(*) FILTER (WHERE status = 'active' AND last_error IS NULL)::bigint AS healthy
+               FROM accounts GROUP BY provider ORDER BY provider"#,
+            [],
+        ))
+        .all(&self.db)
+        .await?;
+        let by_platform = platform_rows
+            .into_iter()
+            .map(|row| PlatformStats {
+                platform: row.provider,
+                count: row.total,
+                healthy_count: row.healthy,
+            })
+            .collect();
 
+        // --- API Keys: DB count queries instead of full table scan ---
+        let total_api_keys = api_keys::Entity::find().count(&self.db).await? as i64;
+        let active_api_keys = api_keys::Entity::find()
+            .filter(api_keys::Column::Status.eq("active"))
+            .count(&self.db)
+            .await? as i64;
         let expiring_soon_at = now + Duration::days(7);
-        let all_api_keys = api_keys::Entity::find().all(&self.db).await?;
-        let total_api_keys = all_api_keys.len() as i64;
-        let active_api_keys = all_api_keys.iter().filter(|key| key.is_active()).count() as i64;
-        let expiring_soon = all_api_keys
-            .iter()
-            .filter(|key| key.status == "active")
-            .filter_map(|key| key.expires_at)
-            .filter(|expires_at| *expires_at > now && *expires_at <= expiring_soon_at)
-            .count() as i64;
+        let expiring_soon = api_keys::Entity::find()
+            .filter(api_keys::Column::Status.eq("active"))
+            .filter(api_keys::Column::ExpiresAt.gt(now))
+            .filter(api_keys::Column::ExpiresAt.lte(expiring_soon_at))
+            .count(&self.db)
+            .await? as i64;
 
-        let all_usages = usages::Entity::find().all(&self.db).await?;
-        let usage = summarize_usage(&all_usages, today_start);
+        // --- Usages: DB aggregation instead of full table scan ---
+        #[derive(Debug, FromQueryResult)]
+        struct UsageAgg {
+            cnt: i64,
+            sum_input: i64,
+            sum_output: i64,
+            sum_cost: i64,
+        }
+        let total_usage = UsageAgg::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT COUNT(*)::bigint AS cnt,
+                      COALESCE(SUM(input_tokens), 0)::bigint AS sum_input,
+                      COALESCE(SUM(output_tokens), 0)::bigint AS sum_output,
+                      COALESCE(SUM(cost), 0)::bigint AS sum_cost
+               FROM usages"#,
+            [],
+        ))
+        .one(&self.db)
+        .await?
+        .unwrap_or(UsageAgg { cnt: 0, sum_input: 0, sum_output: 0, sum_cost: 0 });
+
+        let today_usage = UsageAgg::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT COUNT(*)::bigint AS cnt,
+                      COALESCE(SUM(input_tokens), 0)::bigint AS sum_input,
+                      COALESCE(SUM(output_tokens), 0)::bigint AS sum_output,
+                      COALESCE(SUM(cost), 0)::bigint AS sum_cost
+               FROM usages WHERE created_at >= $1"#,
+            [today_start.into()],
+        ))
+        .one(&self.db)
+        .await?
+        .unwrap_or(UsageAgg { cnt: 0, sum_input: 0, sum_output: 0, sum_cost: 0 });
+
+        let usage = UsageStats {
+            total_requests: total_usage.cnt,
+            total_tokens: total_usage.sum_input + total_usage.sum_output,
+            total_cost: total_usage.sum_cost as f64 / 100.0,
+            today_requests: today_usage.cnt,
+            today_tokens: today_usage.sum_input + today_usage.sum_output,
+            today_cost: today_usage.sum_cost as f64 / 100.0,
+        };
+
+        let snapshot = MetricsCollector::new(self.db.clone(), MetricsCollectorConfig::default())
+            .collect_snapshot()
+            .await?;
+        let ops = OpsStats {
+            active_users_24h: snapshot.active_users_24h,
+            error_rate_1h: snapshot.error_rate_1h,
+            avg_response_time_ms: snapshot.avg_response_time_ms,
+            cache_hit_rate: metrics::CacheMetrics::hit_rate(),
+            batch_operations_total: BATCH_OPERATIONS_TOTAL.get(),
+            batch_errors_total: BATCH_ERRORS.get(),
+            latest_fast_import_throughput: BATCH_OPERATION_THROUGHPUT
+                .with_label_values(&["fast_import", "fast"])
+                .get(),
+            latest_fast_import_preview_throughput: BATCH_OPERATION_THROUGHPUT
+                .with_label_values(&["fast_import_preview", "preview"])
+                .get(),
+            latest_fast_import_size: BATCH_OPERATION_LAST_SIZE
+                .with_label_values(&["fast_import", "fast"])
+                .get(),
+            latest_fast_import_preview_size: BATCH_OPERATION_LAST_SIZE
+                .with_label_values(&["fast_import_preview", "preview"])
+                .get(),
+        };
 
         Ok(DashboardStats {
             users: UserStats {
@@ -220,7 +323,7 @@ impl DashboardQueryService {
                 total: total_accounts,
                 active: active_accounts,
                 healthy: healthy_accounts,
-                by_platform: platform_map.into_values().collect(),
+                by_platform,
             },
             api_keys: ApiKeyStats {
                 total: total_api_keys,
@@ -228,6 +331,7 @@ impl DashboardQueryService {
                 expiring_soon,
             },
             usage,
+            ops,
             updated_at: Utc::now(),
         })
     }
@@ -331,68 +435,80 @@ impl DashboardQueryService {
     }
 
     pub async fn get_model_distribution(&self) -> Result<DistributionData> {
-        let usages = usages::Entity::find().all(&self.db).await?;
-        let mut counts = BTreeMap::<String, i64>::new();
-
-        for usage in usages {
-            *counts.entry(usage.model).or_insert(0) += 1;
+        #[derive(Debug, FromQueryResult)]
+        struct ModelCount {
+            model: String,
+            cnt: i64,
         }
+        let rows = ModelCount::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT model, COUNT(*)::bigint AS cnt
+               FROM usages GROUP BY model ORDER BY cnt DESC"#,
+            [],
+        ))
+        .all(&self.db)
+        .await?;
 
+        let total = rows.iter().map(|r| r.cnt).sum();
         Ok(DistributionData {
-            labels: counts.keys().cloned().collect(),
-            data: counts.values().copied().collect(),
-            total: counts.values().sum(),
+            labels: rows.iter().map(|r| r.model.clone()).collect(),
+            data: rows.iter().map(|r| r.cnt).collect(),
+            total,
         })
     }
 
     pub async fn get_platform_distribution(&self) -> Result<DistributionData> {
-        let accounts = accounts::Entity::find().all(&self.db).await?;
-        let mut counts = BTreeMap::<String, i64>::new();
-
-        for account in accounts {
-            *counts.entry(account.provider).or_insert(0) += 1;
+        #[derive(Debug, FromQueryResult)]
+        struct ProviderCount {
+            provider: String,
+            cnt: i64,
         }
+        let rows = ProviderCount::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT provider, COUNT(*)::bigint AS cnt
+               FROM accounts GROUP BY provider ORDER BY cnt DESC"#,
+            [],
+        ))
+        .all(&self.db)
+        .await?;
 
+        let total = rows.iter().map(|r| r.cnt).sum();
         Ok(DistributionData {
-            labels: counts.keys().cloned().collect(),
-            data: counts.values().copied().collect(),
-            total: counts.values().sum(),
+            labels: rows.iter().map(|r| r.provider.clone()).collect(),
+            data: rows.iter().map(|r| r.cnt).collect(),
+            total,
         })
     }
 
     pub async fn get_pie_chart_data(&self) -> Result<ChartData> {
-        let usages = usages::Entity::find().all(&self.db).await?;
-        let mut success = 0.0;
-        let mut failure = 0.0;
-        let mut timeout = 0.0;
-
-        for usage in usages {
-            if usage.success {
-                success += 1.0;
-                continue;
-            }
-
-            let is_timeout = usage
-                .error_message
-                .as_deref()
-                .map(|message| {
-                    let message = message.to_ascii_lowercase();
-                    message.contains("timeout") || message.contains("timed out")
-                })
-                .unwrap_or(false);
-
-            if is_timeout {
-                timeout += 1.0;
-            } else {
-                failure += 1.0;
-            }
+        #[derive(Debug, FromQueryResult)]
+        struct PieRow {
+            success_count: i64,
+            failure_count: i64,
+            timeout_count: i64,
         }
+        let row = PieRow::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"SELECT
+                 COUNT(*) FILTER (WHERE success = true)::bigint AS success_count,
+                 COUNT(*) FILTER (WHERE success = false AND (error_message IS NULL OR (LOWER(error_message) NOT LIKE '%timeout%' AND LOWER(error_message) NOT LIKE '%timed out%')))::bigint AS failure_count,
+                 COUNT(*) FILTER (WHERE success = false AND (LOWER(error_message) LIKE '%timeout%' OR LOWER(error_message) LIKE '%timed out%'))::bigint AS timeout_count
+               FROM usages"#,
+            [],
+        ))
+        .one(&self.db)
+        .await?
+        .unwrap_or(PieRow { success_count: 0, failure_count: 0, timeout_count: 0 });
 
         Ok(ChartData {
             labels: vec!["成功".to_string(), "失败".to_string(), "超时".to_string()],
             datasets: vec![ChartDataset {
                 label: "请求结果".to_string(),
-                data: vec![success, failure, timeout],
+                data: vec![
+                    row.success_count as f64,
+                    row.failure_count as f64,
+                    row.timeout_count as f64,
+                ],
                 color: None,
                 border_color: None,
                 background_color: Some(JsonValue::Array(vec![
@@ -406,30 +522,14 @@ impl DashboardQueryService {
     }
 
     async fn load_usages(&self, range: DashboardDateRange) -> Result<Vec<usages::Model>> {
+        use sea_orm::QueryOrder;
         Ok(usages::Entity::find()
             .filter(usages::Column::CreatedAt.gte(range.start_time))
             .filter(usages::Column::CreatedAt.lte(range.end_time))
+            .order_by_asc(usages::Column::CreatedAt)
+            .limit(50_000)
             .all(&self.db)
             .await?)
-    }
-}
-
-fn summarize_usage(usages: &[usages::Model], today_start: DateTime<Utc>) -> UsageStats {
-    let today_usages = usages
-        .iter()
-        .filter(|usage| usage.created_at >= today_start)
-        .collect::<Vec<_>>();
-    let totals = summarize_usage_totals(usages);
-    let today_totals =
-        summarize_usage_totals(&today_usages.iter().copied().cloned().collect::<Vec<_>>());
-
-    UsageStats {
-        total_requests: totals.total_requests,
-        total_tokens: totals.total_input_tokens + totals.total_output_tokens,
-        total_cost: totals.total_cost as f64 / 100.0,
-        today_requests: today_totals.total_requests,
-        today_tokens: today_totals.total_input_tokens + today_totals.total_output_tokens,
-        today_cost: today_totals.total_cost as f64 / 100.0,
     }
 }
 

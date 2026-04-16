@@ -10,7 +10,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use futures::stream::{self, StreamExt};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -241,13 +241,15 @@ impl BatchImportService {
                 .collect();
 
             if !names.is_empty() {
-                let existing = accounts::Entity::find()
+                let existing: Vec<String> = accounts::Entity::find()
+                    .select_only()
+                    .column(accounts::Column::Name)
                     .filter(accounts::Column::Name.is_in(names))
+                    .into_tuple()
                     .all(&self.db)
                     .await?;
                 existing_name_set = existing
                     .into_iter()
-                    .map(|account| account.name)
                     .collect::<std::collections::HashSet<_>>();
             }
         }
@@ -565,6 +567,7 @@ impl BatchImportService {
             "anthropic",
             "openai",
             "gemini",
+            "droid",
             "antigravity",
             "azure",
             "bedrock",
