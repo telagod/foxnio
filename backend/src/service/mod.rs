@@ -72,6 +72,7 @@ pub mod promo_code;
 pub mod proxy;
 pub mod qps_monitor;
 pub mod quota;
+pub mod quota_gate;
 pub mod rate_limit;
 pub mod realtime_monitor;
 pub mod redeem_code;
