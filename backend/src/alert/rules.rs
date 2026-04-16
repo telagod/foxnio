@@ -57,6 +57,43 @@ pub enum AlertCondition {
         /// 每秒请求数阈值
         threshold: f64,
     },
+    // ============ LLM API Gateway 告警条件 ============
+    /// TTFT (Time to First Token) 超过阈值
+    TtftAbove {
+        /// TTFT 阈值（毫秒）
+        threshold_ms: u64,
+    },
+    /// Provider 错误率超过阈值
+    ProviderErrorRateAbove {
+        /// Provider 名称
+        provider: String,
+        /// 错误率阈值（百分比）
+        threshold: f64,
+    },
+    /// 账号池可用率低于阈值
+    AccountPoolAvailabilityBelow {
+        /// Provider 名称
+        provider: String,
+        /// 可用率阈值（百分比，如 50.0 表示 50%）
+        threshold: f64,
+    },
+    /// 配额使用率超过阈值（日/月）
+    QuotaUsageAbove {
+        /// 配额类型: "daily" 或 "monthly"
+        quota_type: String,
+        /// 使用率阈值（百分比）
+        threshold: f64,
+    },
+    /// Cost burn rate 超过阈值
+    CostBurnRateAbove {
+        /// 每小时成本阈值（分）
+        threshold_cents_per_hour: f64,
+    },
+    /// 调度队列深度超过阈值
+    QueueDepthAbove {
+        /// 队列深度阈值
+        threshold: u32,
+    },
     /// 自定义条件（表达式）
     Custom {
         /// 表达式（支持简单比较）
@@ -92,6 +129,24 @@ impl AlertCondition {
             Self::RequestRateAbove { threshold } => {
                 format!("请求频率 > {threshold}/s")
             }
+            Self::TtftAbove { threshold_ms } => {
+                format!("TTFT > {threshold_ms}ms")
+            }
+            Self::ProviderErrorRateAbove { provider, threshold } => {
+                format!("Provider {provider} 错误率 > {threshold}%")
+            }
+            Self::AccountPoolAvailabilityBelow { provider, threshold } => {
+                format!("Provider {provider} 账号池可用率 < {threshold}%")
+            }
+            Self::QuotaUsageAbove { quota_type, threshold } => {
+                format!("{quota_type} 配额使用率 > {threshold}%")
+            }
+            Self::CostBurnRateAbove { threshold_cents_per_hour } => {
+                format!("Cost burn rate > {:.2}元/小时", threshold_cents_per_hour / 100.0)
+            }
+            Self::QueueDepthAbove { threshold } => {
+                format!("调度队列深度 > {threshold}")
+            }
             Self::Custom { expression } => {
                 format!("自定义: {expression}")
             }
@@ -109,6 +164,28 @@ impl AlertCondition {
             Self::MemoryUsageAbove { threshold } => metrics.memory_usage > *threshold,
             Self::DiskUsageAbove { threshold } => metrics.disk_usage > *threshold,
             Self::RequestRateAbove { threshold } => metrics.request_rate > *threshold,
+            Self::TtftAbove { threshold_ms } => metrics.avg_latency_ms > *threshold_ms, // 复用 latency 字段近似 TTFT
+            Self::ProviderErrorRateAbove { threshold, .. } => metrics.error_rate > *threshold,
+            Self::AccountPoolAvailabilityBelow { threshold, .. } => {
+                // 可用率 = (active_connections 作为可用指标的近似)
+                // 实际应从 account pool 状态获取，这里用 custom metric fallback
+                metrics.custom.get("account_pool_availability")
+                    .map(|v| *v < *threshold)
+                    .unwrap_or(false)
+            }
+            Self::QuotaUsageAbove { threshold, .. } => {
+                metrics.custom.get("quota_usage_percent")
+                    .map(|v| *v > *threshold)
+                    .unwrap_or(false)
+            }
+            Self::CostBurnRateAbove { threshold_cents_per_hour } => {
+                metrics.custom.get("cost_burn_rate_cents_per_hour")
+                    .map(|v| *v > *threshold_cents_per_hour)
+                    .unwrap_or(false)
+            }
+            Self::QueueDepthAbove { threshold } => {
+                metrics.active_connections > *threshold // 近似：用 active_connections
+            }
             Self::Custom { expression } => self.evaluate_custom(expression, metrics),
         }
     }
