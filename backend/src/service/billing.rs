@@ -134,8 +134,8 @@ impl BillingService {
         })
     }
 
-    /// 余额预检：检查用户余额是否足够处理请求
-    /// 返回 Ok(()) 表示余额充足，Err 表示余额不足
+    /// 余额预检（已废弃，请使用 QuotaGate.pre_check()）
+    #[deprecated(note = "Use QuotaGate.pre_check() instead")]
     pub async fn check_balance(&self, user_id: Uuid) -> Result<()> {
         use crate::entity::users;
 
@@ -153,6 +153,8 @@ impl BillingService {
 
     /// 分组配额预检：检查分组的日/月配额是否超限
     /// 返回 Ok(()) 表示配额充足，Err 表示配额超限
+    /// 分组配额预检（已废弃，请使用 QuotaGate.pre_check()）
+    #[deprecated(note = "Use QuotaGate.pre_check() instead — this version doesn't filter by group accounts")]
     pub async fn check_group_quota(&self, group_id: i64) -> Result<()> {
         use crate::entity::{groups, usages};
 

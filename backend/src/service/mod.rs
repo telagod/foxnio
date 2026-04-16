@@ -9,6 +9,7 @@ pub mod account_service;
 pub mod announcement;
 pub mod api_key;
 pub mod api_key_auth_cache;
+pub mod api_key_quota_reset;
 pub mod api_key_service;
 pub mod api_key_test;
 pub mod audit;
