@@ -217,6 +217,7 @@ pub struct ChatCompletionsForwarder {
     account_service: Arc<AccountService>,
     scheduler: Arc<RwLock<SchedulerService>>,
     concurrency: Option<Arc<crate::service::concurrency::ConcurrencyController>>,
+    quota_gate: Option<Arc<crate::service::quota_gate::QuotaGate>>,
     max_retries: u32,
 }
 
@@ -236,6 +237,7 @@ impl ChatCompletionsForwarder {
             account_service,
             scheduler: Arc::new(RwLock::new(scheduler)),
             concurrency: None,
+            quota_gate: None,
             max_retries: 3,
         }
     }
@@ -246,6 +248,12 @@ impl ChatCompletionsForwarder {
         concurrency: Arc<crate::service::concurrency::ConcurrencyController>,
     ) -> Self {
         self.concurrency = Some(concurrency);
+        self
+    }
+
+    /// 设置配额网关
+    pub fn with_quota_gate(mut self, quota_gate: Arc<crate::service::quota_gate::QuotaGate>) -> Self {
+        self.quota_gate = Some(quota_gate);
         self
     }
 
@@ -339,23 +347,62 @@ impl ChatCompletionsForwarder {
             .await
         {
             Ok(result) => {
-                // 6. 记录成功使用量
-                self.record_usage(&result, user_id, api_key_id, account.id)
-                    .await?;
+                // 通过 QuotaGate 原子结算
+                let permit = crate::service::quota_gate::QuotaPermit {
+                    user_id,
+                    api_key_id,
+                    model: original_model.clone(),
+                    group_id: None,
+                };
+                let actual = crate::service::quota_gate::ActualUsage {
+                    input_tokens: result.usage.prompt_tokens as i64,
+                    output_tokens: result.usage.completion_tokens as i64,
+                    cost: self.calculate_cost(&result.model, result.usage.total_tokens.into()),
+                    account_id: Some(account.id),
+                    request_id: Some(result.request_id.clone()),
+                    success: true,
+                    error_message: None,
+                    metadata: Some(serde_json::json!({
+                        "billing_model": result.billing_model,
+                        "stream": result.stream,
+                        "first_token_ms": result.first_token_ms,
+                        "duration_ms": result.duration_ms,
+                        "cache_read_tokens": result.usage.get_cache_read_tokens(),
+                        "api_type": "chat_completions",
+                    })),
+                };
+                if let Some(ref qg) = self.quota_gate {
+                    if let Err(e) = qg.post_settle(&permit, actual).await {
+                        tracing::warn!("QuotaGate settle failed: {e}");
+                    }
+                }
                 Ok(result)
             }
             Err(e) => {
                 // 记录失败使用量
                 let duration_ms = start_time.elapsed().as_millis() as u64;
-                self.record_failure_usage(
-                    &original_model,
+                let permit = crate::service::quota_gate::QuotaPermit {
                     user_id,
                     api_key_id,
-                    account.id,
-                    &e.to_string(),
-                    duration_ms,
-                )
-                .await;
+                    model: original_model.clone(),
+                    group_id: None,
+                };
+                let actual = crate::service::quota_gate::ActualUsage {
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cost: 0,
+                    account_id: Some(account.id),
+                    request_id: Some(uuid::Uuid::new_v4().to_string()),
+                    success: false,
+                    error_message: Some(e.to_string().chars().take(500).collect()),
+                    metadata: Some(serde_json::json!({
+                        "api_type": "chat_completions",
+                        "duration_ms": duration_ms,
+                    })),
+                };
+                if let Some(ref qg) = self.quota_gate {
+                    let _ = qg.post_settle(&permit, actual).await;
+                }
                 Err(e)
             }
         };

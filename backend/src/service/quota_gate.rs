@@ -7,12 +7,12 @@
 use anyhow::{bail, Result};
 use chrono::{Datelike, TimeZone, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+    ActiveModelTrait, DatabaseConnection, EntityTrait,
     Set, TransactionTrait,
 };
 use uuid::Uuid;
 
-use crate::entity::{api_keys, balance_ledger, groups, usages, users};
+use crate::entity::{api_keys, groups, usages, users};
 
 /// 配额检查结果
 pub struct QuotaPermit {
