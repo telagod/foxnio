@@ -145,6 +145,18 @@ export interface AdminDashboardStats {
     today_tokens: number;
     today_cost: number;
   };
+  ops: {
+    active_users_24h: number;
+    error_rate_1h: number;
+    avg_response_time_ms: number;
+    cache_hit_rate: number;
+    batch_operations_total: number;
+    batch_errors_total: number;
+    latest_fast_import_throughput: number;
+    latest_fast_import_preview_throughput: number;
+    latest_fast_import_size: number;
+    latest_fast_import_preview_size: number;
+  };
   updated_at: string;
 }
 
@@ -280,7 +292,28 @@ class ApiClient {
   // 缓存：短期缓存 GET 请求结果
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private cache = new Map<string, { data: any; expires: number }>();
-  private cacheTTL = 5000; // 5秒缓存
+  private defaultCacheTTL = 5000; // 5秒默认缓存
+  // 按路径前缀分级缓存 TTL
+  private cacheTTLRules: Array<{ pattern: string; ttl: number }> = [
+    { pattern: '/api/v1/admin/dashboard/stats', ttl: 30000 },    // 30s
+    { pattern: '/api/v1/admin/dashboard/', ttl: 20000 },          // 20s
+    { pattern: '/api/v1/admin/groups/', ttl: 15000 },             // 15s
+    { pattern: '/api/v1/admin/accounts/providers', ttl: 60000 },  // 60s
+    { pattern: '/v1/models', ttl: 60000 },                        // 60s
+    { pattern: '/api/v1/user/me', ttl: 30000 },                   // 30s
+    { pattern: '/api/v1/user/apikeys', ttl: 15000 },              // 15s
+    { pattern: '/api/v1/admin/alerts/', ttl: 10000 },             // 10s
+  ];
+
+  // 根据路径匹配缓存 TTL
+  private getCacheTTL(path: string): number {
+    for (const rule of this.cacheTTLRules) {
+      if (path.startsWith(rule.pattern) || path.includes(rule.pattern)) {
+        return rule.ttl;
+      }
+    }
+    return this.defaultCacheTTL;
+  }
 
   setToken(token: string) {
     this.token = token;
@@ -373,7 +406,7 @@ class ApiClient {
         if (method === 'GET') {
           this.cache.set(key, {
             data,
-            expires: Date.now() + this.cacheTTL,
+            expires: Date.now() + this.getCacheTTL(path),
           });
         } else {
           // 非 GET 请求清除相关缓存
@@ -737,6 +770,7 @@ class ApiClient {
     monthly_limit_usd?: number;
     rate_multiplier?: number;
     sort_order?: number;
+    scheduling_policy?: string;
   }): Promise<{
     id: number;
     name: string;

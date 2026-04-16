@@ -5,11 +5,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, type Account, type GroupInfo, type PaginatedResponse, type ProviderInfo } from '$lib/api';
+  import AccountTable from '$lib/components/AccountTable.svelte';
+  import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
+  import ImportModal from '$lib/components/ImportModal.svelte';
 
   const CREDENTIAL_TYPES = ['api_key', 'oauth_token'] as const;
   const BATCH_STATUS_OPTIONS = ['active', 'disabled', 'error'] as const;
   const BATCH_SCOPE_CONFIRM_THRESHOLD = 500;
-  const DEFAULT_PROVIDER_KEYS = ['openai', 'anthropic', 'gemini', 'deepseek', 'mistral', 'cohere'];
+  const DEFAULT_PROVIDER_KEYS = ['openai', 'anthropic', 'gemini', 'droid', 'deepseek', 'mistral', 'cohere'];
 
   let accounts = $state<Account[]>([]);
   let total = $state(0);
@@ -900,121 +903,21 @@
     </div>
   {:else}
 
-    <!-- Desktop table -->
-    <div class="hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 md:block">
-      <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead>
-          <tr class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">
-            <th scope="col" class="px-5 py-3">
-              <input
-                type="checkbox"
-                checked={currentPageAllSelected}
-                onchange={(e) => selectAllCurrentPage((e.currentTarget as HTMLInputElement).checked)}
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-400"
-                aria-label="Select all accounts on current page"
-              />
-            </th>
-            <th scope="col" class="px-5 py-3">Name</th>
-            <th scope="col" class="px-5 py-3">Platform</th>
-            <th scope="col" class="px-5 py-3">Credential</th>
-            <th scope="col" class="px-5 py-3">Group</th>
-            <th scope="col" class="px-5 py-3">Status</th>
-            <th scope="col" class="px-5 py-3">Priority</th>
-            <th scope="col" class="px-5 py-3">Last Error</th>
-            <th scope="col" class="px-5 py-3">Created</th>
-            <th scope="col" class="px-5 py-3 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {#each accounts as account (account.id)}
-            <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/20">
-              <td class="whitespace-nowrap px-5 py-3.5">
-                <input
-                  type="checkbox"
-                  checked={selectedAccountIds.includes(account.id)}
-                  onchange={(e) => toggleAccountSelection(account.id, (e.currentTarget as HTMLInputElement).checked)}
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-400"
-                  aria-label={`Select account ${account.name}`}
-                />
-              </td>
-              <td class="whitespace-nowrap px-5 py-3.5">
-                <span class="font-medium text-gray-900 dark:text-white">{account.name}</span>
-              </td>
-              <td class="whitespace-nowrap px-5 py-3.5">
-                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {platformColor(account.provider)}">{account.provider}</span>
-              </td>
-              <td class="whitespace-nowrap px-5 py-3.5 text-gray-500 dark:text-gray-400">{account.credential_type}</td>
-              <td class="whitespace-nowrap px-5 py-3.5 text-gray-600 dark:text-gray-300">{renderGroupName(account.group_id)}</td>
-              <td class="whitespace-nowrap px-5 py-3.5">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium {statusColor(account.status)}">
-                  <span class="h-1.5 w-1.5 rounded-full {statusDot(account.status)}"></span>
-                  {account.status}
-                </span>
-              </td>
-              <td class="whitespace-nowrap px-5 py-3.5 text-gray-600 dark:text-gray-300">{account.priority ?? 0}</td>
-              <td class="max-w-[200px] truncate px-5 py-3.5 text-xs text-gray-500 dark:text-gray-400" title={account.last_error ?? ''}>{account.last_error ?? '-'}</td>
-              <td class="whitespace-nowrap px-5 py-3.5 text-gray-500 dark:text-gray-400">{formatDate(account.created_at)}</td>
-              <td class="whitespace-nowrap px-5 py-3.5 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button onclick={() => openEditModal(account)} class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400" aria-label="Edit {account.name}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  <button onclick={() => openDeleteConfirm(account)} class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400" aria-label="Delete {account.name}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Mobile cards -->
-    <div class="space-y-3 md:hidden">
-        {#each accounts as account (account.id)}
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <label class="mb-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-            <input
-              type="checkbox"
-              checked={selectedAccountIds.includes(account.id)}
-              onchange={(e) => toggleAccountSelection(account.id, (e.currentTarget as HTMLInputElement).checked)}
-              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-            />
-            <span>选择</span>
-          </label>
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0 flex-1">
-              <div class="truncate font-medium text-gray-900 dark:text-white">{account.name}</div>
-              <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{account.credential_type}</div>
-            </div>
-            <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {platformColor(account.provider)}">{account.provider}</span>
-          </div>
-          <div class="mt-3 flex items-center justify-between">
-            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium {statusColor(account.status)}">
-              <span class="h-1.5 w-1.5 rounded-full {statusDot(account.status)}"></span>
-              {account.status}
-            </span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">Priority: {account.priority ?? 0}</span>
-          </div>
-          <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Group: {renderGroupName(account.group_id)}</div>
-          {#if account.last_error}
-            <p class="mt-2 truncate text-xs text-red-500 dark:text-red-400" title={account.last_error}>{account.last_error}</p>
-          {/if}
-          <div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-700">
-            <span class="text-xs text-gray-400 dark:text-gray-500">{formatDate(account.created_at)}</span>
-            <div class="flex gap-1">
-              <button onclick={() => openEditModal(account)} class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400" aria-label="Edit {account.name}">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button onclick={() => openDeleteConfirm(account)} class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400" aria-label="Delete {account.name}">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      {/each}
-    </div>
+    <AccountTable
+      {accounts}
+      bind:selectedAccountIds
+      {currentPageAllSelected}
+      {groups}
+      onSelectAll={selectAllCurrentPage}
+      onToggleSelect={toggleAccountSelection}
+      onEdit={openEditModal}
+      onDelete={openDeleteConfirm}
+      {platformColor}
+      {statusColor}
+      {statusDot}
+      {renderGroupName}
+      {formatDate}
+    />
 
     <!-- Pagination -->
     {#if totalPages > 1}
@@ -1127,111 +1030,23 @@
 
 <!-- Delete Confirmation -->
 {#if showDeleteConfirm && deleteTarget}
-  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
-    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭删除渠道弹窗" onclick={closeDeleteConfirm}></button>
-    <div class="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
-      <div class="flex items-start gap-3">
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-          <svg class="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </div>
-        <div>
-          <h2 id="delete-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">确认删除</h2>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">确定要删除渠道 <span class="font-medium text-gray-700 dark:text-gray-200">{deleteTarget.name}</span> 吗？此操作不可撤销。</p>
-        </div>
-      </div>
-      <div class="mt-5 flex justify-end gap-3">
-        <button type="button" onclick={closeDeleteConfirm} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">取消</button>
-        <button type="button" onclick={submitDelete} disabled={deleteSubmitting} class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50">{deleteSubmitting ? '删除中...' : '删除'}</button>
-      </div>
-    </div>
-  </div>
+  <DeleteConfirmModal
+    targetName={deleteTarget.name}
+    submitting={deleteSubmitting}
+    onConfirm={submitDelete}
+    onCancel={closeDeleteConfirm}
+  />
 {/if}
 
 <!-- Import Modal -->
 {#if showImportModal}
-  <div class="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
-    <button type="button" class="absolute inset-0 bg-black/50" aria-label="关闭批量导入弹窗" onclick={closeImportModal}></button>
-    <div class="relative w-full max-w-xl rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800" role="document">
-      <h2 id="import-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">批量导入</h2>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Paste a JSON array of accounts below.</p>
-      <form onsubmit={(e) => { e.preventDefault(); submitImport(); }} class="mt-4 space-y-4">
-        <div>
-          <label for="import-json" class="block text-sm font-medium text-gray-700 dark:text-gray-300">JSON Data</label>
-          <textarea
-            id="import-json"
-            rows="10"
-            required
-            bind:value={importJson}
-            oninput={() => {
-              importPreview = null;
-              importPreviewInput = '';
-            }}
-            class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-            placeholder={`[\n  {\n    "name": "OpenAI Main",\n    "provider": "openai",\n    "credential_type": "api_key",\n    "credential": "sk-..."\n  },\n  {\n    "name": "Claude Pro",\n    "provider": "anthropic",\n    "credential_type": "api_key",\n    "credential": "sk-ant-..."\n  }\n]`}
-          ></textarea>
-        </div>
-        {#if importPreview}
-          <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-900/20">
-            <p class="font-medium text-blue-800 dark:text-blue-200">
-              预检完成：预计导入 {importPreview.will_import} / {importPreview.total}，重复 {importPreview.duplicate}，校验失败 {importPreview.invalid}
-            </p>
-            <p class="mt-1 text-xs text-blue-700 dark:text-blue-300">
-              耗时 {importPreview.duration_ms}ms。再次点击“导入”将按当前 JSON 真正执行。
-            </p>
-            {#if importPreview.providers.length > 0}
-              <div class="mt-2 overflow-x-auto">
-                <table class="min-w-full text-xs text-blue-900 dark:text-blue-100">
-                  <thead>
-                    <tr class="text-left">
-                      <th class="pr-4">Provider</th>
-                      <th class="pr-4">Total</th>
-                      <th class="pr-4">Will Import</th>
-                      <th class="pr-4">Duplicate</th>
-                      <th class="pr-4">Invalid</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each importPreview.providers as provider}
-                      <tr>
-                        <td class="pr-4 py-1">{provider.provider}</td>
-                        <td class="pr-4 py-1">{provider.total}</td>
-                        <td class="pr-4 py-1">{provider.will_import}</td>
-                        <td class="pr-4 py-1">{provider.duplicate}</td>
-                        <td class="pr-4 py-1">{provider.invalid}</td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {/if}
-            {#if importPreview.errors.length > 0}
-              <ul class="mt-2 list-inside list-disc text-xs text-blue-700 dark:text-blue-300">
-                {#each importPreview.errors as err}
-                  <li>{err.name || `#${err.index ?? '-'}`}: {err.error ?? 'Invalid item'}</li>
-                {/each}
-              </ul>
-            {/if}
-          </div>
-        {/if}
-        {#if importResult}
-          <div class="rounded-lg border p-3 text-sm {importResult.failed > 0 ? 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20' : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'}">
-            <p class="font-medium {importResult.failed > 0 ? 'text-yellow-800 dark:text-yellow-200' : 'text-green-800 dark:text-green-200'}">
-              Import complete: {importResult.succeeded} succeeded, {importResult.skipped} skipped, {importResult.failed} failed
-            </p>
-            {#if importResult.errors.length > 0}
-              <ul class="mt-2 list-inside list-disc text-xs text-yellow-700 dark:text-yellow-300">
-                {#each importResult.errors as err}
-                  <li>{err}</li>
-                {/each}
-              </ul>
-            {/if}
-          </div>
-        {/if}
-        <div class="flex justify-end gap-3 pt-2">
-          <button type="button" onclick={closeImportModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">关闭</button>
-          <button type="submit" disabled={importSubmitting} class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50">{importSubmitting ? '导入中...' : importPreview ? '确认导入' : '导入'}</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <ImportModal
+    bind:importJson
+    submitting={importSubmitting}
+    preview={importPreview}
+    result={importResult}
+    onSubmit={submitImport}
+    onClose={closeImportModal}
+    onJsonInput={() => { importPreview = null; importPreviewInput = ''; }}
+  />
 {/if}

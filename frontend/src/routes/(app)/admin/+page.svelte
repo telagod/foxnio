@@ -13,6 +13,18 @@
     accounts: { total: 0, active: 0, healthy: 0, by_platform: [] },
     api_keys: { total: 0, active: 0, expiring_soon: 0 },
     usage: { total_requests: 0, total_tokens: 0, total_cost: 0, today_requests: 0, today_tokens: 0, today_cost: 0 },
+    ops: {
+      active_users_24h: 0,
+      error_rate_1h: 0,
+      avg_response_time_ms: 0,
+      cache_hit_rate: 0,
+      batch_operations_total: 0,
+      batch_errors_total: 0,
+      latest_fast_import_throughput: 0,
+      latest_fast_import_preview_throughput: 0,
+      latest_fast_import_size: 0,
+      latest_fast_import_preview_size: 0
+    },
     updated_at: ''
   };
 
@@ -32,8 +44,25 @@
     const token = localStorage.getItem('token');
     if (token) api.setToken(token);
     loadDashboard();
-    const interval = setInterval(loadDashboard, 30000);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval> | null = setInterval(loadDashboard, 30000);
+
+    function handleVisibility() {
+      if (document.hidden) {
+        if (interval) { clearInterval(interval); interval = null; }
+      } else {
+        if (!interval) {
+          loadDashboard();
+          interval = setInterval(loadDashboard, 30000);
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   });
 
   async function loadDashboard() {
