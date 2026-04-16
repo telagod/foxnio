@@ -9,6 +9,8 @@
     { href: '/dashboard', label: 'Dashboard', icon: 'chart-bar' },
     { href: '/apikeys', label: 'API Keys', icon: 'key' },
     { href: '/usage', label: 'Usage', icon: 'trending-up' },
+    { href: '/recharge', label: '充值', icon: 'credit-card' },
+    { href: '/orders', label: '订单', icon: 'receipt' },
     { href: '/alerts', label: 'Alerts', icon: 'bell' },
     { href: '/health', label: 'Health', icon: 'heart' },
     { href: '/playground', label: 'Playground', icon: 'chat-bubble' },

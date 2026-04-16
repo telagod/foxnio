@@ -926,6 +926,65 @@ class ApiClient {
   async getUserUsage(days = 30): Promise<UserUsageReport> {
     return this.request(`/api/v1/user/usage?days=${days}`);
   }
+
+  // 支付
+  async getPaymentConfig(): Promise<{ providers: string[]; currency: string }> {
+    return this.request('/api/v1/payment/config');
+  }
+
+  async createPaymentOrder(params: {
+    amount_cents: number;
+    provider: string;
+    payment_type?: string;
+    currency?: string;
+    return_url?: string;
+  }): Promise<{
+    id: string;
+    order_no: string;
+    status: string;
+    amount_cents: number;
+    payment_url?: string;
+    client_secret?: string;
+    expires_at?: string;
+  }> {
+    return this.request('/api/v1/payment/create-order', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async listPaymentOrders(): Promise<{
+    data: Array<{
+      id: string;
+      order_no: string;
+      provider: string;
+      amount_cents: number;
+      currency: string;
+      status: string;
+      created_at: string;
+      paid_at?: string;
+    }>;
+    total: number;
+  }> {
+    return this.request('/api/v1/payment/orders');
+  }
+
+  async getPaymentOrder(id: string): Promise<{
+    id: string;
+    order_no: string;
+    provider: string;
+    payment_type: string;
+    amount_cents: number;
+    currency: string;
+    status: string;
+    payment_url?: string;
+    client_secret?: string;
+    created_at: string;
+    paid_at?: string;
+    completed_at?: string;
+  }> {
+    return this.request(`/api/v1/payment/orders/${id}`);
+  }
 }
 
 export interface AlertRule {
