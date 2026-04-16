@@ -34,6 +34,7 @@ mod m20240405_000031_create_balance_ledger;
 mod m20240416_000032_add_query_performance_indexes;
 mod m20240417_000033_add_group_scheduling_policy;
 mod m20240418_000034_add_cache_pricing;
+mod m20240419_000035_create_payment_orders;
 
 pub struct Migrator;
 
@@ -75,6 +76,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240416_000032_add_query_performance_indexes::Migration),
             Box::new(m20240417_000033_add_group_scheduling_policy::Migration),
             Box::new(m20240418_000034_add_cache_pricing::Migration),
+            Box::new(m20240419_000035_create_payment_orders::Migration),
         ]
     }
 }

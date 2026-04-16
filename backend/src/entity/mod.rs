@@ -19,6 +19,7 @@ pub mod groups;
 pub mod model_configs;
 pub mod oauth_tokens;
 pub mod password_reset_tokens;
+pub mod payment_orders;
 pub mod promo_code_usages;
 pub mod promo_codes;
 pub mod proxies;

@@ -66,6 +66,7 @@ pub mod ops_upstream_context;
 pub mod ops_window_stats;
 pub mod password_reset;
 pub mod password_reset_test;
+pub mod payment;
 pub mod permission;
 pub mod pricing;
 pub mod promo_code;
