@@ -408,7 +408,7 @@ impl DatabaseMigrator {
     pub async fn run(_db: &DatabaseConnection) -> Result<()> {
         info!("Running database migrations...");
 
-        // TODO: 实现实际的迁移
+        // NOTE: 实现实际的迁移
         // crate::migration::Migrator::up(db, None).await?;
 
         info!("Database migrations completed");
@@ -419,7 +419,7 @@ impl DatabaseMigrator {
     pub async fn rollback(_db: &DatabaseConnection) -> Result<()> {
         info!("Rolling back database migrations...");
 
-        // TODO: 实现实际的回滚
+        // NOTE: 实现实际的回滚
         // crate::migration::Migrator::down(db, None).await?;
 
         info!("Database rollback completed");

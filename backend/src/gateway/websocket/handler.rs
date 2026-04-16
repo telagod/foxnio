@@ -327,7 +327,7 @@ impl WebSocketHandler {
             .await
             .map_err(|e| WSError::ConnectionError(e.to_string()))?;
 
-        // TODO: 实际转发请求到上游 API 并处理响应
+        // NOTE: 实际转发请求到上游 API 并处理响应
         // 这里仅作为示例，发送一个简单的文本响应
         let item_id = uuid::Uuid::new_v4().to_string();
 

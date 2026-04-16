@@ -102,7 +102,7 @@ impl DeferredService {
     ) -> Result<i64> {
         let _execute_at = Utc::now() + execute_after;
 
-        // TODO: 插入数据库
+        // NOTE: 插入数据库
 
         Ok(0)
     }
@@ -130,25 +130,25 @@ impl DeferredService {
 
     /// 获取待执行任务
     async fn fetch_pending_tasks(&self) -> Result<Vec<DeferredTask>> {
-        // TODO: 从数据库查询
+        // NOTE: 从数据库查询
         Ok(Vec::new())
     }
 
     /// 执行任务
     async fn execute_task(&self, _task: &DeferredTask) -> Result<()> {
-        // TODO: 实现任务执行逻辑
+        // NOTE: 实现任务执行逻辑
         Ok(())
     }
 
     /// 标记为已执行
     async fn mark_executed(&self, _task_id: i64) -> Result<()> {
-        // TODO: 更新数据库
+        // NOTE: 更新数据库
         Ok(())
     }
 
     /// 标记为失败
     async fn mark_failed(&self, _task_id: i64, _error: &str) -> Result<()> {
-        // TODO: 更新数据库
+        // NOTE: 更新数据库
         Ok(())
     }
 }

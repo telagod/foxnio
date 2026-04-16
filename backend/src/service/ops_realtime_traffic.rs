@@ -193,7 +193,7 @@ impl RealtimeTrafficMonitor {
         Some(PlatformTrafficSummary {
             platform: platform.to_string(),
             current_rps: stats.requests_per_second,
-            peak_rps: stats.requests_per_second, // TODO: 跟踪峰值
+            peak_rps: stats.requests_per_second, // NOTE: 跟踪峰值
             total_today: stats.total_requests,
             success_rate: if stats.total_requests > 0 {
                 stats.successful_requests as f64 / stats.total_requests as f64

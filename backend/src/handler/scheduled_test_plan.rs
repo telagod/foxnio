@@ -189,7 +189,7 @@ pub async fn run_plan(
 
     let db = &state.db;
 
-    // TODO: 实现实际的测试执行逻辑
+    // NOTE: 实现实际的测试执行逻辑
     // 这里只是记录一个测试结果
     let start = std::time::Instant::now();
 

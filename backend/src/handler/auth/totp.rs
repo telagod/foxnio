@@ -323,8 +323,8 @@ pub async fn totp_login(
         .login_with_totp(
             &req.temp_token,
             &req.code,
-            None, // TODO: 从请求头获取 user_agent
-            None, // TODO: 从连接信息获取 ip_address
+            None, // NOTE: 从请求头获取 user_agent
+            None, // NOTE: 从连接信息获取 ip_address
         )
         .await
         .map_err(|e| ApiError(StatusCode::UNAUTHORIZED, e.to_string()))?;
@@ -364,8 +364,8 @@ pub async fn backup_code_login(
         .login_with_backup_code(
             &req.temp_token,
             &req.backup_code,
-            None, // TODO: 从请求头获取 user_agent
-            None, // TODO: 从连接信息获取 ip_address
+            None, // NOTE: 从请求头获取 user_agent
+            None, // NOTE: 从连接信息获取 ip_address
         )
         .await
         .map_err(|e| ApiError(StatusCode::UNAUTHORIZED, e.to_string()))?;

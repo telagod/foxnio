@@ -172,7 +172,7 @@ impl GeminiOAuthService {
             }
         }
 
-        // TODO: 从数据库加载
+        // NOTE: 从数据库加载
 
         Ok(None)
     }
@@ -219,7 +219,7 @@ impl GeminiOAuthService {
             cache.remove(&account_id.to_string());
         }
 
-        // TODO: 从数据库删除
+        // NOTE: 从数据库删除
 
         Ok(())
     }

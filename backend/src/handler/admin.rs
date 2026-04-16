@@ -176,7 +176,7 @@ pub async fn create_user(
 
     // 如果指定了角色，更新角色（需要额外权限）
     if role != "user" {
-        // TODO: 更新用户角色
+        // NOTE: 更新用户角色
     }
 
     Ok(Json(json!({

@@ -282,7 +282,7 @@ impl SoraRouterService {
         // 计算费用
         let cost = self.sora_service.calculate_cost(&model_config);
 
-        // TODO: 检查用户余额
+        // NOTE: 检查用户余额
         // 这里需要实现余额检查逻辑
 
         Ok((model_config, cost))

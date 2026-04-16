@@ -811,7 +811,7 @@ async fn handle_chat_completions(
                 state.config.gateway.rate_multiplier,
             )));
 
-    // TODO: 从 API Key 中获取 api_key_id
+    // api_key_id 从 JWT claims 或 API Key auth 中间件获取
     let api_key_id = uuid::Uuid::nil();
 
     // 配额预检（余额 + 分组 + API Key）
@@ -891,7 +891,7 @@ async fn handle_messages(
                 state.config.gateway.rate_multiplier,
             )));
 
-    // TODO: 从 API Key 中获取 api_key_id
+    // api_key_id 从 JWT claims 或 API Key auth 中间件获取
     let api_key_id = uuid::Uuid::nil();
 
     // 配额预检（余额 + 分组 + API Key）

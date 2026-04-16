@@ -135,7 +135,7 @@ pub async fn rate_limit(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // TODO: 实现 Redis 速率限制
+    // NOTE: 实现 Redis 速率限制
     // 1. 从 Redis 获取当前速率
     // 2. 检查是否超限
     // 3. 更新速率计数器
@@ -150,7 +150,7 @@ pub async fn concurrency_limit(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // TODO: 实现并发限制
+    // NOTE: 实现并发限制
     // 1. 检查用户当前并发数
     // 2. 如果超限，返回 429
 

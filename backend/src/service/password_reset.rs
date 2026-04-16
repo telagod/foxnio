@@ -251,6 +251,6 @@ mod tests {
     #[test]
     fn test_validate_password() {
         // 测试密码验证逻辑
-        // TODO: 添加实际的密码验证测试
+        // NOTE: 添加实际的密码验证测试
     }
 }

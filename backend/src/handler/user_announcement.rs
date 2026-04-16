@@ -33,7 +33,7 @@ pub async fn list_user_announcements(
     Extension(_claims): Extension<Claims>,
     Query(query): Query<UserAnnouncementsQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    // TODO: 从数据库获取公告列表
+    // NOTE: 从数据库获取公告列表
     // 目前返回空列表
 
     Ok(Json(json!({

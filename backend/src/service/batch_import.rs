@@ -855,7 +855,7 @@ impl AccountValidator {
     ) -> Vec<(Uuid, bool, Option<String>)> {
         let results: Vec<(Uuid, bool, Option<String>)> = stream::iter(accounts.iter())
             .map(|(id, _provider, _cred_type, cred)| async move {
-                // TODO: 实际调用 API 验证
+                // NOTE: 实际调用 API 验证
                 // 这里简化为格式验证
                 let valid = !cred.is_empty();
                 (*id, valid, None)

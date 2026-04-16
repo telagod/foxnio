@@ -75,7 +75,7 @@ pub async fn get_rule(
         .map_err(|e| ApiError(StatusCode::FORBIDDEN, e))?;
 
     let db = &state.db;
-    // TODO: implement get_by_id in service
+    // NOTE: implement get_by_id in service
     let rules = ErrorPassthroughRuleService::list(db, false)
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

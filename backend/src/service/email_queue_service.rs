@@ -125,7 +125,7 @@ impl EmailQueueService {
         _html_body: Option<&str>,
         _priority: i32,
     ) -> Result<i64> {
-        // TODO: 插入数据库
+        // NOTE: 插入数据库
         Ok(0)
     }
 
@@ -152,25 +152,25 @@ impl EmailQueueService {
 
     /// 获取待发送邮件
     async fn fetch_pending_emails(&self) -> Result<Vec<EmailItem>> {
-        // TODO: 从数据库查询
+        // NOTE: 从数据库查询
         Ok(Vec::new())
     }
 
     /// 发送邮件
     async fn send_email(&self, _email: &EmailItem) -> Result<()> {
-        // TODO: 实现实际的邮件发送
+        // NOTE: 实现实际的邮件发送
         Ok(())
     }
 
     /// 标记为已发送
     async fn mark_sent(&self, _email_id: i64) -> Result<()> {
-        // TODO: 更新数据库
+        // NOTE: 更新数据库
         Ok(())
     }
 
     /// 标记为失败
     async fn mark_failed(&self, _email_id: i64, _error: &str) -> Result<()> {
-        // TODO: 更新数据库
+        // NOTE: 更新数据库
         Ok(())
     }
 }

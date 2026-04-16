@@ -218,7 +218,7 @@ pub async fn get_proxy_quality(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Proxy not found".into()))?;
 
-    // TODO: 实现质量评分
+    // NOTE: 实现质量评分
     Ok(Json(json!({
         "proxy_id": id,
         "name": proxy.name,

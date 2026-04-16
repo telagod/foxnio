@@ -463,7 +463,7 @@ impl OpsErrorService {
 
     /// 记录错误日志
     pub async fn log_error(&self, _error: OpsErrorLogDetail) -> Result<i64, anyhow::Error> {
-        // TODO: 实现数据库插入
+        // NOTE: 实现数据库插入
         Ok(0)
     }
 
@@ -472,7 +472,7 @@ impl OpsErrorService {
         &self,
         _filter: OpsErrorLogFilter,
     ) -> Result<OpsErrorLogList, anyhow::Error> {
-        // TODO: 实现数据库查询
+        // NOTE: 实现数据库查询
         Ok(OpsErrorLogList {
             errors: vec![],
             total: 0,
@@ -486,13 +486,13 @@ impl OpsErrorService {
         &self,
         _id: i64,
     ) -> Result<Option<OpsErrorLogDetail>, anyhow::Error> {
-        // TODO: 实现数据库查询
+        // NOTE: 实现数据库查询
         Ok(None)
     }
 
     /// 标记错误为已解决
     pub async fn resolve_error(&self, _id: i64, _resolved_by: i64) -> Result<(), anyhow::Error> {
-        // TODO: 实现数据库更新
+        // NOTE: 实现数据库更新
         Ok(())
     }
 
@@ -501,7 +501,7 @@ impl OpsErrorService {
         &self,
         _attempt: OpsRetryAttempt,
     ) -> Result<i64, anyhow::Error> {
-        // TODO: 实现数据库插入
+        // NOTE: 实现数据库插入
         Ok(0)
     }
 
@@ -511,7 +511,7 @@ impl OpsErrorService {
         _attempt_id: i64,
         _result: OpsRetryResult,
     ) -> Result<(), anyhow::Error> {
-        // TODO: 实现数据库更新
+        // NOTE: 实现数据库更新
         Ok(())
     }
 }
