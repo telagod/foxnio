@@ -5,14 +5,20 @@
 #![allow(dead_code)]
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use sea_orm::DatabaseConnection;
+use lru::LruCache;
+use sea_orm::{DatabaseConnection, EntityTrait};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::health_scorer::HealthScorer;
 use super::LegacyAccountService as AccountService;
-use crate::entity::accounts;
+use crate::entity::{accounts, groups};
+use crate::gateway::scheduler::group_policy::{
+    GroupAccountInfo, GroupSchedulerState, GroupStickySession,
+};
+use crate::gateway::scheduler::metrics::SchedulerMetrics;
 use crate::gateway::FailoverManager;
 
 /// 调度策略
@@ -68,6 +74,11 @@ pub struct SchedulerService {
     runtime_states: Arc<RwLock<HashMap<uuid::Uuid, AccountRuntimeState>>>,
     sticky_sessions: Arc<RwLock<HashMap<String, StickySession>>>,
     round_robin_index: Arc<RwLock<usize>>,
+
+    // 分组级调度状态
+    group_states: Arc<RwLock<HashMap<i64, Arc<GroupSchedulerState>>>>,
+    group_sticky_sessions: Arc<RwLock<LruCache<String, GroupStickySession>>>,
+    scheduler_metrics: Arc<SchedulerMetrics>,
 }
 
 impl SchedulerService {
@@ -85,6 +96,11 @@ impl SchedulerService {
             runtime_states: Arc::new(RwLock::new(HashMap::new())),
             sticky_sessions: Arc::new(RwLock::new(HashMap::new())),
             round_robin_index: Arc::new(RwLock::new(0)),
+            group_states: Arc::new(RwLock::new(HashMap::new())),
+            group_sticky_sessions: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(10_000).unwrap(),
+            ))),
+            scheduler_metrics: Arc::new(SchedulerMetrics::new()),
         }
     }
 
@@ -104,41 +120,55 @@ impl SchedulerService {
             runtime_states: Arc::new(RwLock::new(HashMap::new())),
             sticky_sessions: Arc::new(RwLock::new(HashMap::new())),
             round_robin_index: Arc::new(RwLock::new(0)),
+            group_states: Arc::new(RwLock::new(HashMap::new())),
+            group_sticky_sessions: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(10_000).unwrap(),
+            ))),
+            scheduler_metrics: Arc::new(SchedulerMetrics::new()),
         }
     }
 
-    /// 选择最佳账号
+    /// 选择最佳账号（支持分组级调度策略）
     pub async fn select_account(
         &self,
         model: &str,
         session_id: Option<&str>,
         _user_concurrent_limit: i32,
     ) -> Result<Option<accounts::Model>> {
-        // 1. 检查粘性会话
-        if let Some(sid) = session_id {
-            if let Some(account) = self.get_sticky_account(sid).await? {
-                // 验证账号仍然可用
-                if self.is_account_available(&account).await {
-                    return Ok(Some(account));
-                }
-            }
-        }
-
-        // 2. 获取可用账号列表
+        // 1. 获取可用账号列表
         let mut accounts = self.account_service.get_for_model(model).await?;
 
         if accounts.is_empty() {
             return Ok(None);
         }
 
-        // 3. 过滤可用账号
+        // 2. 过滤可用账号
         accounts = self.filter_available_accounts(accounts).await;
 
         if accounts.is_empty() {
             return Ok(None);
         }
 
-        // 4. 根据策略选择账号
+        // 3. 尝试按分组调度（如果账号有 group_id）
+        if let Some(selected) = self
+            .try_group_aware_select(&accounts, session_id)
+            .await
+        {
+            // 更新运行时状态
+            self.increment_connections(selected.id).await;
+            return Ok(Some(selected));
+        }
+
+        // 4. Fallback: 无分组 — 检查全局粘性会话
+        if let Some(sid) = session_id {
+            if let Some(account) = self.get_sticky_account(sid).await? {
+                if self.is_account_available(&account).await {
+                    return Ok(Some(account));
+                }
+            }
+        }
+
+        // 5. 根据全局策略选择账号
         let selected = match &self.strategy {
             SchedulingStrategy::RoundRobin => self.select_round_robin(accounts).await,
             SchedulingStrategy::LeastConnections => self.select_least_connections(accounts).await,
@@ -149,12 +179,12 @@ impl SchedulerService {
             SchedulingStrategy::Smart => self.select_smart(accounts).await,
         };
 
-        // 5. 设置粘性会话
+        // 6. 设置全局粘性会话
         if let (Some(ref account), Some(sid)) = (&selected, session_id) {
             self.set_sticky_session(sid.to_string(), account.id).await;
         }
 
-        // 6. 更新运行时状态
+        // 7. 更新运行时状态
         if let Some(ref account) = &selected {
             self.increment_connections(account.id).await;
         }
@@ -193,6 +223,93 @@ impl SchedulerService {
     ) -> Result<Vec<accounts::Model>> {
         let accounts = self.account_service.get_for_model(model).await?;
         Ok(self.filter_available_accounts(accounts).await)
+    }
+
+    /// 尝试分组级调度：按账号 group_id 分组，查 group 的调度策略，走 GroupSchedulerState
+    async fn try_group_aware_select(
+        &self,
+        accounts: &[accounts::Model],
+        session_id: Option<&str>,
+    ) -> Option<accounts::Model> {
+        // 收集所有有 group_id 的账号的分组 ID
+        let group_ids: Vec<i64> = accounts
+            .iter()
+            .filter_map(|a| a.group_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        if group_ids.is_empty() {
+            return None;
+        }
+
+        // 按 group_id 分组账号
+        for group_id in &group_ids {
+            let group_accounts: Vec<GroupAccountInfo> = accounts
+                .iter()
+                .filter(|a| a.group_id == Some(*group_id))
+                .map(|a| GroupAccountInfo {
+                    id: a.id,
+                    provider: a.provider.clone(),
+                    priority: a.priority,
+                    status: a.status.clone(),
+                    concurrent_limit: a.concurrent_limit.unwrap_or(5),
+                })
+                .collect();
+
+            if group_accounts.is_empty() {
+                continue;
+            }
+
+            // 获取或创建分组调度状态
+            let group_state = self.get_or_create_group_state(*group_id).await;
+
+            // 构建 session key（带分组前缀）
+            let session_key = session_id.map(|sid| format!("g:{group_id}:{sid}"));
+
+            // 通过分组策略选择账号
+            if let Some(selected_id) = group_state
+                .select(
+                    &group_accounts,
+                    session_key.as_deref(),
+                    &self.group_sticky_sessions,
+                    &self.scheduler_metrics,
+                )
+                .await
+            {
+                // 找到对应的完整 account Model
+                if let Some(account) = accounts.iter().find(|a| a.id == selected_id) {
+                    return Some(account.clone());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// 获取或创建分组调度状态
+    async fn get_or_create_group_state(&self, group_id: i64) -> Arc<GroupSchedulerState> {
+        // 先尝试读缓存
+        {
+            let states = self.group_states.read().await;
+            if let Some(state) = states.get(&group_id) {
+                return Arc::clone(state);
+            }
+        }
+
+        // 从 DB 加载分组配置
+        let policy = match groups::Entity::find_by_id(group_id)
+            .one(&self.db)
+            .await
+        {
+            Ok(Some(group)) => group.policy(),
+            _ => crate::entity::groups::GroupSchedulingPolicy::default(),
+        };
+
+        let state = Arc::new(GroupSchedulerState::new(group_id, policy));
+        let mut states = self.group_states.write().await;
+        states.entry(group_id).or_insert(Arc::clone(&state));
+        state
     }
 
     /// 设置粘性会话

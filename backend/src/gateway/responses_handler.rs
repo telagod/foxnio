@@ -29,11 +29,18 @@ use crate::service::{LegacyAccountService as AccountService, SchedulerService};
 
 /// Responses API 处理器
 pub async fn handle_responses(
-    Extension(state): Extension<Arc<SharedState>>,
+    Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    Extension(mut hints): Extension<RequestSessionHints>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
+    // 提取 session hints（从 body 中解析，不依赖 headers）
+    let mut hints = RequestSessionHints::default();
+
+    // 提取 user_id
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|e| ApiError::Internal(format!("Invalid user_id: {e}")))?;
+    let api_key_id = uuid::Uuid::nil();
+
     // 1. 解析 Responses 请求
     let req: ResponsesRequest = serde_json::from_slice(&body)
         .map_err(|e| ApiError::BadRequest(format!("Invalid request: {e}")))?;
@@ -464,3 +471,37 @@ impl std::fmt::Display for ApiError {
 }
 
 impl std::error::Error for ApiError {}
+
+/// 从 HTTP headers 提取 session hints
+fn extract_response_session_hints(
+    headers: &axum::http::HeaderMap,
+) -> RequestSessionHints {
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        });
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let x_session_id = headers
+        .get("x-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    RequestSessionHints {
+        metadata_session_id: None,
+        x_session_id,
+        client_ip,
+        user_agent,
+    }
+}

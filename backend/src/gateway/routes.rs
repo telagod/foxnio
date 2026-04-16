@@ -755,9 +755,6 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::request_log))
         .layer(axum::middleware::from_fn(middleware::request_id))
-        .layer(axum::middleware::from_fn(
-            middleware::session_hints::session_hints_middleware,
-        ))
         // 添加共享状态和健康检查器扩展
         .layer(Extension(shared_state))
         .layer(Extension(health_checker))
@@ -770,12 +767,13 @@ pub fn build_app(state: AppState, health_checker: Arc<HealthChecker>) -> Router<
 async fn handle_chat_completions(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     use crate::service::chat_completions_forwarder::{
         ChatCompletionsForwarder, ChatCompletionsRequest,
     };
+
+    let hints = crate::service::session_key::RequestSessionHints::default();
 
     // 解析请求体
     let request: ChatCompletionsRequest = serde_json::from_slice(&body).map_err(|e| {
@@ -837,12 +835,13 @@ async fn handle_chat_completions(
 async fn handle_messages(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     use crate::service::anthropic_messages_forwarder::{
         AnthropicMessagesForwarder, AnthropicMessagesRequest,
     };
+
+    let hints = crate::service::session_key::RequestSessionHints::default();
 
     let request: AnthropicMessagesRequest = serde_json::from_slice(&body)
         .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -897,13 +896,14 @@ async fn handle_messages(
 async fn handle_completions(
     Extension(state): Extension<SharedState>,
     Extension(claims): Extension<crate::service::user::Claims>,
-    Extension(hints): Extension<crate::service::session_key::RequestSessionHints>,
     body: axum::body::Bytes,
 ) -> Result<axum::Json<serde_json::Value>, handler::ApiError> {
     // 旧版 completions API - 转换为 chat/completions 格式
     use crate::service::chat_completions_forwarder::{
         ChatCompletionsForwarder, ChatCompletionsRequest, Message, MessageContent,
     };
+
+    let hints = crate::service::session_key::RequestSessionHints::default();
 
     let req: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| handler::ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -1340,5 +1340,39 @@ async fn test_account(
             "message": format!("Connection failed: {e}"),
             "latency_ms": latency_ms,
         }))),
+    }
+}
+
+/// 从 HTTP headers 提取 session hints（避免 Extension 参数过多）
+fn extract_session_hints_from_headers(
+    headers: &axum::http::HeaderMap,
+) -> crate::service::session_key::RequestSessionHints {
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        });
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let x_session_id = headers
+        .get("x-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    crate::service::session_key::RequestSessionHints {
+        metadata_session_id: None,
+        x_session_id,
+        client_ip,
+        user_agent,
     }
 }

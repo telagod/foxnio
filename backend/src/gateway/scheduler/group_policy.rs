@@ -161,12 +161,15 @@ impl GroupSchedulerState {
         accounts: &[&GroupAccountInfo],
         _metrics: &SchedulerMetrics,
     ) -> Option<Uuid> {
-        // 按 slow-start 权重过滤：权重 < 随机阈值的跳过
-        let mut rng = rand::thread_rng();
+        // 按 slow-start 权重过滤
         let mut candidates = Vec::with_capacity(accounts.len());
         for account in accounts {
             let weight = self.effective_weight(account.id).await;
-            if rng.gen::<f64>() < weight {
+            let pass = {
+                let mut rng = rand::thread_rng();
+                rng.gen::<f64>() < weight
+            };
+            if pass {
                 candidates.push(*account);
             }
         }
@@ -203,8 +206,10 @@ impl GroupSchedulerState {
         if top_k == 0 {
             return None;
         }
-        let mut rng = rand::thread_rng();
-        let idx = rng.gen_range(0..top_k);
+        let idx = {
+            let mut rng = rand::thread_rng();
+            rng.gen_range(0..top_k)
+        };
         Some(scored[idx].0)
     }
 }
